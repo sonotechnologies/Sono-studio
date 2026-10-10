@@ -10,7 +10,7 @@ import { ThemeToggle } from './theme';
 import { btn } from './ui';
 
 
-const NAV = [
+export const NAV = [
   { href: '/', name: 'Projects', Icon: Folder },
   { href: '/library', name: 'Library', Icon: LayoutGrid },
   { href: '/presets', name: 'Presets', Icon: Palette },

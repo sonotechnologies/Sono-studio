@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, statusTimestamps, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 /**
  * Local development store: one JSON file under .data/. Seeded with the sample
@@ -19,6 +19,7 @@ interface DevDb {
   jobs: GenerationJob[];
   assets: Asset[];
   keys: ProviderKeyRow[];
+  chat: (ChatMessage & { projectId: string })[];
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -37,11 +38,12 @@ async function load(): Promise<DevDb> {
     db.jobs ??= [];
     db.assets ??= [];
     db.keys ??= [];
+    db.chat ??= [];
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [] };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [] };
     await save(db);
     return db;
   }
@@ -134,6 +136,7 @@ export const devRepo: Repo = {
       delete db.versions[id];
       db.jobs = db.jobs.filter((j) => j.projectId !== id);
       db.assets = db.assets.filter((a) => a.projectId !== id);
+      db.chat = db.chat.filter((m) => m.projectId !== id);
     }).then(() => rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }));
   },
 
@@ -151,6 +154,31 @@ export const devRepo: Repo = {
       p.currentVersion = version;
       p.updatedAt = now;
       return version;
+    });
+  },
+
+  async listSiteVersions(projectId, limit = 50) {
+    return ((await load()).versions[projectId] ?? [])
+      .slice()
+      .reverse()
+      .slice(0, limit)
+      .map(({ config: _config, ...info }) => info);
+  },
+
+  async getSiteVersionNumber(projectId, version) {
+    return (await load()).versions[projectId]?.find((v) => v.version === version) ?? null;
+  },
+
+  async listChatMessages(projectId) {
+    return (await load()).chat.filter((m) => m.projectId === projectId).map(({ projectId: _p, ...m }) => m);
+  },
+
+  addChatMessage(projectId, message) {
+    return mutate((db) => {
+      find(db, projectId);
+      const m: ChatMessage = { ...message, id: randomUUID(), createdAt: new Date().toISOString() };
+      db.chat.push({ ...m, projectId });
+      return m;
     });
   },
 

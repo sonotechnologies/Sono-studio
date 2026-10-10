@@ -85,7 +85,7 @@ export function SetupFlow({
 
   useEffect(() => {
     if (job?.status !== 'done') return;
-    const t = setTimeout(() => router.push(`/preview/${job.projectId}`), 1800);
+    const t = setTimeout(() => router.push(`/workspace/${job.projectId}`), 1800);
     return () => clearTimeout(t);
   }, [job?.status, job?.projectId, router]);
 
@@ -284,8 +284,8 @@ export function SetupFlow({
         });
     foot = 'Progress is kept; trying again continues from the step that failed.';
   } else if (job!.status === 'done') {
-    primary = { label: 'Open preview', onClick: () => router.push(`/preview/${job!.projectId}`) };
-    foot = 'Opening the preview…';
+    primary = { label: 'Open workspace', onClick: () => router.push(`/workspace/${job!.projectId}`) };
+    foot = 'Opening the workspace…';
   }
 
   return (

@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 interface ClientRow {
   owner_name: string;
@@ -229,6 +229,38 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       return check(
         await db.rpc('save_site_version', { p_project_id: projectId, p_config: config, p_summary: summary }),
       ) as number;
+    },
+
+    async listSiteVersions(projectId, limit = 50) {
+      const rows = check(
+        await db.from('site_versions').select('version, summary, created_at').eq('project_id', projectId).order('version', { ascending: false }).limit(limit),
+      ) as { version: number; summary: string; created_at: string }[];
+      return rows.map((r) => ({ version: r.version, summary: r.summary, createdAt: r.created_at }));
+    },
+
+    async getSiteVersionNumber(projectId, version) {
+      const row = check(
+        await db.from('site_versions').select('version, config, summary, created_at').eq('project_id', projectId).eq('version', version).maybeSingle(),
+      ) as { version: number; config: SiteVersion['config']; summary: string; created_at: string } | null;
+      return row ? { version: row.version, config: row.config, summary: row.summary, createdAt: row.created_at } : null;
+    },
+
+    async listChatMessages(projectId) {
+      const rows = check(
+        await db.from('chat_messages').select('id, role, text, scope, change, version, created_at').eq('project_id', projectId).order('created_at').limit(200),
+      ) as { id: string; role: ChatMessage['role']; text: string; scope: ChatMessage['scope']; change: string; version: number | null; created_at: string }[];
+      return rows.map((r) => ({ id: r.id, role: r.role, text: r.text, scope: r.scope, change: r.change, version: r.version, createdAt: r.created_at }));
+    },
+
+    async addChatMessage(projectId, m) {
+      const r = check(
+        await db
+          .from('chat_messages')
+          .insert({ project_id: projectId, role: m.role, text: m.text, scope: m.scope, change: m.change, version: m.version })
+          .select('id, created_at')
+          .single(),
+      ) as { id: string; created_at: string };
+      return { ...m, id: r.id, createdAt: r.created_at };
     },
 
     async createJob(projectId, brief) {

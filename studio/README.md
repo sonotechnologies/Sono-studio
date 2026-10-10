@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 3 done
+## Status: Phases 1 to 4 done
 
 ### Phase 1, Foundation
 
@@ -57,7 +57,23 @@ Notes:
 - PDF menus aren't read yet: paste their text into the wizard.
 - The wizard builds showcase sites; online stores and bookings come in phases 8 and 9.
 
-Not yet built (later phases): the workspace, public pitch pages and open tracking, export and deploy.
+### Phase 4, Workspace
+
+| Built | Notes |
+| --- | --- |
+| Workspace (`/workspace/[id]`) | Opened from the project page, the preview's Edit button, and automatically when generation finishes. Section list on the left, the live site in the middle (desktop, tablet and phone widths), Chat, Edit and Theme on the right. Below 1280px the section list becomes a drawer; below 768px the right panel becomes a bottom sheet |
+| Click-to-edit | Hover outlines and labels on sections. Click a section to select it; click a short text to type over it in place (Enter saves, Esc cancels); click a photo to open the media library. Longer or combined texts jump to their field in the Edit panel |
+| Edit panel | Layout variant picker and a form built from each section's schema, so every field is editable: texts, buttons and links (with a page picker), photos, and lists (add, remove, reorder). Move, duplicate, hide and remove sections; add new ones from the + menu with placeholder copy; drag to reorder. Navbar, footer and WhatsApp button are shared: editing one edits it on every page |
+| Theme panel | Change style preset, light or dark mode, each colour (with contrast warnings), heading and body fonts, and corners (Sharp, Soft, Round) |
+| Chat | Ask for changes in plain words with a scope of the whole site, the current page or the selected section. The model returns a few validated operations, never a rewritten site; changed sections flash, and each reply has "Undo this change", which leaves later edits alone. Chat history is stored per project |
+| Media library | The project's photos, uploads, and Unsplash or Pexels search (when a key is set). Stock photos keep their credit |
+| History | Every change autosaves after a moment as a new version. Undo and redo (Ctrl+Z, Ctrl+Shift+Z) in the session; version history lists every save and restores any of them as a new version |
+
+Notes:
+- Share copies the pitch link; the public pitch page itself arrives in phase 5. Export and Deploy are shown disabled until phase 6.
+- Supabase needs `supabase/migrations/0004_workspace.sql` (the chat history table).
+
+Not yet built (later phases): public pitch pages and open tracking, export and deploy.
 
 ## Run it locally
 

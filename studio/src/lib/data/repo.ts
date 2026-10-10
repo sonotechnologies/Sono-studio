@@ -21,6 +21,11 @@ export interface Repo {
   getSiteVersion(projectId: string): Promise<SiteVersion | null>;
   /** Saves a new version (config already validated) and makes it current. Returns its number. */
   saveSiteVersion(projectId: string, config: SiteConfig, summary: string): Promise<number>;
+  /** Newest first, without the configs. */
+  listSiteVersions(projectId: string, limit?: number): Promise<VersionInfo[]>;
+  getSiteVersionNumber(projectId: string, version: number): Promise<SiteVersion | null>;
+  listChatMessages(projectId: string): Promise<ChatMessage[]>;
+  addChatMessage(projectId: string, message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage>;
   createJob(projectId: string, brief: Brief): Promise<GenerationJob>;
   getJob(id: string): Promise<GenerationJob | null>;
   /** The most recent generation job for a project, if any. */
@@ -76,6 +81,19 @@ export interface UploadFile {
 /** Today's usage, treating a count from an earlier day as zero. */
 export function usageToday(row: Pick<ProviderKeyRow, 'usageDay' | 'usageCount'>, now: Date = new Date()): number {
   return row.usageDay === now.toISOString().slice(0, 10) ? row.usageCount : 0;
+}
+
+export type VersionInfo = Omit<SiteVersion, 'config'>;
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  scope: 'site' | 'page' | 'section' | null;
+  /** Short description of what the message changed, shown as a pill. */
+  change: string;
+  version: number | null;
+  createdAt: string;
 }
 
 export interface SiteVersion {

@@ -13,7 +13,8 @@ import type { ChatRequest, ChatResult, ProviderClient } from './types';
 export type DemoContext =
   | { kind: 'parse'; brief: Brief }
   | { kind: 'plan'; brief: Brief }
-  | { kind: 'fill'; brief: Brief; extracted: Extracted | null; page: PlanPage };
+  | { kind: 'fill'; brief: Brief; extracted: Extracted | null; page: PlanPage }
+  | { kind: 'chat' };
 
 export function demoAllowed(): boolean {
   return process.env.NODE_ENV !== 'production' || process.env.SONO_DEMO_AI === '1';
@@ -65,7 +66,15 @@ export function demoContent(type: SectionType, brief: Brief, extracted: Extracte
         ],
       } satisfies ContentOf<'testimonials'>;
     case 'stats':
-      return { heading: '', items: (extracted?.facts ?? ['1 fact', '2 facts']).slice(0, 4).map((f) => ({ value: f.split(' ')[0].slice(0, 16), label: f.slice(0, 60) })) } satisfies ContentOf<'stats'>;
+      return {
+        heading: '',
+        items: extracted?.facts.length && extracted.facts.length >= 2
+          ? extracted.facts.slice(0, 4).map((f) => ({ value: f.split(' ')[0].slice(0, 16), label: f.slice(0, 60) }))
+          : [
+              { value: '00', label: 'A number worth sharing' },
+              { value: '00', label: 'Another one' },
+            ],
+      } satisfies ContentOf<'stats'>;
     case 'faq':
       return {
         heading: 'Questions',
@@ -130,6 +139,8 @@ export function demoClient(): ProviderClient {
             sections: DEFAULT_PAGE_SECTIONS[p.key].map((s) => ({ type: s.type, variant: s.variant ?? '', note: s.note })),
           })),
         };
+      else if (ctx.kind === 'chat')
+        body = { reply: 'Demo mode can’t follow instructions, so nothing changed. Add an AI key in Settings → AI providers to edit by chat.', ops: [] };
       else body = { sections: ctx.page.sections.map((s) => ({ id: s.id, content: demoContent(s.type, ctx.brief, ctx.extracted, ctx.page.title) })) };
       return { text: JSON.stringify(body), model: 'demo-templates' };
     },

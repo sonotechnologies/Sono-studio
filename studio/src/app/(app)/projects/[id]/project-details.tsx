@@ -91,10 +91,15 @@ export function ProjectDetails({
             Delete
           </button>
 {p.currentVersion !== null ? (
-            <Link href={`/preview/${p.id}`} className={`${btn.primary} h-11 px-5 text-[15px]`}>
-              Preview site
-              <ArrowRight size={16} strokeWidth={2} />
-            </Link>
+            <>
+              <Link href={`/preview/${p.id}`} className={`${btn.secondary} h-11 px-4 text-[14px]`}>
+                Preview
+              </Link>
+              <Link href={`/workspace/${p.id}`} className={`${btn.primary} h-11 px-5 text-[15px]`}>
+                Open workspace
+                <ArrowRight size={16} strokeWidth={2} />
+              </Link>
+            </>
           ) : setup ? (
             <Link href={`/new/${setup.jobId}`} className={`${btn.primary} h-11 px-5 text-[15px]`}>
               {SETUP_LABEL[setup.status]}

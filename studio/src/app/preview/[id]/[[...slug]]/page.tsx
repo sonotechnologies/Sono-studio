@@ -108,6 +108,9 @@ export default async function PreviewPage({ params, searchParams }: Props) {
         >
           <Download size={16} strokeWidth={2} />
         </a>
+        <Link href={`/workspace/${id}`} className="hidden h-9 items-center rounded-full border border-border px-3 text-[13px] font-medium hover:bg-hover sm:flex">
+          Edit
+        </Link>
         <div role="group" aria-label="Preview width" className="flex rounded-full bg-sel p-[3px]">
           {(Object.keys(WIDTHS) as Width[]).map((k) => {
             const { label, Icon } = WIDTHS[k];
