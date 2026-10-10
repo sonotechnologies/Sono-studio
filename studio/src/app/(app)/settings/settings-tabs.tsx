@@ -6,6 +6,7 @@ import { Switch, btn, inputClass, useToast } from '@/components/ui';
 import type { StudioSettings } from '@/lib/types';
 import { signOutAction } from '../../login/actions';
 import { saveSettingsAction } from './actions';
+import { ConnectionsPanel, ProvidersPanel, type KeyView } from './keys-panels';
 
 export type SettingsTab = 'providers' | 'connections' | 'pitch' | 'account';
 
@@ -16,7 +17,21 @@ const TAB_NAMES: Record<SettingsTab, string> = {
   account: 'Account',
 };
 
-export function SettingsTabs({ tab, settings, email }: { tab: SettingsTab; settings: StudioSettings; email: string }) {
+export function SettingsTabs({
+  tab,
+  settings,
+  email,
+  keys,
+  demo,
+  supabase,
+}: {
+  tab: SettingsTab;
+  settings: StudioSettings;
+  email: string;
+  keys: KeyView[];
+  demo: boolean;
+  supabase: boolean;
+}) {
   return (
     <>
       <nav aria-label="Settings sections" className="-mb-1 flex gap-[22px] overflow-x-auto border-b border-border">
@@ -34,15 +49,8 @@ export function SettingsTabs({ tab, settings, email }: { tab: SettingsTab; setti
           </Link>
         ))}
       </nav>
-      {tab === 'providers' && (
-        <Later phase={3}>
-          Add free keys for Gemini, Groq and OpenRouter, drag to set the fallback order per tier, and watch today’s usage
-          per provider.
-        </Later>
-      )}
-      {tab === 'connections' && (
-        <Later phase={6}>GitHub and Vercel for one-click deploys, plus Unsplash and Pexels keys for stock photos.</Later>
-      )}
+      {tab === 'providers' && <ProvidersPanel rows={keys} demo={demo} />}
+      {tab === 'connections' && <ConnectionsPanel rows={keys} supabase={supabase} />}
       {tab === 'pitch' && <PitchDefaults initial={settings} />}
       {tab === 'account' && (
         <div className="flex flex-wrap items-center gap-4 rounded-card border border-border bg-surface p-[18px]">
@@ -58,15 +66,6 @@ export function SettingsTabs({ tab, settings, email }: { tab: SettingsTab; setti
         </div>
       )}
     </>
-  );
-}
-
-function Later({ phase, children }: { phase: number; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-2 rounded-card border border-dashed border-border p-6">
-      <span className="text-[15px] font-semibold">Arrives in build phase {phase}</span>
-      <span className="text-[14px] leading-normal text-muted">{children}</span>
-    </div>
   );
 }
 

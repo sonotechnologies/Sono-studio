@@ -203,7 +203,7 @@ export function TopBar({ title, newSite = true }: { title: string; newSite?: boo
       <TopSearch />
       <ThemeToggle />
       {newSite && (
-        <Link href="/projects/new" className={`${btn.primary} h-10 px-3 text-[14px] md:pr-[18px] md:pl-3.5`}>
+        <Link href="/new" className={`${btn.primary} h-10 px-3 text-[14px] md:pr-[18px] md:pl-3.5`}>
           <Plus size={16} strokeWidth={2} />
           <span className="hidden md:inline">New site</span>
           <span className="sr-only md:hidden">New site</span>

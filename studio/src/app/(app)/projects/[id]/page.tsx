@@ -23,9 +23,11 @@ export default async function ProjectPage({ params }: Props) {
   await requireUser();
   const project = await load((await params).id);
   if (!project) notFound();
+  const job = await (await getRepo()).getLatestJob(project.id);
+  const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} />
+      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} />
     </Page>
   );
 }

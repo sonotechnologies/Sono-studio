@@ -23,7 +23,7 @@ export function Dashboard({ projects, now }: { projects: Project[]; now: number 
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-[22px] text-center">
         <Logo kind="mark" alt="Sono" className="h-12 w-auto" />
         <p className="m-0 text-[20px] font-medium">No sites yet. Build the first one for a business you know.</p>
-        <Link href="/projects/new" className={`${btn.primary} h-11 px-5 text-[15px]`}>
+        <Link href="/new" className={`${btn.primary} h-11 px-5 text-[15px]`}>
           <Plus size={16} strokeWidth={2} />
           New site
         </Link>

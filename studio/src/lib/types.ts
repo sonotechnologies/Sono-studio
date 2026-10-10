@@ -108,6 +108,10 @@ export type ClientPatch = z.infer<typeof clientPatchSchema>;
 
 export const projectPatchSchema = z
   .object({
+    name: trimmed(80).min(1),
+    businessType: trimmed(60).min(1),
+    preset: z.enum(PRESET_IDS),
+    headline: trimmed(120),
     status: z.enum(PROJECT_STATUSES),
     pitchPaused: z.boolean(),
     pitchBanner: z.boolean(),

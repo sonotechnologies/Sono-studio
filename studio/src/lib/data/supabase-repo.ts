@@ -1,7 +1,9 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { randomUUID } from 'node:crypto';
+import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 interface ClientRow {
   owner_name: string;
@@ -75,6 +77,45 @@ function toProject(r: ProjectRow): Project {
   };
 }
 
+
+interface JobRow {
+  id: string;
+  project_id: string;
+  status: GenerationJob['status'];
+  brief: GenerationJob['brief'];
+  extracted: GenerationJob['extracted'];
+  plan: GenerationJob['plan'];
+  filled: GenerationJob['filled'];
+  images_done: boolean;
+  steps: GenerationJob['steps'];
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function toJob(r: JobRow): GenerationJob {
+  return {
+    id: r.id, projectId: r.project_id, status: r.status, brief: r.brief, extracted: r.extracted, plan: r.plan, filled: r.filled ?? {},
+    imagesDone: r.images_done, steps: r.steps ?? [], error: r.error, createdAt: r.created_at, updatedAt: r.updated_at,
+  };
+}
+
+interface AssetRow {
+  id: string; project_id: string; kind: Asset['kind']; source: Asset['source']; url: string; storage_path: string | null;
+  alt: string; credit: string; width: number | null; height: number | null; created_at: string;
+}
+
+function toAsset(r: AssetRow): Asset {
+  return { id: r.id, projectId: r.project_id, kind: r.kind, source: r.source, url: r.url, alt: r.alt, credit: r.credit, width: r.width, height: r.height, createdAt: r.created_at };
+}
+
+interface KeyRow {
+  provider: ProviderKeyRow['provider']; key_ciphertext: string; key_hint: string; models: ProviderKeyRow['models']; position: number;
+  daily_limit: number | null; usage_day: string | null; usage_count: number; cooldown_until: string | null;
+}
+
+const BUCKET = 'site-assets';
+
 const SELECT = '*, clients(owner_name, whatsapp, instagram, address, notes)';
 
 function check<T>(res: { data: T; error: { message: string } | null }): T {
@@ -144,6 +185,10 @@ export function supabaseRepo(db: SupabaseClient): Repo {
         if (ts.pitchSentAt) row.pitch_sent_at = ts.pitchSentAt;
         if (ts.liveAt) row.live_at = ts.liveAt;
       }
+      if (patch.name !== undefined) row.name = patch.name;
+      if (patch.businessType !== undefined) row.business_type = patch.businessType;
+      if (patch.preset !== undefined) row.preset = patch.preset;
+      if (patch.headline !== undefined) row.headline = patch.headline;
       if (patch.pitchPaused !== undefined) row.pitch_paused = patch.pitchPaused;
       if (patch.pitchBanner !== undefined) row.pitch_banner = patch.pitchBanner;
       if (patch.pitchExpiryDays !== undefined) row.pitch_expiry_days = patch.pitchExpiryDays;
@@ -161,7 +206,10 @@ export function supabaseRepo(db: SupabaseClient): Repo {
     },
 
     async deleteProject(id) {
+      // Asset rows go with the project (cascade); their files in storage have to be removed explicitly.
+      const files = check(await db.from('assets').select('storage_path').eq('project_id', id).not('storage_path', 'is', null)) as { storage_path: string }[];
       check(await db.from('projects').delete().eq('id', id));
+      if (files.length) await db.storage.from(BUCKET).remove(files.map((f) => f.storage_path));
     },
 
     async getSiteVersion(projectId) {
@@ -181,6 +229,103 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       return check(
         await db.rpc('save_site_version', { p_project_id: projectId, p_config: config, p_summary: summary }),
       ) as number;
+    },
+
+    async createJob(projectId, brief) {
+      const row = check(await db.from('generation_jobs').insert({ project_id: projectId, brief }).select('*').single()) as JobRow;
+      return toJob(row);
+    },
+
+    async getJob(id) {
+      const row = check(await db.from('generation_jobs').select('*').eq('id', id).maybeSingle()) as JobRow | null;
+      return row ? toJob(row) : null;
+    },
+
+    async getLatestJob(projectId) {
+      const row = check(
+        await db.from('generation_jobs').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ) as JobRow | null;
+      return row ? toJob(row) : null;
+    },
+
+    async saveJob(job) {
+      check(
+        await db
+          .from('generation_jobs')
+          .update({ status: job.status, brief: job.brief, extracted: job.extracted, plan: job.plan, filled: job.filled, images_done: job.imagesDone, steps: job.steps, error: job.error })
+          .eq('id', job.id),
+      );
+    },
+
+    async listAssets(projectId) {
+      const rows = check(await db.from('assets').select('*').eq('project_id', projectId).order('created_at')) as AssetRow[];
+      return rows.map(toAsset);
+    },
+
+    async addAsset(projectId, input, file) {
+      let url = input.url ?? '';
+      let storagePath: string | null = null;
+      if (file) {
+        const { data } = await db.auth.getUser();
+        if (!data.user) throw new Error('Not signed in');
+        storagePath = `${data.user.id}/${projectId}/${randomUUID()}.${file.ext}`;
+        const up = await db.storage.from(BUCKET).upload(storagePath, file.bytes, { contentType: file.contentType, upsert: false });
+        if (up.error) throw new Error(up.error.message);
+        url = db.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
+      }
+      if (!url) throw new Error('An asset needs a file or a URL');
+      const row = check(
+        await db
+          .from('assets')
+          .insert({ project_id: projectId, kind: input.kind, source: input.source, url, storage_path: storagePath, alt: input.alt, credit: input.credit, width: input.width, height: input.height })
+          .select('*')
+          .single(),
+      ) as AssetRow;
+      return toAsset(row);
+    },
+
+    async deleteAsset(projectId, assetId) {
+      const row = check(await db.from('assets').delete().eq('id', assetId).eq('project_id', projectId).select('storage_path').maybeSingle()) as { storage_path: string | null } | null;
+      if (row?.storage_path) await db.storage.from(BUCKET).remove([row.storage_path]);
+    },
+
+    async listProviderKeys() {
+      const rows = check(await db.from('provider_keys').select('*').order('position')) as KeyRow[];
+      return rows.map((r) => ({
+        provider: r.provider, ciphertext: r.key_ciphertext, hint: r.key_hint, models: r.models ?? {}, position: r.position,
+        dailyLimit: r.daily_limit, usageDay: r.usage_day, usageCount: r.usage_count, cooldownUntil: r.cooldown_until,
+      }));
+    },
+
+    async upsertProviderKey(provider, patch) {
+      const row: Record<string, unknown> = {};
+      if (patch.ciphertext !== undefined) row.key_ciphertext = patch.ciphertext;
+      if (patch.hint !== undefined) row.key_hint = patch.hint;
+      if (patch.models !== undefined) row.models = patch.models;
+      if (patch.position !== undefined) row.position = patch.position;
+      if (patch.dailyLimit !== undefined) row.daily_limit = patch.dailyLimit;
+      const existing = check(await db.from('provider_keys').select('provider').eq('provider', provider).maybeSingle());
+      if (existing) {
+        check(await db.from('provider_keys').update(row).eq('provider', provider));
+      } else {
+        if (!patch.ciphertext) throw new Error('A new provider needs a key');
+        const count = check(await db.from('provider_keys').select('provider')) as unknown[];
+        check(await db.from('provider_keys').insert({ provider, position: count.length, ...row }));
+      }
+    },
+
+    async deleteProviderKey(provider) {
+      check(await db.from('provider_keys').delete().eq('provider', provider));
+    },
+
+    async recordUsage(provider) {
+      if (provider === 'demo') return;
+      check(await db.rpc('record_provider_usage', { p_provider: provider }));
+    },
+
+    async setCooldown(provider, until) {
+      if (provider === 'demo') return;
+      check(await db.from('provider_keys').update({ cooldown_until: until }).eq('provider', provider));
     },
 
     async getSettings() {

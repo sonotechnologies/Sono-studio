@@ -215,7 +215,33 @@
   }
 }
 
+/* Loading mark: the logo's rings turn; with reduced motion they fade instead. */
+.sono-orbit {
+  animation: sono-orbit 2.4s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+@keyframes sono-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes sono-fade-loop {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+/* Sections fade into the live preview as they are written. */
+.gen-preview .s-root > div {
+  animation: fade-up 450ms ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .sono-orbit {
+    animation: sono-fade-loop 1.6s ease-in-out infinite !important;
+  }
   *,
   *::before,
   *::after {

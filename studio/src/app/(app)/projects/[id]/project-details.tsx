@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { SiteThumb } from '@/components/site-thumb';
 import { ConfirmDialog, STATUS_STYLE, Segmented, StatusPill, Switch, btn, inputClass, useToast } from '@/components/ui';
+import type { JobStatus } from '@/generate/brief';
 import { compactWhen, displayUrl, shortDate } from '@/lib/format';
 import { PRESETS } from '@/lib/presets';
 import {
@@ -21,7 +22,26 @@ import { createStarterSiteAction, deleteProjectAction, updateClientAction, updat
 
 const card = 'flex flex-col rounded-dialog border border-border bg-surface p-[22px]';
 
-export function ProjectDetails({ project, link, now }: { project: Project; link: string; now: number }) {
+const SETUP_LABEL: Record<JobStatus, string> = {
+  draft: 'Continue setup',
+  running: 'See progress',
+  plan_review: 'Review the plan',
+  failed: 'Resume generation',
+  done: 'Open',
+};
+
+export function ProjectDetails({
+  project,
+  link,
+  now,
+  setup,
+}: {
+  project: Project;
+  link: string;
+  now: number;
+  /** An unfinished generation for this project, if there is one. */
+  setup: { jobId: string; status: JobStatus } | null;
+}) {
   const router = useRouter();
   const toast = useToast();
   const [p, setP] = useState(project);
@@ -75,12 +95,17 @@ export function ProjectDetails({ project, link, now }: { project: Project; link:
               Preview site
               <ArrowRight size={16} strokeWidth={2} />
             </Link>
+          ) : setup ? (
+            <Link href={`/new/${setup.jobId}`} className={`${btn.primary} h-11 px-5 text-[15px]`}>
+              {SETUP_LABEL[setup.status]}
+              <ArrowRight size={16} strokeWidth={2} />
+            </Link>
           ) : (
             <button
               type="button"
               disabled={creating}
               onClick={() => startCreate(() => createStarterSiteAction(p.id))}
-              title="Builds version 1 from this project's details"
+              title="Builds version 1 from this project's details, without AI"
               className={`${btn.primary} h-11 px-5 text-[15px]`}
             >
               {creating ? 'Creating…' : 'Create starter site'}

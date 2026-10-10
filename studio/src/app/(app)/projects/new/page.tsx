@@ -1,15 +1,6 @@
-import type { Metadata } from 'next';
-import { Page } from '@/components/shell';
-import { requireUser } from '@/lib/auth';
-import { NewProjectForm } from './new-project-form';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'New site' };
-
-export default async function NewProjectPage() {
-  await requireUser();
-  return (
-    <Page title="New site" width={880} newSite={false}>
-      <NewProjectForm />
-    </Page>
-  );
+/** Old address of the manual form; the wizard replaced it in phase 3. */
+export default function OldNewProjectPage() {
+  redirect('/new');
 }

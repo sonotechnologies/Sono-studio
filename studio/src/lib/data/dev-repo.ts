@@ -1,10 +1,11 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, statusTimestamps, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 /**
  * Local development store: one JSON file under .data/. Seeded with the sample
@@ -15,7 +16,13 @@ interface DevDb {
   settings: StudioSettings;
   /** Site versions per project id, oldest first. */
   versions: Record<string, SiteVersion[]>;
+  jobs: GenerationJob[];
+  assets: Asset[];
+  keys: ProviderKeyRow[];
 }
+
+/** Uploaded files are kept under .data/uploads and served by /api/uploads. */
+export const UPLOAD_DIR = path.join(process.cwd(), '.data', 'uploads');
 
 const FILE = path.join(process.cwd(), '.data', 'dev-db.json');
 
@@ -26,11 +33,15 @@ async function load(): Promise<DevDb> {
     const db = JSON.parse(await readFile(FILE, 'utf8')) as DevDb;
     // Files written before phase 2 have no versions yet.
     db.versions ??= devSeedVersions(db.projects);
+    // Files written before phase 3.
+    db.jobs ??= [];
+    db.assets ??= [];
+    db.keys ??= [];
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects) };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [] };
     await save(db);
     return db;
   }
@@ -121,7 +132,9 @@ export const devRepo: Repo = {
     return mutate((db) => {
       db.projects = db.projects.filter((p) => p.id !== id);
       delete db.versions[id];
-    });
+      db.jobs = db.jobs.filter((j) => j.projectId !== id);
+      db.assets = db.assets.filter((a) => a.projectId !== id);
+    }).then(() => rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }));
   },
 
   async getSiteVersion(projectId) {
@@ -138,6 +151,106 @@ export const devRepo: Repo = {
       p.currentVersion = version;
       p.updatedAt = now;
       return version;
+    });
+  },
+
+  createJob(projectId, brief) {
+    return mutate((db) => {
+      find(db, projectId);
+      const now = new Date().toISOString();
+      const job: GenerationJob = {
+        id: randomUUID(), projectId, status: 'draft', brief, extracted: null, plan: null, filled: {}, imagesDone: false, steps: [], error: null, createdAt: now, updatedAt: now,
+      };
+      db.jobs.push(job);
+      return job;
+    });
+  },
+
+  async getJob(id) {
+    return (await load()).jobs.find((j) => j.id === id) ?? null;
+  },
+
+  async getLatestJob(projectId) {
+    return (await load()).jobs.filter((j) => j.projectId === projectId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
+  },
+
+  saveJob(job) {
+    return mutate((db) => {
+      const i = db.jobs.findIndex((j) => j.id === job.id);
+      if (i < 0) throw new Error('Job not found');
+      db.jobs[i] = { ...job, id: db.jobs[i].id, projectId: db.jobs[i].projectId, createdAt: db.jobs[i].createdAt, updatedAt: new Date().toISOString() };
+    });
+  },
+
+  async listAssets(projectId) {
+    return (await load()).assets.filter((a) => a.projectId === projectId);
+  },
+
+  async addAsset(projectId, input, file) {
+    const id = randomUUID();
+    let url = input.url ?? '';
+    if (file) {
+      const name = `${id}.${file.ext}`;
+      await mkdir(path.join(UPLOAD_DIR, projectId), { recursive: true });
+      await writeFile(path.join(UPLOAD_DIR, projectId, name), file.bytes);
+      url = `/api/uploads/${projectId}/${name}`;
+    }
+    if (!url) throw new Error('An asset needs a file or a URL');
+    return mutate((db) => {
+      find(db, projectId);
+      const asset: Asset = { id, projectId, kind: input.kind, source: input.source, url, alt: input.alt, credit: input.credit, width: input.width, height: input.height, createdAt: new Date().toISOString() };
+      db.assets.push(asset);
+      return asset;
+    });
+  },
+
+  async deleteAsset(projectId, assetId) {
+    const removed = await mutate((db) => {
+      const a = db.assets.find((x) => x.id === assetId && x.projectId === projectId);
+      db.assets = db.assets.filter((x) => x !== a);
+      return a;
+    });
+    if (removed?.url.startsWith(`/api/uploads/${projectId}/`)) {
+      await rm(path.join(UPLOAD_DIR, projectId, path.basename(removed.url)), { force: true });
+    }
+  },
+
+  async listProviderKeys() {
+    return (await load()).keys.slice().sort((a, b) => a.position - b.position);
+  },
+
+  upsertProviderKey(provider, patch) {
+    return mutate((db) => {
+      let row = db.keys.find((k) => k.provider === provider);
+      if (!row) {
+        if (!patch.ciphertext) throw new Error('A new provider needs a key');
+        row = { provider, ciphertext: '', hint: '', models: {}, position: db.keys.length, dailyLimit: null, usageDay: null, usageCount: 0, cooldownUntil: null };
+        db.keys.push(row);
+      }
+      Object.assign(row, patch);
+    });
+  },
+
+  deleteProviderKey(provider) {
+    return mutate((db) => {
+      db.keys = db.keys.filter((k) => k.provider !== provider);
+    });
+  },
+
+  recordUsage(provider) {
+    return mutate((db) => {
+      const row = db.keys.find((k) => k.provider === provider);
+      if (!row) return;
+      const today = new Date().toISOString().slice(0, 10);
+      row.usageCount = row.usageDay === today ? row.usageCount + 1 : 1;
+      row.usageDay = today;
+    });
+  },
+
+  setCooldown(provider, until) {
+    return mutate((db) => {
+      const row = db.keys.find((k) => k.provider === provider);
+      if (row) row.cooldownUntil = until;
     });
   },
 
