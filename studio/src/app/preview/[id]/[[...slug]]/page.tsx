@@ -1,4 +1,4 @@
-import { ChevronLeft, Monitor, Smartphone, Tablet } from 'lucide-react';
+import { ChevronLeft, Download, Monitor, Smartphone, Tablet } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -99,6 +99,15 @@ export default async function PreviewPage({ params, searchParams }: Props) {
           })}
         </nav>
         <span className="hidden font-mono text-[12px] text-muted md:inline">v{version.version}</span>
+        <a
+          href={`/api/projects/${id}/site-data`}
+          download
+          title="Download site data (JSON): the copy, plan and models used"
+          aria-label="Download site data"
+          className="flex size-9 items-center justify-center rounded-full text-muted hover:bg-hover hover:text-text"
+        >
+          <Download size={16} strokeWidth={2} />
+        </a>
         <div role="group" aria-label="Preview width" className="flex rounded-full bg-sel p-[3px]">
           {(Object.keys(WIDTHS) as Width[]).map((k) => {
             const { label, Icon } = WIDTHS[k];
