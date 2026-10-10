@@ -9,6 +9,8 @@ export const FIXED_TYPES: SectionType[] = ['navbar', 'footer', 'whatsapp-float']
 export const PLANNABLE_TYPES = (Object.keys(SECTIONS) as SectionType[]).filter((t) => !FIXED_TYPES.includes(t));
 
 /** Sensible sections per page, used when the model leaves a page out and by the demo provider. */
+type SourceSection = { type: string; note?: string; variant?: string };
+
 export const DEFAULT_PAGE_SECTIONS: Record<PageKey, { type: SectionType; note: string; variant?: string }[]> = {
   home: [
     { type: 'hero', note: 'Headline, one-line pitch and the main action' },
@@ -128,8 +130,11 @@ export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extr
       if (pi < 0) pi = raw?.pages.findIndex((p, i) => !used.has(i) && p.title.trim().toLowerCase() === want.title.toLowerCase()) ?? -1;
       if (pi < 0 && raw && index < raw.pages.length && !used.has(index)) pi = index;
       if (pi >= 0) used.add(pi);
-      const source = pi >= 0 && raw ? raw.pages[pi].sections : DEFAULT_PAGE_SECTIONS[want.key];
-      let sections = source.filter((s) => PLANNABLE_TYPES.includes(s.type) && (s.type !== 'stats' || hasFacts));
+      const source: SourceSection[] = pi >= 0 && raw ? raw.pages[pi].sections : DEFAULT_PAGE_SECTIONS[want.key];
+      const known = (t: string): t is SectionType => PLANNABLE_TYPES.includes(t as SectionType);
+      let sections = source
+        .map((s) => ({ ...s, type: s.type.toLowerCase().replace(/[\s_]+/g, '-') }))
+        .filter((s): s is SourceSection & { type: SectionType } => known(s.type) && (s.type !== 'stats' || hasFacts));
       if (!sections.length) sections = DEFAULT_PAGE_SECTIONS[want.key];
       const counts: Record<string, number> = {};
       const out: PlanSection[] = sections.slice(0, 12).map((s) => {

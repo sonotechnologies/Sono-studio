@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { pickModels } from '@/ai/models';
 import { listModels } from '@/ai/providers';
 import { isAiProvider } from '@/ai/service';
 import { AI_PROVIDERS, PROVIDER_INFO, ProviderError, STOCK_PROVIDERS, type AiProviderId } from '@/ai/types';
@@ -59,21 +60,25 @@ export async function saveKeyAction(p: string, rawKey: string): Promise<SaveKeyR
   await repo.upsertProviderKey(id, {
     ciphertext: encryptSecret(key),
     hint: keyHint(key),
-    ...(isAiProvider(id) && !existing ? { models: { ...PROVIDER_INFO[id].defaults } } : {}),
+    // Choose models from the provider's live list; keep the saved ones if they still exist.
+    ...(isAiProvider(id)
+      ? { models: models ? pickModels(id, models, existing?.models) : existing?.models ?? { ...PROVIDER_INFO[id].defaults } }
+      : {}),
   });
   await repo.setCooldown(id as never, null);
   revalidatePath('/settings');
   return { models, warning };
 }
 
-export async function listModelsAction(p: string): Promise<{ models?: string[]; error?: string }> {
+export async function listModelsAction(p: string): Promise<{ models?: string[]; suggested?: { strong: string; light: string }; error?: string }> {
   await requireUser();
   const id = provider(p);
   if (!isAiProvider(id)) return { error: 'Not an AI provider' };
   const row = (await (await getRepo()).listProviderKeys()).find((r) => r.provider === id);
   if (!row) return { error: 'Add a key first' };
   try {
-    return { models: await listModels(id, decryptSecret(row.ciphertext)) };
+    const models = await listModels(id, decryptSecret(row.ciphertext));
+    return { models, suggested: pickModels(id, models, row.models) };
   } catch (err) {
     return { error: (err as Error).message.slice(0, 200) };
   }

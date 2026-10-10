@@ -174,7 +174,9 @@ function ProviderRow({
                   const r = await listModelsAction(id);
                   if (r.error) throw new Error(r.error);
                   setOptions(r.models ?? []);
-                }, 'Model list loaded; pick from the suggestions')
+                  // Fill in the suggestion wherever the saved name is no longer offered.
+                  if (r.suggested) setModels(r.suggested);
+                }, 'Model list loaded. Suggested models are filled in; press Save models to keep them')
               }
               className={`${btn.ghost} h-9 px-3.5 text-[13px]`}
             >

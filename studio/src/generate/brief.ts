@@ -78,18 +78,27 @@ export const EMPTY_EXTRACTED: Extracted = { tagline: '', hours: [], items: [], f
 
 /* ---------- Plan ---------- */
 
-const planSection = z.object({
-  type: z.enum(SECTION_TYPES as [SectionType, ...SectionType[]]),
-  variant: z.string().max(40),
-  note: z.string().max(200),
-});
+/** Text from a model, trimmed to fit rather than rejected for running long. */
+const clip = (n: number) => z.string().transform((v) => v.trim().slice(0, n));
 
-/** What the model returns. Normalised against the request before anyone sees it. */
+/*
+ * What the model returns. Deliberately lenient: unknown section types, bad
+ * variants and long notes are fixed up by normalisePlan, so a mostly-good plan
+ * from a weaker model is kept instead of failing the whole step.
+ */
 export const rawPlanSchema = z.object({
   pages: z
-    .array(z.object({ path: z.string().max(40), title: z.string().max(60), sections: z.array(planSection).max(16) }))
+    .array(
+      z.object({
+        path: clip(40).default('/'),
+        title: clip(60).default(''),
+        sections: z
+          .array(z.object({ type: clip(40), variant: clip(40).optional(), note: clip(200).optional() }))
+          .transform((list) => list.slice(0, 16)),
+      }),
+    )
     .min(1)
-    .max(8),
+    .transform((list) => list.slice(0, 8)),
 });
 export type RawPlan = z.infer<typeof rawPlanSchema>;
 

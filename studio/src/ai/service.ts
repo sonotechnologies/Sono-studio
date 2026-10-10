@@ -3,7 +3,8 @@ import { decryptSecret } from '@/lib/crypto';
 import { usageToday, type ProviderKeyRow, type Repo } from '@/lib/data/repo';
 import { chain, pexels, unsplash, type StockSearch } from '@/generate/stock';
 import { demoAllowed, demoClient } from './demo';
-import { makeClient } from './providers';
+import { pickModels } from './models';
+import { listModels, makeClient } from './providers';
 import type { RouterHooks } from './router';
 import { AI_PROVIDERS, PROVIDER_INFO, type AiProviderId, type ProviderClient } from './types';
 
@@ -50,4 +51,23 @@ export async function loadStock(repo: Repo): Promise<StockSearch | null> {
     r.provider === 'unsplash' ? [unsplash(decryptSecret(r.ciphertext))] : r.provider === 'pexels' ? [pexels(decryptSecret(r.ciphertext))] : [],
   );
   return sources.length ? chain(sources) : null;
+}
+
+/** Re-picks models for every AI provider from its live list. Returns true if anything changed. */
+export async function healModels(repo: Repo): Promise<boolean> {
+  let changed = false;
+  for (const row of (await repo.listProviderKeys()).filter((r) => isAiProvider(r.provider))) {
+    const id = row.provider as AiProviderId;
+    try {
+      const available = await listModels(id, decryptSecret(row.ciphertext));
+      const next = pickModels(id, available, row.models);
+      if (next.strong !== row.models.strong || next.light !== row.models.light) {
+        await repo.upsertProviderKey(id, { models: next });
+        changed = true;
+      }
+    } catch {
+      // Leave this provider as it is; the error already shown explains it.
+    }
+  }
+  return changed;
 }

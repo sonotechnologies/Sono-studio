@@ -41,11 +41,34 @@ export interface RouterHooks {
   now?(): number;
 }
 
+const OUTCOME_TEXT: Record<Attempt['outcome'], string> = {
+  ok: 'answered',
+  invalid: 'replied in the wrong format',
+  rate_limit: 'hit its rate limit (it rests for a minute, or until its daily quota resets)',
+  auth: 'rejected the key (check it in Settings → AI providers)',
+  bad_request: 'refused the request',
+  server: 'had a server error',
+  network: 'could not be reached',
+};
+
+/** One line per provider, saying what went wrong in plain words. */
+export function describeAttempts(attempts: Attempt[]): string {
+  const last = new Map<string, Attempt>();
+  for (const a of attempts) last.set(a.provider, a);
+  return [...last.values()]
+    .map((a) => {
+      const name = a.provider === 'gemini' ? 'Gemini' : a.provider === 'groq' ? 'Groq' : a.provider === 'openrouter' ? 'OpenRouter' : a.provider;
+      const detail = a.outcome === 'bad_request' && a.detail ? `: ${a.detail.replace(/^\w+ \d+: /, '').slice(0, 220)}` : a.outcome === 'invalid' && a.detail ? ` (${a.detail.split('\n')[0].slice(0, 160)})` : '';
+      return `${name} (${a.model}) ${OUTCOME_TEXT[a.outcome]}${detail}`;
+    })
+    .join('. ');
+}
+
 export class AllProvidersFailed extends Error {
   constructor(readonly attempts: Attempt[]) {
     super(
       attempts.length
-        ? `Every AI provider failed: ${attempts.map((a) => `${a.provider} (${a.outcome}${a.detail ? `: ${a.detail.slice(0, 120)}` : ''})`).join('; ')}`
+        ? `Every AI provider failed. ${describeAttempts(attempts)}.`
         : 'No AI provider is set up. Add a key in Settings → AI providers.',
     );
     this.name = 'AllProvidersFailed';

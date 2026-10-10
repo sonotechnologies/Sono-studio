@@ -220,3 +220,24 @@ describe('logo palette', () => {
     expect(paletteFromPixels(data)).toEqual(['#16140F', '#B4502E']);
   });
 });
+
+import { pickModels } from '@/ai/models';
+import { describeAttempts } from '@/ai/router';
+
+describe('model picking', () => {
+  const gemini = ['gemini-2.0-flash', 'gemini-3.0-flash', 'gemini-3.0-flash-lite', 'gemini-3.0-pro', 'gemini-3.0-flash-image', 'gemini-3.1-flash-preview', 'text-embedding-004'];
+  it('picks the newest stable Flash and Flash-Lite when saved names are gone', () => {
+    expect(pickModels('gemini', gemini, { strong: 'gemini-2.5-flash', light: 'gemini-2.5-flash-lite' })).toEqual({ strong: 'gemini-3.0-flash', light: 'gemini-3.0-flash-lite' });
+  });
+  it('keeps saved models that still exist', () => {
+    expect(pickModels('gemini', gemini, { strong: 'gemini-3.0-pro', light: 'gemini-2.0-flash' })).toEqual({ strong: 'gemini-3.0-pro', light: 'gemini-2.0-flash' });
+  });
+  it('handles Groq and OpenRouter lists', () => {
+    expect(pickModels('groq', ['llama-3.1-8b-instant', 'llama-3.3-70b-versatile', 'whisper-large-v3'])).toEqual({ strong: 'llama-3.3-70b-versatile', light: 'llama-3.1-8b-instant' });
+    expect(pickModels('openrouter', ['a/small:free', 'meta-llama/llama-3.3-70b-instruct:free']).strong).toBe('meta-llama/llama-3.3-70b-instruct:free');
+  });
+  it('explains failures in plain words', () => {
+    const text = describeAttempts([{ provider: 'gemini', model: 'gemini-2.5-flash', outcome: 'bad_request', detail: 'Gemini: model not found. Pick an available model' }]);
+    expect(text).toMatch(/^Gemini \(gemini-2.5-flash\) refused the request: Gemini: model not found/);
+  });
+});

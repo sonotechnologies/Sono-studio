@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { availability, isAiProvider, loadProviders, loadStock, routerHooks } from '@/ai/service';
+import { availability, healModels, isAiProvider, loadProviders, loadStock, routerHooks } from '@/ai/service';
 import { advance } from '@/generate/pipeline';
 import { getRepo, getUser } from '@/lib/auth';
 import { siteConfigSchema } from '@/site/schema';
@@ -27,7 +27,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ job: failed });
   }
 
-  const result = await advance(job, {
+  const run = async (providers: Awaited<ReturnType<typeof loadProviders>>) => advance(job, {
     providers,
     hooks: routerHooks(repo),
     stock: await loadStock(repo),
@@ -39,6 +39,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
       }
     },
   });
+  let result = await run(providers);
+  // A provider retired a model name: pick current models from its live list and try once more.
+  if (result.job.status === 'failed' && /model not found|no longer available/i.test(result.job.error ?? '')) {
+    if (await healModels(repo)) result = await run(await loadProviders(repo));
+  }
   await repo.saveJob(result.job);
   if (result.job.status === 'done' && result.job.extracted?.tagline) {
     await repo.updateProject(job.projectId, { headline: result.job.extracted.tagline.slice(0, 120) }).catch(() => {});

@@ -35,6 +35,14 @@ export function PipelineColumn({ job }: { job: GenerationJob }) {
         )}
         <h1 className="m-0 text-[32px] leading-[1.1] font-semibold tracking-[-0.02em] md:text-[40px]">{title}</h1>
       </div>
+      {job.status === 'failed' && job.error && (
+        <div role="alert" className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4 text-[14px] leading-normal">
+          <span className="[overflow-wrap:anywhere]">{job.error}</span>
+          {/Settings/.test(job.error) && (
+            <Link href="/settings?tab=providers" className="font-medium text-accent-text hover:underline">
+              Open AI provider settings
+            </Link>
+          )}
       <ol className="m-0 flex list-none flex-col gap-0.5 p-0" aria-label="Progress">
         {stepsFor(job).map((s) => {
           const lit = s.state !== 'pending';
@@ -54,20 +62,12 @@ export function PipelineColumn({ job }: { job: GenerationJob }) {
                 {s.state === 'active' && <span className="sr-only"> (in progress)</span>}
               </span>
               <span className="max-w-[45%] truncate text-right font-mono text-[12px] text-muted" title={s.meta}>
-                {s.state === 'skipped' ? 'Skipped' : s.meta}
+                {s.state === 'skipped' ? 'Skipped' : s.state === 'failed' ? 'Failed' : s.meta}
               </span>
             </li>
           );
         })}
       </ol>
-      {job.status === 'failed' && job.error && (
-        <div role="alert" className="flex flex-col gap-2 rounded-card border border-border bg-surface p-4 text-[14px] leading-normal">
-          <span className="[overflow-wrap:anywhere]">{job.error}</span>
-          {/Settings/.test(job.error) && (
-            <Link href="/settings?tab=providers" className="font-medium text-accent-text hover:underline">
-              Open AI provider settings
-            </Link>
-          )}
         </div>
       )}
     </div>
