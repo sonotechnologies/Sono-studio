@@ -1,39 +1,21 @@
 import type { Metadata, Viewport } from 'next';
-import {
-  Anton,
-  Cormorant_Garamond,
-  DM_Sans,
-  Fraunces,
-  Inter,
-  JetBrains_Mono,
-  Manrope,
-  Nunito_Sans,
-  Playfair_Display,
-  Sora,
-  Space_Grotesk,
-} from 'next/font/google';
+import { JetBrains_Mono, Space_Grotesk } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/constants';
 import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-space-grotesk' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains-mono' });
 
-// Preset fonts are used by generated sites and thumbnails, so they are not preloaded on every app page.
-const fraunces = Fraunces({ subsets: ['latin'], preload: false, weight: ['500', '600'], variable: '--font-fraunces' });
-const cormorant = Cormorant_Garamond({ subsets: ['latin'], preload: false, weight: ['500', '600'], variable: '--font-cormorant' });
-const anton = Anton({ subsets: ['latin'], preload: false, weight: '400', variable: '--font-anton' });
-const manrope = Manrope({ subsets: ['latin'], preload: false, weight: ['400', '500', '700'], variable: '--font-manrope' });
-const sora = Sora({ subsets: ['latin'], preload: false, weight: '600', variable: '--font-sora' });
-const playfair = Playfair_Display({ subsets: ['latin'], preload: false, weight: '500', variable: '--font-playfair' });
-const inter = Inter({ subsets: ['latin'], preload: false, weight: ['400', '500', '600'], variable: '--font-inter' });
-const dmSans = DM_Sans({ subsets: ['latin'], preload: false, weight: ['400', '500', '700'], variable: '--font-dm-sans' });
-const nunitoSans = Nunito_Sans({ subsets: ['latin'], preload: false, weight: ['400', '600', '700'], variable: '--font-nunito-sans' });
+/*
+ * Fonts for generated sites and preset thumbnails load from Google Fonts in the
+ * browser rather than through next/font: fetching nine families at build time
+ * made the build depend on what Google served the build machine (one variable
+ * font broke the Vercel build). Their CSS variables are set in globals.css.
+ */
+const PRESET_FONTS_CSS =
+  'https://fonts.googleapis.com/css2?family=Anton&family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;700&family=Fraunces:wght@500;600&family=Inter:wght@400;500;600&family=Manrope:wght@400;500;700&family=Nunito+Sans:wght@400;600;700&family=Playfair+Display:wght@500&family=Sora:wght@600&display=swap';
 
-const fontVars = [
-  spaceGrotesk, jetbrainsMono, fraunces, cormorant, anton, manrope, sora, playfair, inter, dmSans, nunitoSans,
-]
-  .map((f) => f.variable)
-  .join(' ');
+const fontVars = `${spaceGrotesk.variable} ${jetbrainsMono.variable}`;
 
 export const metadata: Metadata = {
   title: { default: 'Sono Studio', template: '%s · Sono Studio' },
@@ -54,6 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Sets data-theme before first paint so there is no flash of the wrong theme. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link rel="stylesheet" href={PRESET_FONTS_CSS} />
       </head>
       <body>{children}</body>
     </html>

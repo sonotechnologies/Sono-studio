@@ -11,6 +11,16 @@
 
 :root {
   color-scheme: light;
+  /* Preset fonts, loaded by the Google Fonts stylesheet in the root layout. */
+  --font-fraunces: 'Fraunces', Georgia, serif;
+  --font-cormorant: 'Cormorant Garamond', Georgia, serif;
+  --font-anton: 'Anton', Impact, sans-serif;
+  --font-manrope: 'Manrope', system-ui, sans-serif;
+  --font-sora: 'Sora', system-ui, sans-serif;
+  --font-playfair: 'Playfair Display', Georgia, serif;
+  --font-inter: 'Inter', system-ui, sans-serif;
+  --font-dm-sans: 'DM Sans', system-ui, sans-serif;
+  --font-nunito-sans: 'Nunito Sans', system-ui, sans-serif;
   --ink: #16140f;
   --paper: #f7f5f1;
   --terracotta: #b4502e;
