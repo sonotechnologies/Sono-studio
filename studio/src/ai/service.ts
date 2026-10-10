@@ -53,14 +53,27 @@ export async function loadStock(repo: Repo): Promise<StockSearch | null> {
   return sources.length ? chain(sources) : null;
 }
 
-/** Re-picks models for every AI provider from its live list. Returns true if anything changed. */
-export async function healModels(repo: Repo): Promise<boolean> {
+/** Model names a failed run reported as retired or unavailable, e.g. "gemini-2.5-flash". */
+export function retiredModels(error: string): string[] {
+  const names = new Set<string>();
+  for (const m of error.matchAll(/\(([\w.:/-]+)\) refused the request: [\w ]+: model not found/g)) names.add(m[1]);
+  for (const m of error.matchAll(/models\/([\w.-]+) is no longer available/g)) names.add(m[1]);
+  return [...names];
+}
+
+/**
+ * Re-picks models for every AI provider from its live list, leaving out the
+ * retired names (a provider can still list a model it refuses to new users).
+ * Returns true if anything changed.
+ */
+export async function healModels(repo: Repo, retired: string[]): Promise<boolean> {
   let changed = false;
   for (const row of (await repo.listProviderKeys()).filter((r) => isAiProvider(r.provider))) {
     const id = row.provider as AiProviderId;
     try {
-      const available = await listModels(id, decryptSecret(row.ciphertext));
-      const next = pickModels(id, available, row.models);
+      const available = (await listModels(id, decryptSecret(row.ciphertext))).filter((m) => !retired.includes(m));
+      const keep = { strong: retired.includes(row.models.strong ?? '') ? undefined : row.models.strong, light: retired.includes(row.models.light ?? '') ? undefined : row.models.light };
+      const next = pickModels(id, available, keep);
       if (next.strong !== row.models.strong || next.light !== row.models.light) {
         await repo.upsertProviderKey(id, { models: next });
         changed = true;

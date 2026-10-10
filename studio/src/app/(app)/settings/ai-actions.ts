@@ -78,7 +78,7 @@ export async function listModelsAction(p: string): Promise<{ models?: string[]; 
   if (!row) return { error: 'Add a key first' };
   try {
     const models = await listModels(id, decryptSecret(row.ciphertext));
-    return { models, suggested: pickModels(id, models, row.models) };
+    return { models, suggested: pickModels(id, models) };
   } catch (err) {
     return { error: (err as Error).message.slice(0, 200) };
   }

@@ -241,3 +241,12 @@ describe('model picking', () => {
     expect(text).toMatch(/^Gemini \(gemini-2.5-flash\) refused the request: Gemini: model not found/);
   });
 });
+
+import { retiredModels } from '@/ai/service';
+
+describe('retired model detection', () => {
+  it('reads retired names from the failure message', () => {
+    const msg = 'Every AI provider failed. Gemini (gemini-2.5-flash) refused the request: Gemini: model not found. Pick an available model in Settings → AI providers → Manage. ({ "error": { "code": 404, "message": "This model models/gemini-2.5-flash is no longer available to new users. }).';
+    expect(retiredModels(msg)).toEqual(['gemini-2.5-flash']);
+  });
+});
