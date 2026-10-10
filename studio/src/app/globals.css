@@ -1,0 +1,146 @@
+@import 'tailwindcss';
+
+/*
+ * Sono Studio tokens. Runtime values live in short custom properties so the
+ * theme can switch by setting data-theme on <html>; @theme maps them to
+ * Tailwind utilities (bg-surface, text-muted, border-border, ...).
+ * Source: project/tokens/sono-tokens.css from the design handoff.
+ */
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+:root {
+  color-scheme: light;
+  --ink: #16140f;
+  --paper: #f7f5f1;
+  --terracotta: #b4502e;
+  --terracotta-hover: #a24627;
+
+  --bg: #f7f5f1;
+  --surface: #ffffff;
+  --raised: #ffffff;
+  --border: #e4e0d8;
+  --text: #16140f;
+  --muted: #6b665c;
+  --accent-text: #b4502e;
+  --accent-bg: rgba(180, 80, 46, 0.12);
+  --hover: rgba(22, 20, 15, 0.05);
+  --sel: rgba(22, 20, 15, 0.07);
+  --warn: #8f5d14;
+  --warn-bg: rgba(183, 121, 31, 0.15);
+  --success: #3f7d58;
+  --success-bg: rgba(63, 125, 88, 0.13);
+  --danger: #b3261e;
+  --stage: #c9c5bd;
+  --shadow: 0 10px 30px rgba(22, 20, 15, 0.12);
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #16140f;
+  --surface: #1f1c16;
+  --raised: #29251d;
+  --border: #353027;
+  --text: #f7f5f1;
+  --muted: #a39d90;
+  --accent-text: #db7c58;
+  --accent-bg: rgba(219, 124, 88, 0.15);
+  --hover: rgba(247, 245, 241, 0.05);
+  --sel: rgba(247, 245, 241, 0.08);
+  --warn: #e0a94a;
+  --warn-bg: rgba(224, 169, 74, 0.14);
+  --success: #6fb58c;
+  --success-bg: rgba(111, 181, 140, 0.14);
+  --danger: #ef7a72;
+  --stage: #3b3730;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+@theme inline {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-terracotta: var(--terracotta);
+  --color-terracotta-hover: var(--terracotta-hover);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-accent-text: var(--accent-text);
+  --color-accent-bg: var(--accent-bg);
+  --color-hover: var(--hover);
+  --color-sel: var(--sel);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-fill: #b7791f;
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-danger: var(--danger);
+  --color-danger-fill: #b3261e;
+  --color-stage: var(--stage);
+
+  --font-sans: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  --radius-card: 14px;
+  --radius-dialog: 16px;
+
+  --shadow-raised: var(--shadow);
+  --shadow-focus: 0 0 0 3px rgba(180, 80, 46, 0.28);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-fade-up-slow: fade-up 300ms ease-out;
+  --animate-ring-orbit: ring-orbit 1.6s linear infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes ring-orbit {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Every interactive element gets a visible terracotta focus ring. */
+  :where(a, button, [role='button'], [role='switch'], [role='tab'], summary):focus-visible {
+    outline: 2px solid var(--terracotta);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

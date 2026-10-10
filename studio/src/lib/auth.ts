@@ -1,0 +1,86 @@
+import 'server-only';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { isDevStore } from './env';
+import { createSupabaseServerClient } from './supabase/server';
+import { devRepo } from './data/dev-repo';
+import { supabaseRepo } from './data/supabase-repo';
+import type { Repo } from './data/repo';
+
+export const DEV_SESSION_COOKIE = 'sono_dev_session';
+
+function devCredentials() {
+  return {
+    email: process.env.SONO_DEV_EMAIL || 'dev@sono.studio',
+    password: process.env.SONO_DEV_PASSWORD || 'studio',
+  };
+}
+
+function devToken(): string {
+  const { email, password } = devCredentials();
+  return createHash('sha256').update(`sono-dev:${email}:${password}`).digest('hex');
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
+export interface SessionUser {
+  email: string;
+}
+
+export async function getUser(): Promise<SessionUser | null> {
+  // Read cookies first: it marks the route as dynamic, so nothing signed-in is prerendered at build time.
+  const store = await cookies();
+  if (isDevStore()) {
+    const token = store.get(DEV_SESSION_COOKIE)?.value;
+    return token && safeEqual(token, devToken()) ? { email: devCredentials().email } : null;
+  }
+  const db = await createSupabaseServerClient();
+  const { data } = await db.auth.getUser();
+  return data.user ? { email: data.user.email ?? '' } : null;
+}
+
+/** Use at the top of every signed-in page and action. */
+export async function requireUser(): Promise<SessionUser> {
+  const user = await getUser();
+  if (!user) redirect('/login');
+  return user;
+}
+
+export async function getRepo(): Promise<Repo> {
+  if (isDevStore()) return devRepo;
+  return supabaseRepo(await createSupabaseServerClient());
+}
+
+/** Returns an error message, or null on success. */
+export async function signIn(email: string, password: string): Promise<string | null> {
+  if (isDevStore()) {
+    const creds = devCredentials();
+    if (email.trim().toLowerCase() !== creds.email.toLowerCase() || password !== creds.password) {
+      return 'That email and password don’t match.';
+    }
+    (await cookies()).set(DEV_SESSION_COOKIE, devToken(), {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    return null;
+  }
+  const db = await createSupabaseServerClient();
+  const { error } = await db.auth.signInWithPassword({ email: email.trim(), password });
+  return error ? 'That email and password don’t match.' : null;
+}
+
+export async function signOut(): Promise<void> {
+  if (isDevStore()) {
+    (await cookies()).delete(DEV_SESSION_COOKIE);
+    return;
+  }
+  const db = await createSupabaseServerClient();
+  await db.auth.signOut();
+}
