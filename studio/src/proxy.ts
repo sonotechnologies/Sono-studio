@@ -9,7 +9,7 @@ const PUBLIC_PATHS = ['/login'];
  */
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   const isPublic = PUBLIC_PATHS.includes(request.nextUrl.pathname);
 
   if (!url || !anonKey) {
