@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="icon" type="image/svg+xml" href="assets/logo/sono-favicon.svg">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+html,body{margin:0}
+a{color:#B4502E;text-decoration:none}
+a:hover{text-decoration:underline}
+@keyframes sonoSpin{to{transform:rotate(360deg)}}
+@keyframes sonoApart{0%,100%{transform:translateX(0)}50%{transform:translateX(var(--d))}}
+@keyframes sonoFadeLoop{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.sono-orbit{animation:sonoFadeLoop 1.6s ease-in-out infinite !important}.sono-orbit *{animation:none !important}}
+</style>
+</helmet>
+<div style="{{ rootStyle }}">
+  <div style="max-width:1240px;margin:0 auto;padding:48px 40px 80px;display:flex;flex-direction:column;gap:56px">
+
+    <div style="display:flex;align-items:flex-end;gap:24px;flex-wrap:wrap">
+      <div style="flex:1;min-width:280px;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;font-weight:500;letter-spacing:0.16em;color:var(--muted)">SONO STUDIO · {{ themeUpper }}</div>
+        <div style="font-size:40px;font-weight:600;letter-spacing:-0.02em;line-height:1.05">Components</div>
+      </div>
+      <div onClick="{{ toggleTheme }}" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--border);font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--hover)">{{ themeIcon }}<span>{{ themeSwitchLabel }}</span></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Colour</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px">
+        <sc-for list="{{ swatches }}" as="c" hint-placeholder-count="12">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="height:64px;border-radius:12px;border:1px solid var(--border);background:{{ c.hex }}"></div>
+            <div style="font-size:13px;font-weight:500">{{ c.name }}</div>
+            <div style="font:400 12px 'JetBrains Mono',monospace;color:var(--muted)">{{ c.hex }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Type</div>
+      <div style="display:flex;flex-direction:column;border-top:1px solid var(--border)">
+        <sc-for list="{{ typeScale }}" as="t" hint-placeholder-count="6">
+          <div style="display:grid;grid-template-columns:120px minmax(0,1fr);gap:24px;align-items:baseline;padding:14px 0;border-bottom:1px solid var(--border)">
+            <span style="font:400 12px 'JetBrains Mono',monospace;color:var(--muted)">{{ t.spec }}</span>
+            <span style="font-size:{{ t.size }};font-weight:{{ t.weight }};letter-spacing:{{ t.track }};line-height:1.2">{{ t.sample }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px">
+      <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Buttons</div>
+      <div style="display:grid;grid-template-columns:100px repeat(5,minmax(0,1fr));gap:14px 16px;align-items:center;overflow-x:auto">
+        <span></span>
+        <sc-for list="{{ stateNames }}" as="n" hint-placeholder-count="5"><span style="font-size:12px;color:var(--muted)">{{ n }}</span></sc-for>
+        <sc-for list="{{ buttonRows }}" as="row" hint-placeholder-count="4">
+          <span style="font-size:13px;font-weight:500">{{ row.name }}</span>
+          <sc-for list="{{ row.cells }}" as="b" hint-placeholder-count="5">
+            <div style="display:flex">
+              <div style="{{ b.style }}">{{ b.spin }}<span>{{ b.label }}</span></div>
+            </div>
+          </sc-for>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Inputs</div>
+        <sc-for list="{{ inputs }}" as="f" hint-placeholder-count="5">
+          <div style="display:flex;flex-direction:column;gap:6px;opacity:{{ f.opacity }}">
+            <div style="display:flex;gap:8px;align-items:baseline"><span style="font-size:13px;font-weight:500">{{ f.label }}</span><span style="font-size:12px;color:var(--muted)">{{ f.state }}</span></div>
+            <div style="height:40px;display:flex;align-items:center;padding:0 12px;border-radius:10px;background:var(--surface);border:{{ f.border }};box-shadow:{{ f.ring }};font-size:14px;color:{{ f.color }}">{{ f.value }}</div>
+            <sc-if value="{{ f.error }}" hint-placeholder-val="{{ false }}"><span style="font-size:12px;color:var(--danger)">{{ f.error }}</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:28px">
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Status pills</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <span style="font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;background:var(--sel);color:var(--muted)">Draft</span>
+            <span style="font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;background:var(--warnBg);color:var(--warn)">Pitch sent</span>
+            <span style="font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;background:var(--accentBg);color:var(--accentText)">Client approved</span>
+            <span style="font-size:12px;font-weight:500;padding:4px 11px;border-radius:999px;background:var(--successBg);color:var(--success)">Live</span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Toggle</div>
+          <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+            <div onClick="{{ flip }}" style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+              <div style="width:40px;height:24px;border-radius:999px;padding:3px;box-sizing:border-box;background:{{ tg.track }};transition:background .15s ease-out;display:flex;justify-content:{{ tg.justify }}">
+                <div style="width:18px;height:18px;border-radius:50%;background:#FFFFFF;box-shadow:0 1px 2px rgba(0,0,0,.25)"></div>
+              </div>
+              <span>Pitch banner</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:14px;opacity:0.4">
+              <div style="width:40px;height:24px;border-radius:999px;padding:3px;box-sizing:border-box;background:var(--border)"><div style="width:18px;height:18px;border-radius:50%;background:#FFFFFF"></div></div>
+              <span>Disabled</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Tabs</div>
+          <div style="display:flex;gap:24px;border-bottom:1px solid var(--border)">
+            <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+              <div onClick="{{ t.pick }}" style="height:44px;display:flex;align-items:center;font-size:14px;font-weight:500;cursor:pointer;color:{{ t.color }};box-shadow:{{ t.line }}">{{ t.name }}</div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Step indicator</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <sc-for list="{{ steps }}" as="s" hint-placeholder-count="5">
+              <div style="width:14px;height:14px;border-radius:50%;box-sizing:border-box;border:3px solid {{ s.stroke }};background:{{ s.fill }}"></div>
+              <sc-if value="{{ s.line }}" hint-placeholder-val="{{ true }}"><div style="width:22px;height:2px;border-radius:2px;background:{{ s.lineColor }}"></div></sc-if>
+            </sc-for>
+            <span style="font-size:13px;color:var(--muted);padding-left:8px">Step 3 of 5 · Content</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Project card</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+          <sc-for list="{{ cards }}" as="p" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="border-radius:14px;overflow:hidden;background:var(--surface);border:1px solid var(--border);transform:{{ p.lift }};box-shadow:{{ p.shadow }}">
+                <div style="height:120px;background:#FBF5EC;padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;justify-content:flex-end;font-family:Georgia,serif;color:#2B1D14">
+                  <div style="font-size:18px;line-height:1.05;letter-spacing:-0.01em">Slow-cooked family recipes</div>
+                  <div style="width:56px;height:12px;border-radius:4px;background:#4E5B31"></div>
+                </div>
+                <div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+                  <div style="display:flex;align-items:center;gap:8px"><span style="font-size:14px;font-weight:600;flex:1">Kora Kitchen</span><span style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px;background:var(--warnBg);color:var(--warn)">Pitch sent</span></div>
+                  <span style="font-size:12px;color:var(--muted)">Restaurant · Opened 2 hours ago</span>
+                </div>
+              </div>
+              <span style="font-size:12px;color:var(--muted)">{{ p.state }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Choice cards</div>
+        <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+          <sc-for list="{{ choices }}" as="c" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="position:relative;padding:16px;border-radius:14px;background:var(--surface);border:{{ c.border }};display:flex;flex-direction:column;gap:12px;min-height:120px;box-sizing:border-box">
+                <div style="height:52px;border-radius:8px;background:var(--sel)"></div>
+                <div style="font-size:14px;font-weight:600">{{ c.name }}</div>
+                <sc-if value="{{ c.on }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;background:#B4502E;color:#FFFFFF;display:flex;align-items:center;justify-content:center">{{ checkIcon }}</div>
+                </sc-if>
+              </div>
+              <span style="font-size:12px;color:var(--muted)">{{ c.state }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Chat</div>
+        <div style="padding:20px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;gap:16px">
+          <div style="align-self:flex-end;max-width:80%;background:var(--raised);border:1px solid var(--border);padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:14px;line-height:1.45">Make the menu cards show prices bigger.</div>
+          <div style="display:flex;gap:10px">
+            <img src="{{ markSrc }}" alt="Sono" style="height:14px;width:auto;display:block;flex:none;flex:none;margin-top:3px">
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5">
+              <div>Prices are now 20px and bold on all three cards.</div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <span style="font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted)">Menu highlights · style</span>
+                <span style="font-size:13px;font-weight:500;color:var(--accentText)">Undo this change</span>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)">{{ spin18 }}<span>Rewriting hero…</span></div>
+          <div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--muted)">Will change</span><span style="font-size:12px;font-weight:500;padding:4px 10px;border-radius:999px;background:var(--sel)">Section · Menu highlights</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Section outline</div>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+          <sc-for list="{{ outlines }}" as="o" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="position:relative;height:150px;border-radius:10px;background:#FBF5EC;outline:2px solid #B4502E;outline-offset:-2px;overflow:hidden;padding:30px 18px;box-sizing:border-box;font-family:Georgia,serif;color:#2B1D14;font-size:20px;line-height:1.1">
+                <div style="position:absolute;top:0;left:0;background:#B4502E;color:#FFFFFF;font:500 11px 'Space Grotesk',sans-serif;padding:4px 9px;border-radius:0 0 8px 0">Hero</div>
+                Slow-cooked family recipes, served warm.
+                <sc-if value="{{ o.selected }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:rgba(180,80,46,.06)"></div></sc-if>
+              </div>
+              <span style="font-size:12px;color:var(--muted)">{{ o.state }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Usage bar</div>
+        <sc-for list="{{ usage }}" as="u" hint-placeholder-count="2">
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;gap:8px;font-size:14px"><span style="font-weight:500;flex:1">{{ u.name }}</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:{{ u.textColor }}">{{ u.num }}</span></div>
+            <div style="height:6px;border-radius:999px;background:var(--sel);overflow:hidden"><div style="height:100%;width:{{ u.pct }};border-radius:999px;background:{{ u.color }}"></div></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Toasts</div>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:flex-start">
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;background:var(--raised);border:1px solid var(--border);box-shadow:var(--shadow);font-size:14px"><span style="display:flex;color:var(--success)">{{ checkIcon16 }}</span><span>Pitch link copied</span><span style="font-weight:500;color:var(--accentText)">Open link</span></div>
+          <div style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;background:var(--raised);border:1px solid var(--border);box-shadow:var(--shadow);font-size:14px"><span style="display:flex;color:var(--success)">{{ checkIcon16 }}</span><span>Kora Kitchen is live</span><span style="font-weight:500;color:var(--accentText)">View site</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:40px">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Dialog</div>
+        <div style="padding:32px;border-radius:14px;background:rgba(22,20,15,.45);display:flex;justify-content:center">
+          <div style="width:100%;max-width:380px;padding:24px;border-radius:16px;background:var(--raised);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Delete Threadline Boutique?</div>
+            <div style="font-size:14px;line-height:1.55;color:var(--muted)">The site, its versions and the pitch link will be removed. This can't be undone.</div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:8px">
+              <div style="height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--border);display:flex;align-items:center;font-size:14px;font-weight:500">Cancel</div>
+              <div style="height:38px;padding:0 16px;border-radius:999px;background:var(--dangerFill);color:#FFFFFF;display:flex;align-items:center;font-size:14px;font-weight:600">Delete site</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Loading mark</div>
+        <div style="flex:1;min-height:220px;border-radius:14px;background:var(--surface);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px">
+          {{ bigLoader }}
+          <div style="font-size:13px;color:var(--muted);text-align:center;max-width:260px;line-height:1.5">The mark turns slowly, its two rings circling each other. With reduced motion on, the mark fades instead.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1240,&quot;height&quot;:900},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;system&quot;,&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;system&quot;,&quot;tsType&quot;:&quot;'system'|'light'|'dark'&quot;}}">
+const h = React.createElement;
+const path = (d, s, w) => h('svg', {width:s, height:s, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth:w, strokeLinecap:'round', strokeLinejoin:'round', style:{display:'block'}}, d.map((x, i) => h('path', {key:i, d:x})));
+const THEMES = {
+  light: {'--bg':'#F7F5F1','--surface':'#FFFFFF','--raised':'#FFFFFF','--border':'#E4E0D8','--text':'#16140F','--muted':'#6B665C','--accentText':'#B4502E','--accentBg':'rgba(180,80,46,.12)','--hover':'rgba(22,20,15,.05)','--sel':'rgba(22,20,15,.07)','--warn':'#8F5D14','--warnBg':'rgba(183,121,31,.15)','--success':'#3F7D58','--successBg':'rgba(63,125,88,.13)','--danger':'#B3261E','--dangerFill':'#B3261E','--shadow':'0 10px 30px rgba(22,20,15,.12)'},
+  dark: {'--bg':'#16140F','--surface':'#1F1C16','--raised':'#29251D','--border':'#353027','--text':'#F7F5F1','--muted':'#A39D90','--accentText':'#DB7C58','--accentBg':'rgba(219,124,88,.15)','--hover':'rgba(247,245,241,.05)','--sel':'rgba(247,245,241,.08)','--warn':'#E0A94A','--warnBg':'rgba(224,169,74,.14)','--success':'#6FB58C','--successBg':'rgba(111,181,140,.14)','--danger':'#EF7A72','--dangerFill':'#B3261E','--shadow':'0 10px 30px rgba(0,0,0,.45)'},
+};
+const SW = {
+  light:[['Ink','#16140F'],['Paper','#F7F5F1'],['Terracotta','#B4502E'],['Surface','#FFFFFF'],['Border','#E4E0D8'],['Text muted','#6B665C'],['Accent text','#B4502E'],['Success','#3F7D58'],['Warning','#B7791F'],['Danger','#B3261E'],['Preview stage','#C9C5BD']],
+  dark:[['Ink','#16140F'],['Paper','#F7F5F1'],['Terracotta','#B4502E'],['Surface','#1F1C16'],['Surface raised','#29251D'],['Border','#353027'],['Text muted','#A39D90'],['Accent text','#DB7C58'],['Success','#6FB58C'],['Warning','#E0A94A'],['Danger','#EF7A72'],['Preview stage','#3B3730']],
+};
+const orbit = (src, w) => h('div', {style:{width:w * 1.2, height:w * 1.2, display:'flex', alignItems:'center', justifyContent:'center'}}, h('img', {src, alt:'', className:'sono-orbit', style:{width:w, height:'auto', display:'block', animation:'sonoSpin 2.4s cubic-bezier(.45,.05,.55,.95) infinite'}}));
+const spinSmall = (s, c) => h('div', {style:{position:'relative', width:s+6, height:s, flex:'none', animation:'sonoSpin 1.4s linear infinite'}},
+  h('div', {style:{position:'absolute', left:0, top:0, width:s, height:s, borderRadius:'50%', border:'2px solid '+c, boxSizing:'border-box', opacity:.55}}),
+  h('div', {style:{position:'absolute', left:6, top:0, width:s, height:s, borderRadius:'50%', border:'2px solid '+c, boxSizing:'border-box'}}));
+
+class Component extends DCLogic {
+  state = {theme:null, on:true, tab:'Chat'};
+  componentDidMount() {
+    const p = this.props.theme;
+    if (p !== 'light' && p !== 'dark') this.setState({theme: window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'});
+  }
+  componentDidUpdate(pp) { if (pp.theme !== this.props.theme) this.setState({theme:null}); }
+  renderVals() {
+    const p = this.props.theme;
+    const t = this.state.theme || (p === 'dark' ? 'dark' : 'light');
+    const dark = t === 'dark';
+    const base = "display:flex;align-items:center;gap:8px;height:38px;padding:0 16px;border-radius:999px;font:500 14px 'Space Grotesk',sans-serif;box-sizing:border-box;white-space:nowrap;";
+    const ring = 'box-shadow:0 0 0 3px rgba(180,80,46,.35);';
+    const kinds = [
+      ['Primary', 'background:#B4502E;color:#FFFFFF;font-weight:600;', 'background:#A24627;color:#FFFFFF;font-weight:600;', 'Deploy', '#FFFFFF'],
+      ['Secondary', 'border:1px solid var(--border);color:var(--text);', 'border:1px solid var(--border);color:var(--text);background:var(--hover);', 'Export', 'var(--text)'],
+      ['Ghost', 'color:var(--text);', 'color:var(--text);background:var(--hover);', 'Share', 'var(--text)'],
+      ['Danger', 'background:#B3261E;color:#FFFFFF;font-weight:600;', 'background:#9C211A;color:#FFFFFF;font-weight:600;', 'Delete', '#FFFFFF'],
+    ];
+    const buttonRows = kinds.map(([name, d, hv, label, c]) => ({name, cells:[
+      {style:base + d, label}, {style:base + hv, label}, {style:base + d + ring, label},
+      {style:base + d + 'opacity:.4;', label}, {style:base + d, label:'Working…', spin:spinSmall(12, c)},
+    ]}));
+    return {
+      rootStyle:{...THEMES[t], background:'var(--bg)', color:'var(--text)', fontFamily:"'Space Grotesk',sans-serif", minHeight:'100%'},
+      themeUpper:t.toUpperCase(), themeSwitchLabel: dark ? 'Light theme' : 'Dark theme',
+      themeIcon: dark ? path(['M12 2v2','M12 20v2','M4.9 4.9l1.4 1.4','M17.7 17.7l1.4 1.4','M2 12h2','M20 12h2','M6.3 17.7l-1.4 1.4','M19.1 4.9l-1.4 1.4','M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z'], 16, 2) : path(['M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z'], 16, 2),
+      toggleTheme:() => this.setState({theme: dark ? 'light' : 'dark'}),
+      swatches: SW[t].map(([name, hex]) => ({name, hex})),
+      typeScale:[
+        {spec:'40 / 600', size:'40px', weight:600, track:'-0.02em', sample:'12 sites waiting'},
+        {spec:'28 / 600', size:'28px', weight:600, track:'-0.015em', sample:'What kind of business is it?'},
+        {spec:'20 / 600', size:'20px', weight:600, track:'-0.01em', sample:'Kora Kitchen'},
+        {spec:'16 / 400', size:'16px', weight:400, track:'0', sample:'Body text outside the workspace. Comfortable for reading choices and summaries.'},
+        {spec:'14 / 400', size:'14px', weight:400, track:'0', sample:'Body text in the workspace, where density matters.'},
+        {spec:'12 / 500', size:'12px', weight:500, track:'0.16em', sample:'SECTIONS · LABELS · STUDIO'},
+      ],
+      stateNames:['Default','Hover','Focus','Disabled','Loading'], buttonRows,
+      inputs:[
+        {label:'Business name', state:'Default', value:'Kora Kitchen', border:'1px solid var(--border)', ring:'none', color:'var(--text)', opacity:1},
+        {label:'Business name', state:'Focus', value:'Kora Kitch|', border:'1px solid #B4502E', ring:'0 0 0 3px rgba(180,80,46,.28)', color:'var(--text)', opacity:1},
+        {label:'WhatsApp number', state:'Placeholder', value:'+1 555 000 0000', border:'1px solid var(--border)', ring:'none', color:'var(--muted)', opacity:1},
+        {label:'Email', state:'Error', value:'amara@kora', border:'1px solid var(--danger)', ring:'none', color:'var(--text)', opacity:1, error:'Enter a full email address.'},
+        {label:'Domain', state:'Disabled', value:'kora-kitchen.vercel.app', border:'1px solid var(--border)', ring:'none', color:'var(--muted)', opacity:0.45},
+      ],
+      tg:{track: this.state.on ? '#B4502E' : 'var(--border)', justify: this.state.on ? 'flex-end' : 'flex-start'},
+      flip:() => this.setState(s => ({on:!s.on})),
+      tabs:['Chat','Edit','Theme'].map(n => ({name:n, color: this.state.tab === n ? 'var(--accentText)' : 'var(--muted)', line: this.state.tab === n ? 'inset 0 -2px 0 #B4502E' : 'none', pick:() => this.setState({tab:n})})),
+      steps:[0,1,2,3,4].map(i => ({stroke: i < 3 ? '#B4502E' : 'var(--border)', fill: i < 2 ? '#B4502E' : 'transparent', line: i < 4, lineColor: i < 2 ? '#B4502E' : 'var(--border)'})),
+      cards:[{state:'Default', lift:'none', shadow:'none'}, {state:'Hover · lifts 2px', lift:'translateY(-2px)', shadow:'var(--shadow)'}],
+      choices:[{name:'Restaurant', state:'Default', border:'1.5px solid var(--border)'}, {name:'Hotel', state:'Hover', border:'1.5px solid var(--muted)'}, {name:'Salon', state:'Selected', border:'1.5px solid #B4502E', on:true}],
+      checkIcon:path(['M20 6L9 17l-5-5'], 12, 3), checkIcon16:path(['M20 6L9 17l-5-5'], 16, 2),
+      spin18:spinSmall(14, 'var(--text)'),
+      outlines:[{state:'Hover'}, {state:'Selected', selected:true}],
+      usage:[
+        {name:'Anthropic · tier 1', num:'38% · 190k / 500k tokens', pct:'38%', color:'var(--text)', textColor:'var(--muted)'},
+        {name:'Google · tier 2', num:'91% · 455k / 500k tokens', pct:'91%', color:'#B7791F', textColor:'var(--warn)'},
+      ],
+      bigLoader:orbit(dark ? 'assets/logo/sono-mark-inverse.svg' : 'assets/logo/sono-mark.svg', 96),
+      markSrc: dark ? 'assets/logo/sono-mark-inverse.svg' : 'assets/logo/sono-mark.svg',
+    };
+  }
+}
+</script>
+</body>
+</html>

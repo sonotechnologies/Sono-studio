@@ -1,0 +1,109 @@
+/* Sono Studio design tokens. Light is default; dark via [data-theme="dark"] or system preference. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Brand */
+  --sono-ink: #16140F;
+  --sono-paper: #F7F5F1;
+  --sono-terracotta: #B4502E;
+
+  /* Theme: light */
+  --color-bg: #F7F5F1;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-border: #E4E0D8;
+  --color-text: #16140F;
+  --color-text-muted: #6B665C;
+  --color-accent: #B4502E;
+  --color-accent-hover: #A24627;
+  --color-accent-text: #B4502E;
+  --color-on-accent: #FFFFFF;
+  --color-success: #3F7D58;
+  --color-warning: #B7791F;
+  --color-warning-text: #8F5D14;
+  --color-danger: #B3261E;
+  --color-stage: #C9C5BD;           /* neutral mid-tone around the site preview */
+  --color-hover: rgba(22, 20, 15, 0.05);
+  --color-selected: rgba(22, 20, 15, 0.07);
+  --focus-ring: 0 0 0 3px rgba(180, 80, 46, 0.32);
+  --shadow-raised: 0 10px 30px rgba(22, 20, 15, 0.12);
+
+  /* Type */
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --text-12: 12px;
+  --text-14: 14px;  /* workspace body */
+  --text-16: 16px;  /* body elsewhere */
+  --text-20: 20px;
+  --text-28: 28px;
+  --text-40: 40px;  /* dashboard counts, wizard questions */
+  --weight-regular: 400;
+  --weight-label: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-heading: -0.015em;
+  --tracking-caps: 0.16em;
+
+  /* Spacing (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-card: 14px;
+  --radius-dialog: 16px;
+  --radius-pill: 999px;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-panel: 180ms;
+  --duration-press: 90ms;
+}
+
+[data-theme="dark"] {
+  --color-bg: #16140F;
+  --color-surface: #1F1C16;
+  --color-surface-raised: #29251D;
+  --color-border: #353027;
+  --color-text: #F7F5F1;
+  --color-text-muted: #A39D90;
+  --color-accent-text: #DB7C58;
+  --color-success: #6FB58C;
+  --color-warning: #E0A94A;
+  --color-warning-text: #E0A94A;
+  --color-danger: #EF7A72;
+  --color-stage: #3B3730;
+  --color-hover: rgba(247, 245, 241, 0.05);
+  --color-selected: rgba(247, 245, 241, 0.08);
+  --shadow-raised: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg: #16140F;
+    --color-surface: #1F1C16;
+    --color-surface-raised: #29251D;
+    --color-border: #353027;
+    --color-text: #F7F5F1;
+    --color-text-muted: #A39D90;
+    --color-accent-text: #DB7C58;
+    --color-success: #6FB58C;
+    --color-warning: #E0A94A;
+    --color-warning-text: #E0A94A;
+    --color-danger: #EF7A72;
+    --color-stage: #3B3730;
+    --color-hover: rgba(247, 245, 241, 0.05);
+    --color-selected: rgba(247, 245, 241, 0.08);
+    --shadow-raised: 0 10px 30px rgba(0, 0, 0, 0.45);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

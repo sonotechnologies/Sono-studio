@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Fraunces:opsz,wght@9..144,400;9..144,500&family=DM+Sans:wght@400;500;600&display=swap">
+<style>
+html,body{margin:0;height:100%}
+a{color:#4E5B31;text-decoration:none}
+a:hover{text-decoration:underline}
+@keyframes sonoUp{from{transform:translateY(100%)}to{transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation-duration:0s !important}}
+</style>
+</helmet>
+<div ref="{{ saRef }}" style="position:relative;width:100%;height:{{ rootH }};min-height:600px;overflow:hidden;background:#FBF5EC;color:#2B1D14;font-family:'DM Sans',sans-serif;container-type:inline-size">
+  <div style="position:absolute;inset:0;overflow:auto;padding-bottom:{{ padBottom }}">
+    <div style="display:flex;align-items:center;gap:20px;padding:18px clamp(18px,5cqi,56px);flex-wrap:wrap">
+      <span style="font-family:'Fraunces',serif;font-size:22px;font-weight:500;flex:1">Kora Kitchen</span>
+      <div style="display:flex;gap:22px;font-size:14px;color:#6E5B4B"><span>Menu</span><span>Story</span><span>Visit</span></div>
+      <span style="padding:10px 18px;background:#4E5B31;color:#FBF5EC;font-size:14px;font-weight:600;border-radius:14px">Book a table</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:clamp(20px,4cqi,48px);align-items:center;padding:clamp(28px,6cqi,72px) clamp(18px,5cqi,56px)">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        <span style="font-size:13px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#8A6A2E">Open Tuesday to Sunday</span>
+        <span style="font-family:'Fraunces',serif;font-weight:500;font-size:clamp(36px,6.4cqi,68px);line-height:1.02;letter-spacing:-0.025em;max-width:14ch">Slow-cooked family recipes, served warm.</span>
+        <span style="font-size:clamp(15px,1.7cqi,18px);line-height:1.5;color:#6E5B4B;max-width:40ch">Brunch every Sunday from 10am. Dinner Tuesday to Saturday, in the heart of Old Town.</span>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><span style="padding:13px 22px;background:#4E5B31;color:#FBF5EC;font-size:15px;font-weight:600;border-radius:14px">Book a table</span><span style="padding:13px 22px;border:1.5px solid #2B1D14;font-size:15px;font-weight:600;border-radius:14px">See the menu</span></div>
+      </div>
+      <div style="min-height:340px;border-radius:14px;background:repeating-linear-gradient(135deg,#E8D7BD 0 10px,#E1CDAF 10px 20px);display:flex;align-items:flex-end;padding:14px;font:500 11px 'JetBrains Mono',monospace;color:#7A6550">photo: slow-braised short rib, family style</div>
+    </div>
+    <div style="background:#FFFFFF;padding:clamp(28px,6cqi,64px) clamp(18px,5cqi,56px);display:flex;flex-direction:column;gap:24px">
+      <span style="font-family:'Fraunces',serif;font-size:clamp(26px,3.6cqi,40px);font-weight:500;letter-spacing:-0.02em">From the kitchen</span>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px">
+        <sc-for list="{{ dishes }}" as="d" hint-placeholder-count="3">
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="aspect-ratio:4/3;border-radius:14px;background:repeating-linear-gradient(135deg,#EFE2CC 0 10px,#E8D8BE 10px 20px)"></div>
+            <div style="display:flex;gap:12px;align-items:baseline"><span style="font-family:'Fraunces',serif;font-size:20px;flex:1">{{ d.name }}</span><span style="font-weight:600">{{ d.price }}</span></div>
+            <span style="font-size:14px;line-height:1.5;color:#6E5B4B">{{ d.desc }}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;padding:28px clamp(18px,5cqi,56px);background:#2B1D14;color:#EADFCB;font-size:14px">
+      <span style="font-family:'Fraunces',serif;font-size:20px;color:#FBF5EC;flex:1">Kora Kitchen</span><span>14 Mill Lane, Old Town</span><span>© 2026</span>
+    </div>
+  </div>
+
+  <sc-if value="{{ show }}" hint-placeholder-val="{{ true }}">
+    <div style="{{ bannerStyle }}">
+      <img src="{{ markSrc }}" alt="Sono" style="height:16px;width:auto;display:block;flex:none;flex:none">
+      <span style="font-size:14px;flex:1;min-width:150px;line-height:1.35">Concept by <span style="font-weight:600">Sono Technologies</span></span>
+      <div style="display:flex;gap:8px">
+        <a href="#" style="height:38px;padding:0 16px;border-radius:999px;background:#B4502E;color:#FFFFFF;display:flex;align-items:center;font-size:13px;font-weight:600;text-decoration:none">WhatsApp</a>
+        <a href="#" style="height:38px;padding:0 16px;border-radius:999px;border:1px solid {{ outline }};color:{{ ink }};display:flex;align-items:center;font-size:13px;font-weight:500;text-decoration:none">Instagram</a>
+      </div>
+      <div onClick="{{ hide }}" title="Hide" style="width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ muted }};font-size:20px;line-height:1">×</div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:800},&quot;bannerTheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;],&quot;default&quot;:&quot;dark&quot;,&quot;tsType&quot;:&quot;'dark'|'light'&quot;},&quot;showBanner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = {hidden:false};
+  _sa = el => { if (!el || this._saDone) return; this._saDone = true; let n = el, d = 0; while (n && n.parentElement && d < 4) { n = n.parentElement; d++; if (n.tagName === 'BODY') { this.setState({standalone:true}); return; } } };
+  renderVals() {
+    const dark = (this.props.bannerTheme ?? 'dark') === 'dark';
+    const show = (this.props.showBanner ?? true) && !this.state.hidden;
+    const ink = dark ? '#F7F5F1' : '#16140F';
+    return {
+      saRef:this._sa, rootH: this.state.standalone ? '100vh' : '100%',
+      markSrc: dark ? 'assets/logo/sono-mark-inverse.svg' : 'assets/logo/sono-mark.svg',
+      show, ink, ringInk:ink, muted: dark ? '#A39D90' : '#6B665C', outline: dark ? 'rgba(247,245,241,.3)' : 'rgba(22,20,15,.2)',
+      padBottom: show ? '72px' : '0',
+      bannerStyle:{position:'absolute', left:0, right:0, bottom:0, zIndex:10, display:'flex', alignItems:'center', flexWrap:'wrap', gap:'10px 14px', padding:'12px clamp(14px,4cqi,32px)', background: dark ? '#16140F' : '#F7F5F1', color:ink, borderTop: dark ? 'none' : '1px solid #E4E0D8', fontFamily:"'Space Grotesk',sans-serif", animation:'sonoUp .3s cubic-bezier(.22,1,.36,1)', boxShadow:'0 -6px 24px rgba(22,20,15,.12)'},
+      hide:() => this.setState({hidden:true}),
+      dishes:[{name:'Short rib stew', price:'$24', desc:'Braised for eight hours with smoked pepper.'}, {name:'Garden plate', price:'$17', desc:'Roasted squash, greens, whipped feta.'}, {name:'Honey cake', price:'$9', desc:'Our mother\u2019s recipe, with cultured cream.'}],
+    };
+  }
+}
+</script>
+</body>
+</html>

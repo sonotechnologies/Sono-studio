@@ -1,0 +1,68 @@
+{
+  "warm-table": {
+    "name": "Warm Table", "feel": "Friendly, appetising, earthy colours", "suits": ["Restaurants", "Food delivery", "Bakeries"],
+    "fonts": { "heading": "Fraunces", "body": "DM Sans" },
+    "colors": { "light": { "background": "#FBF5EC", "surface": "#F1E6D3", "text": "#2B1D14", "muted": "#6E5B4B", "primary": "#4E5B31", "accent": "#D9A441" } },
+    "radius": { "card": 14, "button": 14, "input": 10 },
+    "type": { "phone": { "h1": 36, "h2": 26, "body": 15 }, "desktop": { "h1": 68, "h2": 40, "body": 17 } },
+    "spacing": { "section": [40, 72] },
+    "images": "Close-up food photos, soft rounded corners",
+    "variants": { "hero": "split-photo", "cards": "dish-card", "gallery": "portrait-grid" }
+  },
+  "luxe-minimal": {
+    "name": "Luxe Minimal", "feel": "Quiet, expensive, lots of space", "suits": ["Hotels", "Salons", "Fashion boutiques"],
+    "fonts": { "heading": "Cormorant Garamond", "body": "Inter" },
+    "colors": {
+      "light": { "background": "#F4F1EC", "surface": "#FFFFFF", "text": "#1C1A17", "muted": "#77716A", "primary": "#1C1A17", "accent": "#A88B5C" },
+      "dark": { "background": "#141311", "surface": "#1D1B18", "text": "#EDE8E0", "muted": "#9C958A", "primary": "#EDE8E0", "accent": "#C7AB7C" }
+    },
+    "radius": { "card": 0, "button": 0, "input": 0 },
+    "type": { "phone": { "h1": 40, "h2": 28, "body": 15 }, "desktop": { "h1": 84, "h2": 48, "body": 16 } },
+    "spacing": { "section": [64, 120] },
+    "images": "Large full-bleed photos, thin 1px rules",
+    "variants": { "hero": "full-bleed", "cards": "room-card-minimal", "gallery": "wide-strip" }
+  },
+  "bold-street": {
+    "name": "Bold Street", "feel": "Loud, high contrast, oversized type", "suits": ["Streetwear", "Sneakers", "Youth brands"],
+    "fonts": { "heading": "Anton", "body": "Space Grotesk" },
+    "colors": {
+      "light": { "background": "#F2F1EC", "surface": "#FFFFFF", "text": "#0D0D0D", "muted": "#555555", "primary": "#0D0D0D", "accent": "#D7F24A" },
+      "dark": { "background": "#0D0D0D", "surface": "#1A1A1A", "text": "#F2F1EC", "muted": "#A3A3A3", "primary": "#D7F24A", "accent": "#FF5A36" }
+    },
+    "radius": { "card": 0, "button": 0, "input": 0 },
+    "type": { "phone": { "h1": 56, "h2": 34, "body": 15 }, "desktop": { "h1": 140, "h2": 64, "body": 16 } },
+    "spacing": { "section": [32, 64] },
+    "images": "Cut-out product shots, 3px borders",
+    "variants": { "hero": "oversized-type", "cards": "product-tile-bordered", "gallery": "drop-grid" }
+  },
+  "clean-corporate": {
+    "name": "Clean Corporate", "feel": "Trustworthy, ordered, calm blues and greys", "suits": ["Travel agencies", "Co-operatives", "Services"],
+    "fonts": { "heading": "Manrope", "body": "Manrope" },
+    "colors": { "light": { "background": "#F6F8FB", "surface": "#FFFFFF", "text": "#14243B", "muted": "#5B6B80", "primary": "#1F5FAE", "accent": "#2FA39A" } },
+    "radius": { "card": 12, "button": 10, "input": 10 },
+    "type": { "phone": { "h1": 34, "h2": 24, "body": 15 }, "desktop": { "h1": 56, "h2": 36, "body": 17 } },
+    "spacing": { "section": [40, 80] },
+    "images": "Icons and diagrams over photos",
+    "variants": { "hero": "text-left-diagram", "cards": "service-icon-card", "gallery": "logo-row" }
+  },
+  "tech-dark": {
+    "name": "Tech Dark", "feel": "Sleek, dark background, glowing accents", "suits": ["Gadget stores", "Apps", "Electronics"],
+    "fonts": { "heading": "Sora", "body": "Inter" },
+    "colors": { "dark": { "background": "#0C0F14", "surface": "#151A22", "text": "#EEF2F7", "muted": "#8A94A6", "primary": "#5B8CFF", "accent": "#39E0C5" } },
+    "radius": { "card": 20, "button": 12, "input": 12 },
+    "type": { "phone": { "h1": 36, "h2": 26, "body": 15 }, "desktop": { "h1": 64, "h2": 40, "body": 17 } },
+    "spacing": { "section": [48, 96] },
+    "images": "Product renders on dark, subtle gradients",
+    "variants": { "hero": "centered-render", "cards": "spec-card", "gallery": "feature-bento" }
+  },
+  "soft-studio": {
+    "name": "Soft Studio", "feel": "Light, airy, pastel tones", "suits": ["Beauty", "Wellness", "Events"],
+    "fonts": { "heading": "Playfair Display", "body": "Nunito Sans" },
+    "colors": { "light": { "background": "#FBF6F4", "surface": "#FFFFFF", "text": "#3A2E33", "muted": "#8C7B81", "primary": "#B5677A", "accent": "#A9B8A0" } },
+    "radius": { "card": 28, "button": 999, "input": 999 },
+    "type": { "phone": { "h1": 36, "h2": 26, "body": 15 }, "desktop": { "h1": 64, "h2": 40, "body": 17 } },
+    "spacing": { "section": [48, 88] },
+    "images": "Pill shapes, rounded image masks",
+    "variants": { "hero": "arched-image", "cards": "treatment-pill-card", "gallery": "rounded-masonry" }
+  }
+}

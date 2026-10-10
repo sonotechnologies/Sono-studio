@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="icon" type="image/svg+xml" href="assets/logo/sono-favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap">
+<style>
+html,body{margin:0;height:100%}
+a{color:#B4502E;text-decoration:none}
+a:hover{text-decoration:underline}
+@keyframes sonoSpin{to{transform:rotate(360deg)}}
+@keyframes sonoFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){*{animation-duration:0s !important;transition-duration:0s !important}}
+</style>
+</helmet>
+<div ref="{{ rootRef }}" style="{{ rootStyle }}">
+
+  <sc-if value="{{ showRail }}" hint-placeholder-val="{{ true }}">
+    <div style="width:60px;flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 0;border-right:1px solid var(--border);background:var(--bg)">
+      <img src="{{ markSrc }}" alt="Sono" style="height:18px;width:auto;display:block;flex:none;margin-bottom:14px">
+      <div title="Projects" onClick="{{ goProjects }}" style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:var(--sel);color:var(--text);cursor:pointer">{{ i20.folder }}</div>
+      <div title="Library" onClick="{{ goLibrary }}" style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer" style-hover="background:var(--hover);color:var(--text)">{{ i20.grid }}</div>
+      <div title="Presets" onClick="{{ goPresets }}" style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer" style-hover="background:var(--hover);color:var(--text)">{{ i20.palette }}</div>
+      <div title="Settings" onClick="{{ goSettings }}" style="width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer" style-hover="background:var(--hover);color:var(--text)">{{ i20.sliders }}</div>
+      <div style="flex:1"></div>
+      <div style="width:32px;height:32px;border-radius:50%;background:var(--sel);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">ST</div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ drawerOpen }}" hint-placeholder-val="{{ false }}"><div onClick="{{ closeDrawer }}" style="position:absolute;inset:0;z-index:25;background:rgba(22,20,15,.35)"></div></sc-if>
+  <div style="{{ leftStyle }}">
+    <div style="padding:16px 16px 12px;display:flex;flex-direction:column;gap:12px">
+      <sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;padding-bottom:6px">
+          <img src="{{ lockupSrc }}" alt="Sono Technologies" style="height:24px;width:auto;display:block;flex:none">
+          <div style="font-size:11px;font-weight:500;letter-spacing:0.18em;color:var(--muted)">STUDIO</div>
+        </div>
+        <div onClick="{{ goProjects }}" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer" style-hover="color:var(--text)">{{ i16.back }}<span>Projects</span></div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:17px;font-weight:600;letter-spacing:-0.01em">Kora Kitchen</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--muted)">Restaurant · Warm Table</span>
+          <span style="font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px;background:var(--warnBg);color:var(--warn)">Pitch sent</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 16px 8px">
+      <span style="font-size:11px;font-weight:500;letter-spacing:0.12em;color:var(--muted);flex:1">SECTIONS · {{ pageUpper }}</span>
+      <div title="Add section" style="width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer" style-hover="background:var(--hover);color:var(--text)">{{ i16.plus }}</div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:0 8px 16px;display:flex;flex-direction:column;gap:2px">
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="8">
+        <div onClick="{{ r.click }}" onMouseEnter="{{ r.enter }}" onMouseLeave="{{ r.leave }}" style="display:flex;align-items:center;gap:10px;min-height:42px;padding:4px 10px;border-radius:10px;cursor:pointer;background:{{ r.bg }}">
+          <span style="color:var(--muted);opacity:0.55;display:flex">{{ i14.grip }}</span>
+          <sc-if value="{{ isB }}" hint-placeholder-val="{{ false }}">
+            <div style="width:30px;height:22px;border-radius:5px;flex:none;border:1px solid var(--border);background:{{ r.thumb }}"></div>
+          </sc-if>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px">
+            <span style="font-size:13px;font-weight:{{ r.weight }}">{{ r.name }}</span>
+            <span style="font-size:11px;color:var(--muted)">{{ r.type }}</span>
+          </div>
+          <sc-if value="{{ r.isSel }}" hint-placeholder-val="{{ false }}">
+            <div style="width:7px;height:7px;border-radius:50%;background:#B4502E"></div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="{{ centerStyle }}">
+    <div style="{{ toolbarStyle }}">
+      <sc-if value="{{ showDrawerBtn }}" hint-placeholder-val="{{ false }}">
+        <div title="Sections" onClick="{{ openDrawer }}" style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);flex:none" style-hover="background:var(--hover)">{{ i16.panel }}</div>
+      </sc-if>
+      <div style="position:relative">
+        <div onClick="{{ togglePageMenu }}" style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:999px;border:1px solid var(--border);font-size:13px;font-weight:500;cursor:pointer;background:var(--surface)" style-hover="background:var(--hover)">{{ i14.file }}<span>{{ page }}</span>{{ i14.chev }}</div>
+        <sc-if value="{{ pageMenu }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;top:40px;left:0;z-index:20;width:200px;padding:6px;border-radius:12px;background:var(--raised);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px">
+            <sc-for list="{{ pages }}" as="p" hint-placeholder-count="4">
+              <div onClick="{{ p.pick }}" style="display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border-radius:8px;font-size:13px;cursor:pointer;color:{{ p.color }}" style-hover="background:var(--hover)">
+                <span style="flex:1">{{ p.name }}</span><span style="font-size:11px;color:var(--muted)">{{ p.count }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <sc-if value="{{ fullBar }}" hint-placeholder-val="{{ true }}">
+      <div style="width:1px;height:20px;background:var(--border)"></div>
+      <div style="display:flex;gap:2px">
+        <sc-for list="{{ devices }}" as="d" hint-placeholder-count="3">
+          <div title="{{ d.label }}" onClick="{{ d.pick }}" style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:{{ d.bg }};color:{{ d.color }}">{{ d.icon }}</div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <sc-if value="{{ notNarrow }}" hint-placeholder-val="{{ true }}"><div style="width:1px;height:20px;background:var(--border)"></div></sc-if>
+      <div style="display:flex;gap:2px">
+        <div title="Undo" onClick="{{ undo }}" style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);opacity:{{ undoOpacity }}" style-hover="background:var(--hover)">{{ i16.undo }}</div>
+        <sc-if value="{{ notNarrow }}" hint-placeholder-val="{{ true }}"><div title="Redo" onClick="{{ redo }}" style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text);opacity:{{ redoOpacity }}" style-hover="background:var(--hover)">{{ i16.redo }}</div></sc-if>
+        <sc-if value="{{ fullBar }}" hint-placeholder-val="{{ true }}"><div title="Version history" style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text)" style-hover="background:var(--hover)">{{ i16.history }}</div></sc-if>
+      </div>
+      <div style="flex:1;min-width:16px"></div>
+      <div title="Toggle theme" onClick="{{ toggleTheme }}" style="width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text)" style-hover="background:var(--hover)">{{ themeIcon }}</div>
+      <div title="Share" onClick="{{ share }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;flex:none" style-hover="background:var(--hover)" style-active="transform:scale(0.97)">{{ i16.share }}<sc-if value="{{ labels }}" hint-placeholder-val="{{ true }}"><span>Share</span></sc-if></div>
+      <sc-if value="{{ notNarrow }}" hint-placeholder-val="{{ true }}"><div title="Export" onClick="{{ exportSite }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 10px;border-radius:999px;border:1px solid var(--border);font-size:13px;font-weight:500;cursor:pointer;flex:none" style-hover="background:var(--hover)" style-active="transform:scale(0.97)">{{ i16.download }}<sc-if value="{{ labels }}" hint-placeholder-val="{{ true }}"><span>Export</span></sc-if></div></sc-if>
+      <div onClick="{{ openDeploy }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:999px;background:#B4502E;color:#FFFFFF;font-size:13px;font-weight:600;cursor:pointer;flex:none" style-hover="background:#A24627" style-active="transform:scale(0.97)"><span>Deploy</span>{{ i16.arrow }}</div>
+    </div>
+
+    <div style="{{ stageStyle }}">
+      <div style="width:{{ frameW }};max-width:1280px;flex:none;align-self:flex-start;background:#FBF5EC;border-radius:{{ frameRadius }};overflow:hidden;box-shadow:0 18px 50px rgba(22,20,15,.22);container-type:inline-size;transition:width .2s ease-out;font-family:'DM Sans',sans-serif;color:#2B1D14">
+        <sc-for list="{{ items }}" as="s" hint-placeholder-count="6">
+          <div onMouseEnter="{{ s.enter }}" onMouseLeave="{{ s.leave }}" onClick="{{ s.click }}" style="position:relative;cursor:pointer;background:{{ s.bg }};outline:{{ s.outline }};outline-offset:-2px;transition:outline-color .15s">
+            <sc-if value="{{ s.showLabel }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:0;left:0;z-index:3;background:#B4502E;color:#FFFFFF;font:500 11px 'Space Grotesk',sans-serif;letter-spacing:0.02em;padding:4px 9px;border-radius:0 0 8px 0">{{ s.name }}</div>
+            </sc-if>
+
+            <sc-if value="{{ s.isNav }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:20px;padding:18px clamp(18px,5cqi,56px);flex-wrap:wrap">
+                <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:600;letter-spacing:-0.01em;flex:1">Kora Kitchen</div>
+                <div style="display:flex;gap:22px;font-size:14px;color:#6E5B4B;flex-wrap:wrap">
+                  <span>Menu</span><span>Story</span><span>Visit</span>
+                </div>
+                <div style="padding:10px 18px;background:#4E5B31;color:#FBF5EC;font-size:14px;font-weight:600;border-radius:{{ sr }}">{{ hero.cta }}</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isHero }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;grid-template-columns:{{ heroCols }};gap:clamp(20px,4cqi,48px);align-items:center;padding:clamp(28px,6cqi,72px) clamp(18px,5cqi,56px);text-align:{{ heroAlign }}">
+                <div style="display:flex;flex-direction:column;gap:18px;align-items:{{ heroItems }}">
+                  <div style="font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8A6A2E">Open Tuesday to Sunday</div>
+                  <div style="font-family:'Fraunces',serif;font-weight:500;font-size:clamp(34px,6.4cqi,68px);line-height:1.02;letter-spacing:-0.025em;text-wrap:balance;max-width:14ch">{{ hero.headline }}</div>
+                  <div style="font-size:clamp(15px,1.7cqi,18px);line-height:1.5;color:#6E5B4B;max-width:40ch;text-wrap:pretty">{{ hero.sub }}</div>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:6px">
+                    <div style="padding:13px 22px;background:#4E5B31;color:#FBF5EC;font-size:15px;font-weight:600;border-radius:{{ sr }}">{{ hero.cta }}</div>
+                    <div style="padding:13px 22px;border:1.5px solid #2B1D14;font-size:15px;font-weight:600;border-radius:{{ sr }}">See the menu</div>
+                  </div>
+                </div>
+                <div style="min-height:{{ heroImgH }};border-radius:{{ sr }};background:repeating-linear-gradient(135deg,#E8D7BD 0 10px,#E1CDAF 10px 20px);display:flex;align-items:flex-end;padding:14px;font:500 11px 'JetBrains Mono',monospace;color:#7A6550;text-align:left">photo: slow-braised short rib, family style</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isMenu }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:clamp(28px,6cqi,64px) clamp(18px,5cqi,56px);display:flex;flex-direction:column;gap:28px">
+                <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
+                  <div style="font-family:'Fraunces',serif;font-size:clamp(26px,3.6cqi,40px);font-weight:500;letter-spacing:-0.02em;flex:1">From the kitchen</div>
+                  <div style="font-size:14px;font-weight:600;color:#4E5B31;border-bottom:1.5px solid #4E5B31">Full menu</div>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px">
+                  <sc-for list="{{ dishes }}" as="d" hint-placeholder-count="3">
+                    <div style="display:flex;flex-direction:column;gap:12px">
+                      <div style="aspect-ratio:4/3;border-radius:{{ sr }};background:repeating-linear-gradient(135deg,#EFE2CC 0 10px,#E8D8BE 10px 20px);display:flex;align-items:flex-end;padding:12px;font:500 11px 'JetBrains Mono',monospace;color:#7A6550">{{ d.photo }}</div>
+                      <div style="display:flex;gap:12px;align-items:baseline">
+                        <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:500;flex:1">{{ d.name }}</div>
+                        <div style="font-size:15px;font-weight:600">{{ d.price }}</div>
+                      </div>
+                      <div style="font-size:14px;line-height:1.5;color:#6E5B4B">{{ d.desc }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isStory }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:clamp(20px,5cqi,56px);align-items:center;padding:clamp(28px,6cqi,72px) clamp(18px,5cqi,56px)">
+                <div style="aspect-ratio:1/1;border-radius:{{ sr }};background:repeating-linear-gradient(135deg,#E3D2B6 0 10px,#DBC7A7 10px 20px);display:flex;align-items:flex-end;padding:14px;font:500 11px 'JetBrains Mono',monospace;color:#7A6550">photo: Amara and her mother at the pass</div>
+                <div style="display:flex;flex-direction:column;gap:16px">
+                  <div style="font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#8A6A2E">Our story</div>
+                  <div style="font-family:'Fraunces',serif;font-size:clamp(26px,3.6cqi,40px);font-weight:500;line-height:1.1;letter-spacing:-0.02em;text-wrap:balance">Two cooks, one notebook of recipes, and a very big pot.</div>
+                  <div style="font-size:16px;line-height:1.6;color:#6E5B4B;text-wrap:pretty">Amara opened Kora in 2014 with her mother's handwritten recipes. Ten years on, most of the menu still comes from that notebook, cooked slowly and served to share.</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isGallery }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:clamp(20px,4cqi,40px) clamp(18px,5cqi,56px);display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">
+                <sc-for list="{{ gallery }}" as="g" hint-placeholder-count="4">
+                  <div style="aspect-ratio:3/4;border-radius:{{ sr }};background:repeating-linear-gradient(135deg,#EADBC3 0 10px,#E2D0B3 10px 20px);display:flex;align-items:flex-end;padding:10px;font:500 11px 'JetBrains Mono',monospace;color:#7A6550">{{ g }}</div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isReviews }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:clamp(28px,6cqi,64px) clamp(18px,5cqi,56px);display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:clamp(20px,4cqi,48px)">
+                <sc-for list="{{ reviews }}" as="q" hint-placeholder-count="2">
+                  <div style="display:flex;flex-direction:column;gap:14px">
+                    <div style="font-family:'Fraunces',serif;font-size:clamp(20px,2.4cqi,26px);line-height:1.3;letter-spacing:-0.01em;text-wrap:pretty">“{{ q.text }}”</div>
+                    <div style="font-size:14px;color:#6E5B4B">{{ q.who }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isVisit }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:clamp(20px,4cqi,48px);padding:clamp(28px,6cqi,64px) clamp(18px,5cqi,56px)">
+                <div style="display:flex;flex-direction:column;gap:18px">
+                  <div style="font-family:'Fraunces',serif;font-size:clamp(26px,3.6cqi,40px);font-weight:500;letter-spacing:-0.02em">Come and eat</div>
+                  <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 20px;font-size:15px;line-height:1.5">
+                    <span style="color:#6E5B4B">Address</span><span>14 Mill Lane, Old Town</span>
+                    <span style="color:#6E5B4B">Dinner</span><span>Tue to Sat, 5pm to 10pm</span>
+                    <span style="color:#6E5B4B">Brunch</span><span>Sunday, 10am to 3pm</span>
+                  </div>
+                  <div style="display:flex;gap:10px;flex-wrap:wrap">
+                    <div style="padding:12px 20px;background:#4E5B31;color:#FBF5EC;font-size:15px;font-weight:600;border-radius:{{ sr }}">{{ hero.cta }}</div>
+                    <div style="padding:12px 20px;border:1.5px solid #2B1D14;font-size:15px;font-weight:600;border-radius:{{ sr }}">Message on WhatsApp</div>
+                  </div>
+                </div>
+                <div style="min-height:220px;border-radius:{{ sr }};background:repeating-linear-gradient(135deg,#E6DDCB 0 10px,#DED3BE 10px 20px);display:flex;align-items:flex-end;padding:12px;font:500 11px 'JetBrains Mono',monospace;color:#7A6550">map embed</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isFooter }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;padding:28px clamp(18px,5cqi,56px);color:#EADFCB;font-size:14px">
+                <div style="font-family:'Fraunces',serif;font-size:20px;font-weight:600;color:#FBF5EC;flex:1">Kora Kitchen</div>
+                <span>Instagram</span><span>WhatsApp</span><span>© 2026</span>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ s.isPageHead }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:clamp(40px,8cqi,96px) clamp(18px,5cqi,56px);display:flex;flex-direction:column;gap:12px">
+                <div style="font-family:'Fraunces',serif;font-size:clamp(34px,6cqi,64px);font-weight:500;letter-spacing:-0.025em">{{ page }}</div>
+                <div style="font-size:16px;color:#6E5B4B">This page is planned. Its content will be written when you generate it.</div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <div style="{{ rightStyle }}">
+    <sc-if value="{{ narrow }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ toggleSheet }}" style="display:flex;justify-content:center;padding:8px 0 0;cursor:pointer;flex:none"><div style="width:40px;height:4px;border-radius:999px;background:var(--border)"></div></div>
+    </sc-if>
+    <div style="display:flex;gap:20px;padding:0 20px;border-bottom:1px solid var(--border);flex:none">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+        <div onClick="{{ t.pick }}" style="height:50px;display:flex;align-items:center;font-size:14px;font-weight:500;cursor:pointer;color:{{ t.color }};box-shadow:{{ t.line }}">{{ t.name }}</div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ isChat }}" hint-placeholder-val="{{ true }}">
+      <div ref="{{ msgRef }}" style="flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:18px">
+        <sc-for list="{{ messages }}" as="m" hint-placeholder-count="2">
+          <div style="display:flex;flex-direction:column;animation:sonoFade .2s ease-out">
+            <sc-if value="{{ m.isUser }}" hint-placeholder-val="{{ true }}">
+              <div style="align-self:flex-end;max-width:85%;background:var(--raised);border:1px solid var(--border);padding:10px 14px;border-radius:14px 14px 4px 14px;font-size:14px;line-height:1.45">{{ m.text }}</div>
+            </sc-if>
+            <sc-if value="{{ m.isAi }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;gap:10px">
+                <img src="{{ markSrc }}" alt="Sono" style="height:14px;width:auto;display:block;flex:none;flex:none;margin-top:3px">
+                <div style="display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;min-width:0">
+                  <div>{{ m.text }}</div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <span style="font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted)">{{ m.change }}</span>
+                    <sc-if value="{{ m.canUndo }}" hint-placeholder-val="{{ true }}">
+                      <span onClick="{{ m.undo }}" style="font-size:13px;font-weight:500;color:var(--accentText);cursor:pointer" style-hover="text-decoration:underline">Undo this change</span>
+                    </sc-if>
+                    <sc-if value="{{ m.undone }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:13px;color:var(--muted)">Change undone</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+        <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)">{{ spinner }}<span>{{ thinkingLabel }}</span></div>
+        </sc-if>
+      </div>
+      <div style="padding:12px 16px 16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:10px;flex:none">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:12px;color:var(--muted)">Will change</span>
+          <div onClick="{{ cycleScope }}" title="Change scope" style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;padding:4px 10px;border-radius:999px;background:var(--sel);cursor:pointer" style-hover="background:var(--hover)"><span>{{ scopeLabel }}</span>{{ i12.chev }}</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;padding:6px 6px 6px 14px;border-radius:14px;border:1px solid var(--border);background:var(--bg)">
+          <textarea value="{{ draft }}" onChange="{{ onDraft }}" onKeyDown="{{ onKey }}" rows="2" placeholder="Ask for a change…" style="flex:1;resize:none;border:none;outline:none;background:transparent;color:var(--text);font:400 14px/1.45 'Space Grotesk',sans-serif;padding:6px 0"></textarea>
+          <div onClick="{{ send }}" title="Send" style="width:34px;height:34px;border-radius:999px;background:var(--text);color:var(--bg);display:flex;align-items:center;justify-content:center;cursor:pointer;flex:none" style-active="transform:scale(0.94)">{{ i16.up }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isEdit }}" hint-placeholder-val="{{ false }}">
+      <sc-if value="{{ noSel }}" hint-placeholder-val="{{ false }}">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:32px;text-align:center;font-size:14px;line-height:1.5;color:var(--muted)">Select a section in the preview or the list to edit it.</div>
+      </sc-if>
+      <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:22px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">{{ sel.name }}</div>
+            <div style="font-size:13px;color:var(--muted)">{{ sel.type }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:13px;font-weight:500">Layout</div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+              <sc-for list="{{ variants }}" as="v" hint-placeholder-count="3">
+                <div onClick="{{ v.pick }}" style="position:relative;display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;cursor:pointer;border:{{ v.border }};background:var(--bg)">
+                  <div style="height:34px;display:flex;gap:4px;align-items:stretch;justify-content:{{ v.justify }}">
+                    <div style="width:{{ v.a }};border-radius:3px;background:var(--border)"></div>
+                    <div style="width:{{ v.b }};border-radius:3px;background:var(--sel)"></div>
+                  </div>
+                  <div style="font-size:12px;font-weight:500">{{ v.name }}</div>
+                  <sc-if value="{{ v.on }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#B4502E;color:#FFFFFF;display:flex;align-items:center;justify-content:center">{{ i12.check }}</div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ selIsHero }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Headline
+                <textarea rows="2" value="{{ hero.headline }}" onChange="{{ setHeadline }}" style="resize:vertical;border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--bg);color:var(--text);font:400 14px/1.45 'Space Grotesk',sans-serif;outline:none" style-focus="border-color:#B4502E;box-shadow:0 0 0 3px rgba(180,80,46,.28)"></textarea>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Subtext
+                <textarea rows="3" value="{{ hero.sub }}" onChange="{{ setSub }}" style="resize:vertical;border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:var(--bg);color:var(--text);font:400 14px/1.45 'Space Grotesk',sans-serif;outline:none" style-focus="border-color:#B4502E;box-shadow:0 0 0 3px rgba(180,80,46,.28)"></textarea>
+              </label>
+              <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500">Button label
+                <input value="{{ hero.cta }}" onChange="{{ setCta }}" style="height:38px;border:1px solid var(--border);border-radius:10px;padding:0 11px;background:var(--bg);color:var(--text);font:400 14px 'Space Grotesk',sans-serif;outline:none" style-focus="border-color:#B4502E;box-shadow:0 0 0 3px rgba(180,80,46,.28)">
+              </label>
+            </div>
+          </sc-if>
+          <sc-if value="{{ canBg }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:13px;font-weight:500">Background</div>
+              <div style="display:flex;gap:8px">
+                <sc-for list="{{ bgOpts }}" as="o" hint-placeholder-count="3">
+                  <div onClick="{{ o.pick }}" style="display:flex;align-items:center;gap:8px;height:36px;padding:0 12px 0 6px;border-radius:999px;cursor:pointer;border:{{ o.border }};font-size:13px">
+                    <div style="width:24px;height:24px;border-radius:50%;border:1px solid var(--border);background:{{ o.color }}"></div>{{ o.name }}
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:4px">
+            <div onClick="{{ moveUp }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--border);font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--hover)">{{ i14.up }}Move up</div>
+            <div onClick="{{ moveDown }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--border);font-size:13px;font-weight:500;cursor:pointer" style-hover="background:var(--hover)">{{ i14.down }}Move down</div>
+            <div onClick="{{ remove }}" style="display:flex;align-items:center;gap:6px;height:34px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:500;cursor:pointer;color:var(--danger)" style-hover="background:var(--hover)">{{ i14.trash }}Remove</div>
+          </div>
+          <div onClick="{{ askAboutSel }}" style="font-size:13px;font-weight:500;color:var(--accentText);cursor:pointer" style-hover="text-decoration:underline">Ask the AI to change this section</div>
+        </div>
+      </sc-if>
+    </sc-if>
+
+    <sc-if value="{{ isTheme }}" hint-placeholder-val="{{ false }}">
+      <div style="flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:14px;padding:16px;border-radius:14px;border:1px solid var(--border);background:var(--bg)">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <div style="font-size:16px;font-weight:600;flex:1">Warm Table</div>
+            <div style="font-size:13px;font-weight:500;color:var(--accentText);cursor:pointer">Change</div>
+          </div>
+          <div style="font-size:13px;color:var(--muted)">Friendly, appetising, earthy colours</div>
+          <div style="display:flex;align-items:center;gap:14px;padding:14px;border-radius:10px;background:#FBF5EC;color:#2B1D14">
+            <div style="font-family:'Fraunces',serif;font-size:34px;font-weight:500;line-height:1">Aa</div>
+            <div style="display:flex;flex-direction:column;gap:2px;font-size:12px">
+              <span style="font-family:'Fraunces',serif;font-size:15px">Fraunces</span>
+              <span style="font-family:'DM Sans',sans-serif;color:#6E5B4B">DM Sans for body</span>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px">
+          <div style="font-size:13px;font-weight:500;padding-bottom:6px">Colours</div>
+          <sc-for list="{{ palette }}" as="c" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:12px;height:36px">
+              <div style="width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:{{ c.hex }}"></div>
+              <span style="font-size:14px;flex:1">{{ c.role }}</span>
+              <span style="font:400 12px 'JetBrains Mono',monospace;color:var(--muted)">{{ c.hex }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:13px;font-weight:500">Corners</div>
+          <div style="display:flex;padding:3px;border-radius:999px;background:var(--sel)">
+            <sc-for list="{{ radiusOpts }}" as="o" hint-placeholder-count="3">
+              <div onClick="{{ o.pick }}" style="flex:1;height:32px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;cursor:pointer;background:{{ o.bg }};color:{{ o.color }};box-shadow:{{ o.shadow }}">{{ o.name }}</div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <sc-if value="{{ toast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;right:20px;bottom:20px;z-index:40;display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:12px;background:var(--raised);border:1px solid var(--border);box-shadow:var(--shadow);font-size:14px;animation:sonoFade .18s ease-out">
+      <span style="display:flex;color:var(--success)">{{ i16.check }}</span>
+      <span>{{ toastText }}</span>
+      <span style="font-weight:500;color:var(--accentText);cursor:pointer">{{ toastAction }}</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ dialog }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeDeploy }}" style="position:absolute;inset:0;z-index:50;background:rgba(22,20,15,.45);display:flex;align-items:center;justify-content:center">
+      <div onClick="{{ stop }}" style="width:420px;max-width:calc(100% - 40px);padding:24px;border-radius:16px;background:var(--raised);border:1px solid var(--border);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px;animation:sonoFade .18s ease-out">
+        <div style="font-size:20px;font-weight:600;letter-spacing:-0.01em">Deploy Kora Kitchen?</div>
+        <div style="font-size:14px;line-height:1.55;color:var(--muted)">This publishes the current version to <span style="font-family:'JetBrains Mono',monospace;color:var(--text)">kora-kitchen.vercel.app</span>. The pitch link will point to the live site.</div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;padding-top:8px">
+          <div onClick="{{ closeDeploy }}" style="height:38px;padding:0 16px;border-radius:999px;border:1px solid var(--border);display:flex;align-items:center;font-size:14px;font-weight:500;cursor:pointer" style-hover="background:var(--hover)">Cancel</div>
+          <div onClick="{{ confirmDeploy }}" style="height:38px;padding:0 18px;border-radius:999px;background:#B4502E;color:#FFFFFF;display:flex;align-items:center;font-size:14px;font-weight:600;cursor:pointer" style-active="transform:scale(0.97)">Deploy</div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;layout&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;a&quot;,&quot;b&quot;],&quot;default&quot;:&quot;a&quot;,&quot;tsType&quot;:&quot;'a'|'b'&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;system&quot;,&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;system&quot;,&quot;tsType&quot;:&quot;'system'|'light'|'dark'&quot;}}">
+const h = React.createElement;
+const ICONS = {
+  folder: ['M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'],
+  grid: [['rect',{x:3,y:3,width:7,height:7,rx:1}],['rect',{x:14,y:3,width:7,height:7,rx:1}],['rect',{x:14,y:14,width:7,height:7,rx:1}],['rect',{x:3,y:14,width:7,height:7,rx:1}]],
+  palette: [['circle',{cx:12,cy:12,r:9}],['circle',{cx:8.5,cy:10,r:1.2}],['circle',{cx:12,cy:7.5,r:1.2}],['circle',{cx:15.5,cy:10,r:1.2}]],
+  sliders: ['M21 4h-7','M10 4H3','M21 12h-9','M8 12H3','M21 20h-5','M12 20H3','M14 2v4','M8 10v4','M16 18v4'],
+  back: ['M15 18l-6-6 6-6'],
+  plus: ['M5 12h14','M12 5v14'],
+  grip: [['circle',{cx:9,cy:6,r:1}],['circle',{cx:9,cy:12,r:1}],['circle',{cx:9,cy:18,r:1}],['circle',{cx:15,cy:6,r:1}],['circle',{cx:15,cy:12,r:1}],['circle',{cx:15,cy:18,r:1}]],
+  file: ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z','M14 2v6h6'],
+  chev: ['M6 9l6 6 6-6'],
+  monitor: [['rect',{x:2,y:3,width:20,height:14,rx:2}],'M8 21h8','M12 17v4'],
+  tablet: [['rect',{x:4,y:2,width:16,height:20,rx:2}],'M12 18h.01'],
+  phone: [['rect',{x:6,y:2,width:12,height:20,rx:2}],'M12 18h.01'],
+  undo: ['M3 7v6h6','M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13'],
+  redo: ['M21 7v6h-6','M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3l3 2.7'],
+  history: ['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8','M3 3v5h5','M12 7v5l4 2'],
+  share: ['M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8','M16 6l-4-4-4 4','M12 2v13'],
+  download: ['M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4','M7 10l5 5 5-5','M12 15V3'],
+  arrow: ['M5 12h14','M12 5l7 7-7 7'],
+  sun: [['circle',{cx:12,cy:12,r:4}],'M12 2v2','M12 20v2','M4.93 4.93l1.41 1.41','M17.66 17.66l1.41 1.41','M2 12h2','M20 12h2','M6.34 17.66l-1.41 1.41','M19.07 4.93l-1.41 1.41'],
+  moon: ['M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z'],
+  up: ['M12 19V5','M5 12l7-7 7 7'],
+  down: ['M12 5v14','M19 12l-7 7-7-7'],
+  trash: ['M3 6h18','M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6','M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'],
+  check: ['M20 6L9 17l-5-5'],
+  panel: [['rect',{x:3,y:3,width:18,height:18,rx:2}],'M9 3v18'],
+};
+const ic = (n, s) => h('svg', {width:s, height:s, viewBox:'0 0 24 24', fill:'none', stroke:'currentColor', strokeWidth: s <= 12 ? 3 : 2, strokeLinecap:'round', strokeLinejoin:'round', style:{display:'block', flex:'none'}},
+  ICONS[n].map((d, i) => typeof d === 'string' ? h('path', {key:i, d}) : h(d[0], {key:i, ...d[1]})));
+const iconSet = s => Object.fromEntries(Object.keys(ICONS).map(k => [k, ic(k, s)]));
+const I12 = iconSet(12), I14 = iconSet(14), I16 = iconSet(16), I20 = iconSet(20);
+
+const THEMES = {
+  light: {'--bg':'#F7F5F1','--surface':'#FFFFFF','--raised':'#FFFFFF','--border':'#E4E0D8','--text':'#16140F','--muted':'#6B665C','--accentText':'#B4502E','--stage':'#C9C5BD','--hover':'rgba(22,20,15,.05)','--sel':'rgba(22,20,15,.07)','--warn':'#8F5D14','--warnBg':'rgba(183,121,31,.15)','--success':'#3F7D58','--danger':'#B3261E','--shadow':'0 10px 30px rgba(22,20,15,.12)'},
+  dark: {'--bg':'#16140F','--surface':'#1F1C16','--raised':'#29251D','--border':'#353027','--text':'#F7F5F1','--muted':'#A39D90','--accentText':'#DB7C58','--stage':'#3B3730','--hover':'rgba(247,245,241,.05)','--sel':'rgba(247,245,241,.08)','--warn':'#E0A94A','--warnBg':'rgba(224,169,74,.14)','--success':'#6FB58C','--danger':'#EF7A72','--shadow':'0 10px 30px rgba(0,0,0,.45)'},
+};
+const SECTIONS = {
+  nav: {name:'Navigation', type:'Header · logo left'},
+  hero: {name:'Hero', type:'Headline + photo'},
+  menu: {name:'Menu highlights', type:'3 dish cards'},
+  story: {name:'Our story', type:'Image + text'},
+  gallery: {name:'Gallery', type:'4-up grid'},
+  reviews: {name:'Reviews', type:'Two quotes'},
+  visit: {name:'Visit us', type:'Hours + map'},
+  footer: {name:'Footer', type:'Simple, dark'},
+};
+const BG = {cream:'#FBF5EC', sand:'#F1E6D3', white:'#FFFFFF', dark:'#2B1D14'};
+const DEFAULT_BG = {nav:'cream', hero:'cream', menu:'white', story:'sand', gallery:'cream', reviews:'sand', visit:'cream', footer:'dark'};
+const PAGES = [{name:'Home', count:'8 sections'}, {name:'Menu', count:'Planned'}, {name:'About', count:'Planned'}, {name:'Contact', count:'Planned'}];
+const ALT = ['Recipes from home, cooked low and slow.', 'A long table, a slow pot, and room for you.', 'Sunday brunch, weeknight dinners, family recipes.'];
+const ORIGINAL_HERO = {headline:'Family recipes, cooked slowly.', sub:'Dinner Tuesday to Saturday in the heart of Old Town.', cta:'Book a table'};
+
+class Component extends DCLogic {
+  _sa = el => { if (!el || this._saDone) return; this._saDone = true; let n = el, d = 0; while (n && n.parentElement && d < 4) { n = n.parentElement; d++; if (n.tagName === 'BODY') { this.setState({standalone:true}); return; } } };
+  state = {
+    order: ['nav','hero','menu','story','gallery','reviews','visit','footer'],
+    selected: null, hover: null, flash: null,
+    tab: 'chat', device: 'desktop', theme: 'light', page: 'Home', pageMenu: false, scope: 'page',
+    hero: {headline:'Slow-cooked family recipes, served warm.', sub:'Brunch every Sunday from 10am. Dinner Tuesday to Saturday, in the heart of Old Town.', cta:'Book a table'},
+    heroVariant: 'split', bg: {...DEFAULT_BG}, variantSel: {}, radius: 'soft',
+    past: [], future: [],
+    messages: [
+      {id:1, role:'user', text:'Make the hero feel warmer and mention Sunday brunch.'},
+      {id:2, role:'ai', text:'Rewrote the hero headline and added the brunch hours to the subtext. The rest of the page is unchanged.', change:'Hero · headline, subtext', snap:null, undone:false},
+    ],
+    w: 1440, sheet: false, drawer: false,
+    draft: '', thinking: false, thinkingTarget: '', toast: null, dialog: false, alt: 0,
+  };
+  msgRef = React.createRef();
+  rootRef = el => {
+    if (!el || this._roEl === el || !window.ResizeObserver) return;
+    this._ro && this._ro.disconnect();
+    this._roEl = el;
+    this._ro = new ResizeObserver(es => { const w = es[0].contentRect.width; cancelAnimationFrame(this._raf); this._raf = requestAnimationFrame(() => { if (Math.abs(w - this.state.w) > 4) this.setState({w}); }); });
+    this._ro.observe(el);
+  };
+
+  componentDidMount() {
+    const key = 'sono-theme-' + (this.props.layout || 'a');
+    let t = this.props.theme === 'light' || this.props.theme === 'dark' ? this.props.theme : null;
+    if (!t) try { t = localStorage.getItem(key); } catch (e) {}
+    if (!t) {
+      const p = this.props.theme;
+      t = p === 'light' || p === 'dark' ? p : (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    }
+    const m = this.state.messages.slice();
+    m[1] = {...m[1], snap: {...this.snap(this.state), hero: {...ORIGINAL_HERO}}};
+    this.setState({theme: t, messages: m});
+
+  }
+  componentDidUpdate(pp, ps) {
+    if ((ps.messages.length !== this.state.messages.length || ps.thinking !== this.state.thinking) && this.msgRef.current) {
+      this.msgRef.current.scrollTop = this.msgRef.current.scrollHeight;
+    }
+    if (pp.theme !== this.props.theme && (this.props.theme === 'light' || this.props.theme === 'dark')) this.setState({theme: this.props.theme});
+  }
+  componentWillUnmount() { this._ro && this._ro.disconnect(); clearTimeout(this._t1); clearTimeout(this._t2); clearTimeout(this._t3); }
+
+  snap(s) { return {order:[...s.order], hero:{...s.hero}, heroVariant:s.heroVariant, bg:{...s.bg}}; }
+  commit(fn) { this.setState(s => ({past:[...s.past, this.snap(s)].slice(-50), future:[], ...fn(s)})); }
+  undo = () => this.setState(s => s.past.length ? ({...s.past[s.past.length-1], past:s.past.slice(0,-1), future:[this.snap(s), ...s.future]}) : null);
+  redo = () => this.setState(s => s.future.length ? ({...s.future[0], future:s.future.slice(1), past:[...s.past, this.snap(s)]}) : null);
+  flash(id) { clearTimeout(this._t2); this.setState({flash:id}); this._t2 = setTimeout(() => this.setState({flash:null}), 1300); }
+  showToast(text, action) { clearTimeout(this._t3); this.setState({toast:{text, action}}); this._t3 = setTimeout(() => this.setState({toast:null}), 3200); }
+
+  select = id => this.setState({selected:id, tab:'edit', scope:'section', sheet:true, drawer:false});
+  toggleTheme = () => {
+    if (this.props.onToggleTheme) { this.props.onToggleTheme(); return; }
+    const t = this.state.theme === 'dark' ? 'light' : 'dark';
+    try { localStorage.setItem('sono-theme-' + (this.props.layout || 'a'), t); } catch (e) {}
+    this.setState({theme:t});
+  };
+  move = dir => { const id = this.state.selected; if (!id) return;
+    this.commit(s => { const o = [...s.order]; const i = o.indexOf(id), j = i + dir; if (j < 0 || j >= o.length) return {}; [o[i], o[j]] = [o[j], o[i]]; return {order:o}; });
+    this.flash(id);
+  };
+  remove = () => { const id = this.state.selected; if (!id) return;
+    this.commit(s => ({order: s.order.filter(x => x !== id)}));
+    this.setState({selected:null, scope:'page'});
+    this.showToast(SECTIONS[id].name + ' removed', 'Undo');
+  };
+  send = () => {
+    const text = this.state.draft.trim(); if (!text || this.state.thinking) return;
+    const s0 = this.state;
+    const target = s0.scope === 'section' && s0.selected ? s0.selected : 'hero';
+    const before = this.snap(s0);
+    this.setState(s => ({draft:'', thinking:true, thinkingTarget:SECTIONS[target].name, messages:[...s.messages, {id:Date.now(), role:'user', text}]}));
+    clearTimeout(this._t1);
+    this._t1 = setTimeout(() => {
+      const scope = this.state.scope;
+      let reply, change, patch = {};
+      if (target === 'hero') {
+        const hl = ALT[this.state.alt % ALT.length];
+        patch = {hero:{...this.state.hero, headline:hl}, alt:this.state.alt + 1};
+        reply = scope === 'site' ? 'Checked all 8 sections against your note. Only the hero needed a change, so I rewrote its headline.' : 'Rewrote the hero headline to match. Subtext and button are unchanged.';
+        change = 'Hero · headline';
+      } else {
+        reply = 'Updated the ' + SECTIONS[target].name.toLowerCase() + ' copy. Layout and images are unchanged.';
+        change = SECTIONS[target].name + ' · copy';
+      }
+      this.setState(s => ({...patch, past:[...s.past, before], future:[], thinking:false, messages:[...s.messages, {id:Date.now()+1, role:'ai', text:reply, change, snap:before, undone:false}]}));
+      this.flash(target);
+    }, 1600);
+  };
+  undoMsg = id => {
+    const m = this.state.messages.find(x => x.id === id); if (!m || !m.snap) return;
+    this.commit(() => ({...m.snap}));
+    this.setState(s => ({messages: s.messages.map(x => x.id === id ? {...x, undone:true} : x)}));
+    this.flash(m.change.startsWith('Hero') ? 'hero' : null);
+  };
+
+  renderVals() {
+    const s = this.state;
+    const isA = (this.props.layout || 'a') !== 'b';
+    const sel = s.selected && s.order.includes(s.selected) ? s.selected : null;
+    const font = "'Space Grotesk', sans-serif";
+    const curTheme = this.props.onToggleTheme ? (this.props.theme === 'dark' ? 'dark' : 'light') : s.theme;
+    const nav = r => () => this.props.onNavigate && this.props.onNavigate(r);
+    const rootStyle = {...THEMES[curTheme === 'dark' ? 'dark' : 'light'], display:'flex', width:'100%', height: this.state.standalone ? '100vh' : '100%', minHeight:600, position:'relative', overflow:'hidden', background:'var(--bg)', color:'var(--text)', fontFamily:font, transition:'background .2s ease-out, color .2s ease-out'};
+    const narrow = s.w < 768, tablet = !narrow && s.w < 1280;
+    const leftBase = isA
+      ? {width:248, flex:'none', display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', background:'var(--surface)'}
+      : {width:256, flex:'none', display:'flex', flexDirection:'column', background:'var(--bg)'};
+    const leftDrawer = {...leftBase, position:'absolute', top:0, bottom:0, left: isA && !narrow ? 60 : 0, zIndex:30, background:'var(--surface)', borderRight:'1px solid var(--border)', boxShadow: s.drawer ? 'var(--shadow)' : 'none', transform: s.drawer ? 'none' : 'translateX(-110%)', transition:'transform .18s cubic-bezier(.22,1,.36,1)', visibility: s.drawer ? 'visible' : 'hidden'};
+    const leftStyleUnused = isA
+      ? {width:248, flex:'none', display:'flex', flexDirection:'column', borderRight:'1px solid var(--border)', background:'var(--surface)'}
+      : {width:256, flex:'none', display:'flex', flexDirection:'column', background:'var(--bg)'};
+    const leftStyle = narrow || tablet ? leftDrawer : leftBase;
+    const centerStyle0 = isA
+      ? {flex:1, minWidth:0, display:'flex', flexDirection:'column'}
+      : {flex:1, minWidth:0, display:'flex', flexDirection:'column', margin:'12px 0', borderRadius:18, background:'var(--stage)', overflow:'hidden', position:'relative'};
+    const centerStyle = narrow ? {flex:1, minWidth:0, display:'flex', flexDirection:'column', paddingBottom:64} : centerStyle0;
+    const toolbarStyle0 = isA
+      ? {display:'flex', alignItems:'center', gap:8, height:56, padding:'0 12px', borderBottom:'1px solid var(--border)', background:'var(--surface)', flex:'none'}
+      : {display:'flex', alignItems:'center', gap:8, padding:6, margin:'12px 12px 0', borderRadius:999, background:'var(--raised)', border:'1px solid var(--border)', boxShadow:'var(--shadow)', flex:'none', alignSelf:'stretch'};
+    const toolbarStyle = narrow ? {...toolbarStyle0, gap:4, padding:'0 8px', margin:0, borderRadius:0, height:56, boxShadow:'none', border:'none', borderBottom:'1px solid var(--border)', background:'var(--surface)'} : toolbarStyle0;
+    const stageStyle = {flex:1, overflow:'auto', padding: narrow ? 0 : isA ? 28 : '20px 28px 28px', display:'flex', justifyContent:'center', background:isA ? 'var(--stage)' : 'transparent'};
+    const rightStyle0 = isA
+      ? {width:340, flex:'none', display:'flex', flexDirection:'column', borderLeft:'1px solid var(--border)', background:'var(--surface)', minHeight:0}
+      : {width:348, flex:'none', display:'flex', flexDirection:'column', background:'var(--bg)', minHeight:0};
+
+    const rightStyle = narrow ? {position:'absolute', left:0, right:0, bottom:0, zIndex:20, height: s.sheet ? '62%' : 64, display:'flex', flexDirection:'column', background:'var(--surface)', borderRadius:'18px 18px 0 0', boxShadow:'0 -10px 30px rgba(22,20,15,.18)', overflow:'hidden', transition:'height .2s cubic-bezier(.22,1,.36,1)', minHeight:0} : rightStyle0;
+    const rows = s.order.map(id => ({
+      name:SECTIONS[id].name, type:SECTIONS[id].type, isSel:id === sel,
+      bg: id === sel ? 'var(--sel)' : s.hover === id ? 'var(--hover)' : 'transparent',
+      weight: id === sel ? 600 : 500, thumb: BG[s.bg[id] || DEFAULT_BG[id]],
+      click:() => this.select(id), enter:() => this.setState({hover:id}), leave:() => this.setState({hover:null}),
+    }));
+    const ids = s.page === 'Home' ? s.order : ['nav', 'pagehead', 'footer'];
+    const items = ids.map(id => {
+      const real = id !== 'pagehead';
+      const on = real && (s.hover === id || sel === id || s.flash === id);
+      return {
+        name: real ? SECTIONS[id].name : s.page, showLabel: real && (s.hover === id || sel === id),
+        outline: on ? '2px solid #B4502E' : '2px solid transparent',
+        bg: real ? BG[s.bg[id] || DEFAULT_BG[id]] : BG.cream,
+        isNav:id==='nav', isHero:id==='hero', isMenu:id==='menu', isStory:id==='story', isGallery:id==='gallery', isReviews:id==='reviews', isVisit:id==='visit', isFooter:id==='footer', isPageHead:id==='pagehead',
+        enter: real ? () => this.setState({hover:id}) : null, leave: () => this.setState({hover:null}),
+        click: real ? () => this.select(id) : null,
+      };
+    });
+    const split = s.heroVariant === 'split';
+    const devs = [['desktop','Desktop','monitor'], ['tablet','Tablet','tablet'], ['phone','Phone','phone']];
+    const scopeLabel = s.scope === 'site' ? 'Whole site' : s.scope === 'section' && sel ? 'Section · ' + SECTIONS[sel].name : 'Page · ' + s.page;
+    const variantDefs = sel === 'hero'
+      ? [['split','Split','58%','38%','flex-start'], ['centered','Centered','70%','0%','center'], ['bleed','Full-bleed','0%','100%','flex-start']]
+      : [['a','Current','60%','36%','flex-start'], ['b','Stacked','100%','0%','center'], ['c','Reversed','36%','60%','flex-end']];
+    const curVar = sel === 'hero' ? s.heroVariant : (s.variantSel[sel] || 'a');
+
+    return {
+      rootStyle, leftStyle, centerStyle, toolbarStyle, stageStyle, rightStyle, isA, isB:!isA,
+      i12:I12, i14:I14, i16:I16, i20:I20,
+      themeIcon: curTheme === 'dark' ? I16.sun : I16.moon,
+      markSrc: curTheme === 'dark' ? 'assets/logo/sono-mark-inverse.svg' : 'assets/logo/sono-mark.svg',
+      lockupSrc: curTheme === 'dark' ? 'assets/logo/sono-lockup-horizontal-inverse.svg' : 'assets/logo/sono-lockup-horizontal.svg',
+      goProjects:nav('dashboard'), goLibrary:nav('library'), goPresets:nav('presets'), goSettings:nav('settings'),
+      rows, items, page:s.page, pageUpper:s.page.toUpperCase(), pageMenu:s.pageMenu,
+      togglePageMenu:() => this.setState(x => ({pageMenu:!x.pageMenu})),
+      pages: PAGES.map(p => ({...p, color: p.name === s.page ? 'var(--accentText)' : 'var(--text)', pick:() => this.setState({page:p.name, pageMenu:false, selected:null, scope:'page'})})),
+      devices: devs.map(([k, label, icon]) => ({label, icon:I16[icon], bg: s.device === k ? 'var(--sel)' : 'transparent', color: s.device === k ? 'var(--text)' : 'var(--muted)', pick:() => this.setState({device:k})})),
+      rootRef: el => { this.rootRef(el); this._sa(el); }, narrow, notNarrow:!narrow, showRail: isA && !narrow, fullBar: !narrow && s.w >= 1100, labels: s.w >= 1200,
+      showDrawerBtn: narrow || tablet, drawerOpen: (narrow || tablet) && s.drawer,
+      openDrawer:() => this.setState({drawer:true}), closeDrawer:() => this.setState({drawer:false}),
+      toggleSheet:() => this.setState(x => ({sheet:!x.sheet})),
+      frameW: narrow ? '100%' : s.device === 'desktop' ? '100%' : s.device === 'tablet' ? '768px' : '390px',
+      frameRadius: narrow ? '0' : s.device === 'phone' ? '28px' : '10px',
+      undo:this.undo, redo:this.redo, undoOpacity: s.past.length ? 1 : 0.35, redoOpacity: s.future.length ? 1 : 0.35,
+      toggleTheme:this.toggleTheme,
+      share:() => this.showToast('Pitch link copied', 'Open link'),
+      exportSite:() => this.showToast('Export ready: kora-kitchen.zip', 'Download'),
+      openDeploy:() => this.setState({dialog:true}), closeDeploy:() => this.setState({dialog:false}),
+      stop: e => e.stopPropagation(),
+      confirmDeploy:() => { this.setState({dialog:false}); this.showToast('Kora Kitchen is live', 'View site'); },
+      hero:s.hero, sr: s.radius === 'sharp' ? '2px' : s.radius === 'round' ? '24px' : '14px',
+      heroCols: split ? 'repeat(auto-fit,minmax(260px,1fr))' : '1fr', heroAlign: split ? 'left' : 'center', heroItems: split ? 'flex-start' : 'center', heroImgH: split ? '360px' : '280px',
+      dishes:[
+        {name:'Short rib stew', price:'$24', desc:'Braised for eight hours with smoked pepper and served with flatbread.', photo:'photo: short rib stew'},
+        {name:'Garden plate', price:'$17', desc:'Roasted squash, greens, whipped feta and toasted seeds.', photo:'photo: garden plate'},
+        {name:'Honey cake', price:'$9', desc:'Amara\u2019s mother\u2019s recipe, with cultured cream.', photo:'photo: honey cake slice'},
+      ],
+      gallery:['photo: dining room', 'photo: open kitchen', 'photo: Sunday brunch', 'photo: terrace at night'],
+      reviews:[{text:'The short rib alone is worth the trip. It felt like eating at a friend\u2019s house.', who:'Lena M. · Google review'}, {text:'Our Sunday ritual now. Book ahead, it fills up by eleven.', who:'Tomás R. · Instagram'}],
+      tabs:['Chat','Edit','Theme'].map(n => { const k = n.toLowerCase(), on = s.tab === k; return {name:n, color: on ? 'var(--accentText)' : 'var(--muted)', line: on ? 'inset 0 -2px 0 #B4502E' : 'none', pick:() => this.setState(x => narrow ? ({tab:k, sheet: x.tab === k ? !x.sheet : true}) : ({tab:k}))}; }),
+      isChat:s.tab === 'chat', isEdit:s.tab === 'edit', isTheme:s.tab === 'theme',
+      messages: s.messages.map(m => ({...m, isUser:m.role === 'user', isAi:m.role === 'ai', canUndo:m.role === 'ai' && !m.undone && !!m.snap, undo:() => this.undoMsg(m.id)})),
+      msgRef:this.msgRef, thinking:s.thinking, thinkingLabel:'Rewriting ' + s.thinkingTarget.toLowerCase() + '…',
+      spinner: h('img', {src: curTheme === 'dark' ? 'assets/logo/sono-mark-inverse.svg' : 'assets/logo/sono-mark.svg', alt:'', style:{height:15, width:'auto', flex:'none', animation:'sonoSpin 2.4s linear infinite'}}),
+      scopeLabel,
+      cycleScope:() => this.setState(x => { const opts = ['site','page'].concat(sel ? ['section'] : []); return {scope: opts[(opts.indexOf(x.scope) + 1) % opts.length]}; }),
+      draft:s.draft, onDraft: e => this.setState({draft:e.target.value}),
+      onKey: e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.send(); } },
+      send:this.send,
+      hasSel:!!sel, noSel:!sel, sel: sel ? SECTIONS[sel] : {name:'', type:''}, selIsHero: sel === 'hero',
+      canBg: !!sel && sel !== 'footer',
+      variants: variantDefs.map(([k, name, a, b, justify]) => ({name, a, b, justify, on: curVar === k, border: curVar === k ? '1.5px solid #B4502E' : '1.5px solid var(--border)',
+        pick:() => { if (sel === 'hero') { if (k !== 'bleed') { this.commit(() => ({heroVariant:k})); this.flash('hero'); } else this.showToast('Full-bleed needs a wide photo', 'Open library'); } else this.setState(x => ({variantSel:{...x.variantSel, [sel]:k}})); }})),
+      setHeadline: e => this.setState({hero:{...s.hero, headline:e.target.value}}),
+      setSub: e => this.setState({hero:{...s.hero, sub:e.target.value}}),
+      setCta: e => this.setState({hero:{...s.hero, cta:e.target.value}}),
+      bgOpts: ['cream','sand','white'].map(k => ({name: k[0].toUpperCase() + k.slice(1), color:BG[k], border: sel && (s.bg[sel] || DEFAULT_BG[sel]) === k ? '1.5px solid #B4502E' : '1.5px solid var(--border)', pick:() => { this.commit(x => ({bg:{...x.bg, [sel]:k}})); }})),
+      moveUp:() => this.move(-1), moveDown:() => this.move(1), remove:this.remove,
+      askAboutSel:() => this.setState({tab:'chat', scope:'section'}),
+      palette:[{role:'Background', hex:'#FBF5EC'}, {role:'Surface', hex:'#F1E6D3'}, {role:'Text', hex:'#2B1D14'}, {role:'Primary', hex:'#4E5B31'}, {role:'Accent', hex:'#D9A441'}],
+      radiusOpts:[['sharp','Sharp'], ['soft','Soft'], ['round','Round']].map(([k, n]) => ({name:n, bg: s.radius === k ? 'var(--surface)' : 'transparent', color: s.radius === k ? 'var(--text)' : 'var(--muted)', shadow: s.radius === k ? '0 1px 3px rgba(0,0,0,.12)' : 'none', pick:() => this.setState({radius:k})})),
+      toast:!!s.toast, toastText: s.toast ? s.toast.text : '', toastAction: s.toast ? s.toast.action : '',
+      dialog:s.dialog,
+    };
+  }
+}
+</script>
+</body>
+</html>

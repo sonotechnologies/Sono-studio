@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="icon" type="image/svg+xml" href="assets/logo/sono-favicon.svg">
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+body{margin:0;background:#E7E4DE}
+a{color:#B4502E;text-decoration:none}
+a:hover{text-decoration:underline}
+</style>
+</helmet>
+<section style="padding:64px 64px 32px;display:flex;flex-direction:column;gap:32px;font-family:'Space Grotesk',sans-serif;color:#16140F">
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:760px">
+    <div style="font-size:12px;font-weight:500;letter-spacing:0.16em;color:#6B665C">TURN 2 · FULL DESIGN PHASE</div>
+    <div style="font-size:40px;font-weight:600;letter-spacing:-0.02em">Every deliverable from the brief</div>
+    <div style="font-size:16px;line-height:1.5;color:#4A463F">Built on layout <a href="#1a">1a</a>. The prototype below starts at login; sign in, then use New site, open a project card, or any sidebar item. Each part also opens on its own.</div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;max-width:1440px">
+    <a href="Studio App.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">Studio App</span><span style="font-size:13px;line-height:1.45;color:#6B665C">Login, Dashboard (with empty state tweak), Project details, Library, Presets, Settings. Links into the wizard and workspace.</span></a>
+    <a href="New Site Flow.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">New Site Flow</span><span style="font-size:13px;line-height:1.45;color:#6B665C">Wizard (business, style, content, review), generation steps with the ring loader, draggable plan review, sections filling in.</span></a>
+    <a href="Workspace.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">Workspace</span><span style="font-size:13px;line-height:1.45;color:#6B665C">Desktop three-pane, tablet section drawer, phone bottom sheet.</span></a>
+    <a href="Components.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">Components</span><span style="font-size:13px;line-height:1.45;color:#6B665C">Colour, type, every component with hover, focus, disabled and loading states, plus the ring loading mark. Light and dark.</span></a>
+    <a href="Phone Layouts.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">Phone Layouts</span><span style="font-size:13px;line-height:1.45;color:#6B665C">Dashboard, Project details and Workspace at 390px, light and dark.</span></a>
+    <a href="Style Presets.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">Style Presets</span><span style="font-size:13px;line-height:1.45;color:#6B665C">Six presets with colour roles, type sizes, button, card and input styles, and a sample home page each.</span></a>
+    <a href="Pitch Page.dc.html" style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8;color:#16140F;text-decoration:none"><span style="font-size:16px;font-weight:600">Pitch Page</span><span style="font-size:13px;line-height:1.45;color:#6B665C">The client's view with the banner. Banner theme and visibility are tweaks.</span></a>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:18px 20px;border-radius:14px;background:#FFFFFF;border:1px solid #E4E0D8"><span style="font-size:16px;font-weight:600">Tokens</span><span style="font-size:13px;line-height:1.45;color:#6B665C;font-family:'JetBrains Mono',monospace">tokens/sono-tokens.css<br>tokens/tailwind.config.js<br>tokens/presets.json</span></div>
+  </div>
+  <div id="2a" style="display:flex;flex-direction:column;gap:14px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:#16140F;color:#F7F5F1">2a</span>
+      <span style="font-size:16px;font-weight:500">Studio App prototype</span>
+    </div>
+    <div style="width:1440px;height:900px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(22,20,15,.18)">
+      <dc-import name="Studio App" start="login" style="width:1440px;height:900px" hint-size="1440px,900px"></dc-import>
+    </div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:48px">
+    <div id="2b" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:#16140F;color:#F7F5F1">2b</span>
+        <span style="font-size:16px;font-weight:500">Pitch banner, dark</span>
+      </div>
+      <div style="width:960px;height:600px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(22,20,15,.18)">
+        <dc-import name="Pitch Page" banner-theme="dark" style="width:960px;height:600px" hint-size="960px,600px"></dc-import>
+      </div>
+    </div>
+    <div id="2c" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:#16140F;color:#F7F5F1">2c</span>
+        <span style="font-size:16px;font-weight:500">Pitch banner, light</span>
+      </div>
+      <div style="width:960px;height:600px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(22,20,15,.18)">
+        <dc-import name="Pitch Page" banner-theme="light" style="width:960px;height:600px" hint-size="960px,600px"></dc-import>
+      </div>
+    </div>
+  </div>
+</section>
+<section style="padding:32px 64px 64px;display:flex;flex-direction:column;gap:32px;font-family:'Space Grotesk',sans-serif;color:#16140F">
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:720px">
+    <div style="font-size:12px;font-weight:500;letter-spacing:0.16em;color:#6B665C">TURN 1 · WORKSPACE</div>
+    <div style="font-size:40px;font-weight:600;letter-spacing:-0.02em">Two workspace layouts</div>
+    <div style="font-size:16px;line-height:1.5;color:#6B665C">Both are clickable: hover and select sections, edit the hero, reorder, chat (Enter to send), switch device widths, undo and redo, deploy. The moon icon in the toolbar switches theme. <a href="#1a">1a</a> is a classic three-pane tool. <a href="#1b">1b</a> drops the app rail and sets the preview on an inset stage with a floating toolbar.</div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:48px">
+    <div id="1a" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:#16140F;color:#F7F5F1">1a</span>
+        <span style="font-size:16px;font-weight:500">Three-pane, app rail</span>
+      </div>
+      <div style="width:1440px;height:900px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(22,20,15,.18)">
+        <dc-import name="Workspace" layout="a" theme="light" style="width:1440px;height:900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+    <div id="1b" style="display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:13px;font-weight:600;padding:4px 10px;border-radius:999px;background:#16140F;color:#F7F5F1">1b</span>
+        <span style="font-size:16px;font-weight:500">Inset stage, floating toolbar</span>
+      </div>
+      <div style="width:1440px;height:900px;border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(22,20,15,.18)">
+        <dc-import name="Workspace" layout="b" theme="dark" style="width:1440px;height:900px" hint-size="1440px,900px"></dc-import>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+</body>
+</html>
