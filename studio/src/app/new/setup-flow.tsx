@@ -198,6 +198,19 @@ export function SetupFlow({
       edit: () => goStep(2),
     },
   ];
+  const thinInput = brief.paste.trim().length < 80;
+  const thinNotice = thinInput && (
+    <p className="m-0 flex gap-2.5 rounded-card border border-border bg-surface p-4 text-[14px] leading-normal">
+      <Info size={18} className="mt-0.5 flex-none text-accent-text" />
+      <span>
+        The AI only knows the name and kind of business, so the copy will stay general. For copy that sounds like this business, add a few facts in{' '}
+        <button type="button" onClick={() => goStep(2)} className="cursor-pointer font-medium text-accent-text hover:underline">
+          Content
+        </button>
+        : what they offer, prices, opening hours, what makes them different.
+      </span>
+    </p>
+  );
   const notice =
     aiMode === 'demo' ? (
       <p className="m-0 flex gap-2.5 rounded-card border border-border bg-surface p-4 text-[14px] leading-normal">
@@ -318,7 +331,17 @@ export function SetupFlow({
             {step === 0 && <BusinessStep brief={brief} set={setBrief} />}
             {step === 1 && <StyleStep brief={brief} set={setBrief} />}
             {step === 2 && <ContentStep brief={brief} set={setBrief} tiles={tiles} onFiles={onFiles} onRemove={onRemove} />}
-            {step === 3 && <ReviewStep rows={reviewRows} notice={notice} />}
+            {step === 3 && (
+              <ReviewStep
+                rows={reviewRows}
+                notice={
+                  <>
+                    {thinNotice}
+                    {notice}
+                  </>
+                }
+              />
+            )}
           </div>
         ) : (
           <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">

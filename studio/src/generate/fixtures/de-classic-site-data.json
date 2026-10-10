@@ -1,0 +1,1145 @@
+{
+  "exportedAt": "2026-10-10T23:24:14.061Z",
+  "project": {
+    "name": "De Classic",
+    "businessType": "Hotel",
+    "preset": "luxe-minimal"
+  },
+  "version": {
+    "number": 1,
+    "summary": "Generated site",
+    "createdAt": "2026-10-10T23:09:34.769509+00:00"
+  },
+  "generation": {
+    "status": "done",
+    "brief": {
+      "pages": [
+        "home",
+        "services",
+        "rooms",
+        "gallery",
+        "contact"
+      ],
+      "paste": "",
+      "client": {
+        "address": "",
+        "whatsapp": "",
+        "instagram": "",
+        "ownerName": ""
+      },
+      "preset": "luxe-minimal",
+      "useBrand": false,
+      "brandColors": [],
+      "businessName": "De Classic",
+      "businessType": "Hotel"
+    },
+    "extracted": {
+      "facts": [],
+      "hours": [],
+      "items": [],
+      "tagline": ""
+    },
+    "plan": {
+      "pages": [
+        {
+          "id": "home",
+          "path": "/",
+          "title": "Home",
+          "sections": [
+            {
+              "id": "home-hero",
+              "note": "Atmospheric, full-bleed imagery of De Classic's serene architecture with minimal headline.",
+              "type": "hero",
+              "variant": "full-bleed"
+            },
+            {
+              "id": "home-about",
+              "note": "Quiet editorial statement introducing the hotel's philosophy of understated luxury and privacy.",
+              "type": "about",
+              "variant": "statement"
+            },
+            {
+              "id": "home-features",
+              "note": "Curated preview of signature suite collections with starting nightly rates.",
+              "type": "features",
+              "variant": "cards"
+            },
+            {
+              "id": "home-gallery",
+              "note": "Horizontal strip of quiet architectural moments, private pools, and light-filled interiors.",
+              "type": "gallery",
+              "variant": "strip"
+            },
+            {
+              "id": "home-testimonials",
+              "note": "Minimalist review score display with a single refined quote from a discerning guest.",
+              "type": "testimonials",
+              "variant": "rating-strip"
+            },
+            {
+              "id": "home-cta",
+              "note": "Invitation to reserve an upcoming stay beside an evocative dusk photo.",
+              "type": "cta",
+              "variant": "split"
+            }
+          ]
+        },
+        {
+          "id": "services",
+          "path": "/services",
+          "title": "Services",
+          "sections": [
+            {
+              "id": "services-hero",
+              "note": "Headline focusing on bespoke guest experiences beside a photo of the wellness pavilion.",
+              "type": "hero",
+              "variant": "split-photo"
+            },
+            {
+              "id": "services-features",
+              "note": "Numbered guide to exclusive amenities including private dining, spa treatments, and concierge transfers.",
+              "type": "features",
+              "variant": "numbered"
+            },
+            {
+              "id": "services-faq",
+              "note": "Direct answers to questions about booking treatments, private dining, and custom requests.",
+              "type": "faq",
+              "variant": "two-column"
+            },
+            {
+              "id": "services-cta",
+              "note": "Full-width minimalist banner to coordinate tailor-made experiences with the concierge.",
+              "type": "cta",
+              "variant": "banner"
+            }
+          ]
+        },
+        {
+          "id": "rooms",
+          "path": "/rooms",
+          "title": "Rooms",
+          "sections": [
+            {
+              "id": "rooms-hero",
+              "note": "Centered typography introducing the guest sanctuaries over a serene bedroom vista.",
+              "type": "hero",
+              "variant": "centered"
+            },
+            {
+              "id": "rooms-features",
+              "note": "Refined price list outlining suite categories, dimensions, and included amenities.",
+              "type": "features",
+              "variant": "price-list"
+            },
+            {
+              "id": "rooms-about",
+              "note": "Narrative detailing the natural materials, acoustic privacy, and custom furnishings in each room.",
+              "type": "about",
+              "variant": "split"
+            },
+            {
+              "id": "rooms-cta",
+              "note": "Understated boxed prompt to check live availability and reserve suites.",
+              "type": "cta",
+              "variant": "boxed"
+            }
+          ]
+        },
+        {
+          "id": "gallery",
+          "path": "/gallery",
+          "title": "Gallery",
+          "sections": [
+            {
+              "id": "gallery-hero",
+              "note": "Expansive typographic opening framing the visual journey through De Classic.",
+              "type": "hero",
+              "variant": "oversized-type"
+            },
+            {
+              "id": "gallery-gallery",
+              "note": "Editorial masonry grid highlighting grounds, architecture, suite details, and culinary art.",
+              "type": "gallery",
+              "variant": "masonry"
+            },
+            {
+              "id": "gallery-cta",
+              "note": "Elegant reservation prompt alongside a view of the private courtyard garden.",
+              "type": "cta",
+              "variant": "split"
+            }
+          ]
+        },
+        {
+          "id": "contact",
+          "path": "/contact",
+          "title": "Contact",
+          "sections": [
+            {
+              "id": "contact-hero",
+              "note": "Warm welcome message from the front desk accompanied by an entrance photography.",
+              "type": "hero",
+              "variant": "split-photo"
+            },
+            {
+              "id": "contact-contact",
+              "note": "Hotel location, private chauffeur pickup points, concierge hours, and map.",
+              "type": "contact",
+              "variant": "map-and-hours"
+            },
+            {
+              "id": "contact-faq",
+              "note": "Accordion addressing check-in procedures, valet parking, and direct messaging via WhatsApp.",
+              "type": "faq",
+              "variant": "accordion"
+            }
+          ]
+        }
+      ]
+    },
+    "steps": [
+      {
+        "at": "2026-10-10T23:02:09.683Z",
+        "ms": 1,
+        "key": "read",
+        "label": "Reading your inputs",
+        "detail": "Nothing pasted",
+        "status": "skipped",
+        "provider": "local"
+      },
+      {
+        "at": "2026-10-10T23:02:12.221Z",
+        "ms": 445,
+        "key": "plan",
+        "label": "Planning pages and sections",
+        "detail": "Every AI provider failed: gemini (bad_request: Gemini 404: {\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"This model models/gemini-2.5-flash is no longer available to)",
+        "status": "failed"
+      },
+      {
+        "at": "2026-10-10T23:06:16.697Z",
+        "ms": 467,
+        "key": "plan",
+        "label": "Planning pages and sections",
+        "detail": "Every AI provider failed. Gemini (gemini-2.5-flash) refused the request: Gemini: model not found. Pick an available model in Settings → AI providers → Manage. ({\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"This model models/gemini-2.5-flash is no longer available to new users. ).",
+        "status": "failed"
+      },
+      {
+        "at": "2026-10-10T23:07:09.975Z",
+        "ms": 449,
+        "key": "plan",
+        "label": "Planning pages and sections",
+        "detail": "Every AI provider failed. Gemini (gemini-2.5-flash) refused the request: Gemini: model not found. Pick an available model in Settings → AI providers → Manage. ({\n  \"error\": {\n    \"code\": 404,\n    \"message\": \"This model models/gemini-2.5-flash is no longer available to new users. ).",
+        "status": "failed"
+      },
+      {
+        "at": "2026-10-10T23:08:39.389Z",
+        "ms": 11142,
+        "key": "plan",
+        "label": "Planning pages and sections",
+        "model": "gemini-3.8-flash",
+        "status": "done",
+        "provider": "gemini"
+      },
+      {
+        "at": "2026-10-10T23:09:14.105Z",
+        "ms": 3015,
+        "key": "write:home",
+        "label": "Writing copy · Home",
+        "model": "gemini-3.5-flash-lite",
+        "status": "done",
+        "provider": "gemini"
+      },
+      {
+        "at": "2026-10-10T23:09:19.338Z",
+        "ms": 2538,
+        "key": "write:services",
+        "label": "Writing copy · Services",
+        "model": "gemini-3.5-flash-lite",
+        "status": "done",
+        "provider": "gemini"
+      },
+      {
+        "at": "2026-10-10T23:09:23.846Z",
+        "ms": 2473,
+        "key": "write:rooms",
+        "label": "Writing copy · Rooms",
+        "model": "gemini-3.5-flash-lite",
+        "status": "done",
+        "provider": "gemini"
+      },
+      {
+        "at": "2026-10-10T23:09:27.556Z",
+        "ms": 2223,
+        "key": "write:gallery",
+        "label": "Writing copy · Gallery",
+        "model": "gemini-3.5-flash-lite",
+        "status": "done",
+        "provider": "gemini"
+      },
+      {
+        "at": "2026-10-10T23:09:31.309Z",
+        "ms": 1610,
+        "key": "write:contact",
+        "label": "Writing copy · Contact",
+        "model": "gemini-3.5-flash-lite",
+        "status": "done",
+        "provider": "gemini"
+      },
+      {
+        "at": "2026-10-10T23:09:32.713Z",
+        "ms": 2,
+        "key": "photos",
+        "label": "Choosing photos",
+        "model": "placeholders",
+        "status": "done",
+        "provider": "local"
+      },
+      {
+        "at": "2026-10-10T23:09:34.839Z",
+        "ms": 387,
+        "key": "assemble",
+        "label": "Assembling and checking",
+        "model": "version 1",
+        "status": "done",
+        "provider": "local"
+      }
+    ],
+    "error": null
+  },
+  "config": {
+    "meta": {
+      "language": "en",
+      "description": "De Classic, hotel.",
+      "businessName": "De Classic"
+    },
+    "pages": [
+      {
+        "id": "home",
+        "path": "/",
+        "title": "Home",
+        "sections": [
+          {
+            "id": "home-navbar",
+            "type": "navbar",
+            "content": {
+              "cta": {
+                "href": "/contact",
+                "label": "Get in touch"
+              },
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ]
+            },
+            "variant": "centered"
+          },
+          {
+            "id": "home-hero",
+            "type": "hero",
+            "content": {
+              "image": {
+                "alt": "Serene architecture and open spaces at De Classic hotel",
+                "src": ""
+              },
+              "eyebrow": "Welcome to De Classic",
+              "heading": "Quiet space for modern rest.",
+              "primaryCta": {
+                "href": "/#home-cta",
+                "label": "Reserve Your Stay"
+              },
+              "subheading": "Experience understated luxury, open architecture, and absolute privacy at De Classic.",
+              "secondaryCta": {
+                "href": "/#home-features",
+                "label": "Explore Suites"
+              }
+            },
+            "variant": "full-bleed"
+          },
+          {
+            "id": "home-about",
+            "type": "about",
+            "content": {
+              "body": [
+                "At De Classic, we believe true luxury is found in space, silence, and simplicity.",
+                "Every corner of our hotel is crafted to offer a calm environment where you can unwind without distraction.",
+                "We focus on personal comfort, thoughtful details, and unhurried hospitality."
+              ],
+              "image": {
+                "alt": "Minimalist and light-filled interior space at De Classic",
+                "src": ""
+              },
+              "eyebrow": "Our Philosophy",
+              "heading": "A retreat designed for quiet moments."
+            },
+            "variant": "statement"
+          },
+          {
+            "id": "home-features",
+            "type": "features",
+            "content": {
+              "intro": "Discover our thoughtfully designed rooms and suites, created for privacy and deep rest.",
+              "items": [
+                {
+                  "text": "An expansive room featuring clean lines, natural light, and quiet views.",
+                  "image": {
+                    "alt": "Spacious suite interior with neutral tones at De Classic",
+                    "src": ""
+                  },
+                  "title": "Classic Suite"
+                },
+                {
+                  "text": "An isolated space offering elevated comfort and secluded surroundings.",
+                  "image": {
+                    "alt": "Private suite lounge area with minimalist furniture",
+                    "src": ""
+                  },
+                  "title": "Private Residence"
+                }
+              ],
+              "eyebrow": "Accommodations",
+              "heading": "Curated suite collections."
+            },
+            "variant": "cards"
+          },
+          {
+            "id": "home-gallery",
+            "type": "gallery",
+            "content": {
+              "intro": "A visual glimpse into the quiet architecture and calm corners of De Classic.",
+              "images": [
+                {
+                  "alt": "Quiet architectural detail at De Classic hotel",
+                  "src": ""
+                },
+                {
+                  "alt": "Private pool area surrounded by clean lines",
+                  "src": ""
+                },
+                {
+                  "alt": "Light-filled hotel interior and seating area",
+                  "src": ""
+                }
+              ],
+              "heading": "Atmosphere and Spaces"
+            },
+            "variant": "strip"
+          },
+          {
+            "id": "home-testimonials",
+            "type": "testimonials",
+            "content": {
+              "items": [
+                {
+                  "name": "Customer name",
+                  "quote": "A truly peaceful escape. The space and quiet allowed for the exact rest I needed.",
+                  "detail": "Sample review"
+                },
+                {
+                  "name": "Customer name",
+                  "quote": "Understated, elegant, and exceptionally private. De Classic offers a remarkable stay.",
+                  "detail": "Sample review"
+                }
+              ],
+              "heading": "Guest Reflections"
+            },
+            "variant": "rating-strip"
+          },
+          {
+            "id": "home-cta",
+            "type": "cta",
+            "content": {
+              "text": "Reserve your room and experience the quiet luxury of De Classic.",
+              "image": {
+                "alt": "De Classic hotel exterior during dusk",
+                "src": ""
+              },
+              "button": {
+                "href": "/contact",
+                "label": "Book Your Visit"
+              },
+              "heading": "Begin your stay with us."
+            },
+            "variant": "split"
+          },
+          {
+            "id": "home-footer",
+            "type": "footer",
+            "content": {
+              "note": "© 2026 De Classic",
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/",
+                  "label": "Home"
+                },
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ],
+              "tagline": "Hotel",
+              "whatsapp": "",
+              "instagram": ""
+            },
+            "variant": "columns"
+          }
+        ]
+      },
+      {
+        "id": "services",
+        "path": "/services",
+        "title": "Services",
+        "sections": [
+          {
+            "id": "services-navbar",
+            "type": "navbar",
+            "content": {
+              "cta": {
+                "href": "/contact",
+                "label": "Get in touch"
+              },
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ]
+            },
+            "variant": "centered"
+          },
+          {
+            "id": "services-hero",
+            "type": "hero",
+            "content": {
+              "image": {
+                "alt": "The wellness pavilion at De Classic hotel",
+                "src": ""
+              },
+              "eyebrow": "De Classic",
+              "heading": "Bespoke guest experiences",
+              "primaryCta": {
+                "href": "/contact",
+                "label": "Reserve a stay"
+              },
+              "subheading": "Enjoy quiet spaces designed for your comfort and ease throughout your stay.",
+              "secondaryCta": {
+                "href": "#services-features",
+                "label": "Explore amenities"
+              }
+            },
+            "variant": "split-photo"
+          },
+          {
+            "id": "services-features",
+            "type": "features",
+            "content": {
+              "intro": "Take time for yourself with our curated selection of private amenities.",
+              "items": [
+                {
+                  "text": "Enjoy meals prepared exclusively for you in a quiet and private setting.",
+                  "image": {
+                    "alt": "Private dining table setup",
+                    "src": ""
+                  },
+                  "title": "Private dining"
+                },
+                {
+                  "text": "Restore your balance with dedicated wellness and spa care.",
+                  "image": {
+                    "alt": "Spa treatment room",
+                    "src": ""
+                  },
+                  "title": "Spa treatments"
+                },
+                {
+                  "text": "Arrive and depart with seamless transport arranged by our concierge team.",
+                  "image": {
+                    "alt": "Luxury vehicle for concierge transfers",
+                    "src": ""
+                  },
+                  "title": "Concierge transfers"
+                }
+              ],
+              "eyebrow": "Our Amenities",
+              "heading": "Exclusive hotel services"
+            },
+            "variant": "numbered"
+          },
+          {
+            "id": "services-faq",
+            "type": "faq",
+            "content": {
+              "intro": "Find clear details about booking treatments, dining, and custom requests.",
+              "items": [
+                {
+                  "answer": "You can reserve your treatments through our front desk or by speaking directly with the concierge before your arrival.",
+                  "question": "How do I book spa treatments?"
+                },
+                {
+                  "answer": "Yes. Please let our team know your preferences ahead of time so we can prepare your private dining experience.",
+                  "question": "Can I arrange private dining in advance?"
+                },
+                {
+                  "answer": "Our concierge team is always available to discuss any tailored requests you may need during your stay at De Classic.",
+                  "question": "How do I request custom services?"
+                }
+              ],
+              "heading": "Frequently asked questions"
+            },
+            "variant": "two-column"
+          },
+          {
+            "id": "services-cta",
+            "type": "cta",
+            "content": {
+              "text": "Coordinate your tailor-made experiences directly with our concierge team.",
+              "image": {
+                "alt": "De Classic hotel interior lounge",
+                "src": ""
+              },
+              "button": {
+                "href": "/contact",
+                "label": "Contact concierge"
+              },
+              "heading": "Plan your stay with us"
+            },
+            "variant": "banner"
+          },
+          {
+            "id": "services-footer",
+            "type": "footer",
+            "content": {
+              "note": "© 2026 De Classic",
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/",
+                  "label": "Home"
+                },
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ],
+              "tagline": "Hotel",
+              "whatsapp": "",
+              "instagram": ""
+            },
+            "variant": "columns"
+          }
+        ]
+      },
+      {
+        "id": "rooms",
+        "path": "/rooms",
+        "title": "Rooms",
+        "sections": [
+          {
+            "id": "rooms-navbar",
+            "type": "navbar",
+            "content": {
+              "cta": {
+                "href": "/contact",
+                "label": "Get in touch"
+              },
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ]
+            },
+            "variant": "centered"
+          },
+          {
+            "id": "rooms-hero",
+            "type": "hero",
+            "content": {
+              "image": {
+                "alt": "A serene and spacious hotel bedroom with minimalist decor and soft natural lighting",
+                "src": ""
+              },
+              "eyebrow": "Accommodations",
+              "heading": "Quiet Sanctuaries for Rest",
+              "primaryCta": {
+                "href": "/contact",
+                "label": "Reserve a Suite"
+              },
+              "subheading": "Step into calm, open spaces designed for complete relaxation at De Classic."
+            },
+            "variant": "centered"
+          },
+          {
+            "id": "rooms-features",
+            "type": "features",
+            "content": {
+              "intro": "Explore our selection of carefully arranged rooms, built for quiet comfort and ample space.",
+              "items": [
+                {
+                  "text": "A warm and quiet space featuring natural textures and essential comforts.",
+                  "image": {
+                    "alt": "A comfortable hotel room featuring neutral tones and a soft bed",
+                    "src": ""
+                  },
+                  "title": "Classic Room"
+                },
+                {
+                  "text": "An expansive suite offering wide open room, custom furnishings, and calm views.",
+                  "image": {
+                    "alt": "A large luxury suite with minimalist furniture and plenty of empty floor space",
+                    "src": ""
+                  },
+                  "title": "De Classic Suite"
+                }
+              ],
+              "eyebrow": "Suite Categories",
+              "heading": "Rooms and Rates"
+            },
+            "variant": "price-list"
+          },
+          {
+            "id": "rooms-about",
+            "type": "about",
+            "content": {
+              "body": [
+                "Every room at De Classic relies on natural materials to create a grounding environment. Wood, stone, and woven fabrics form an understated backdrop for your stay.",
+                "Acoustic privacy is prioritized across all floors, ensuring your room remains entirely undisturbed. Custom furnishings fit each space cleanly, leaving room to breathe and move freely."
+              ],
+              "image": {
+                "alt": "Close-up of natural wood and stone textures in a hotel room interior",
+                "src": ""
+              },
+              "eyebrow": "Thoughtful Design",
+              "heading": "Crafted for Quiet Privacy"
+            },
+            "variant": "split"
+          },
+          {
+            "id": "rooms-cta",
+            "type": "cta",
+            "content": {
+              "text": "Check availability and reserve your suite at De Classic.",
+              "button": {
+                "href": "/contact",
+                "label": "Reserve Now"
+              },
+              "heading": "Plan Your Stay"
+            },
+            "variant": "boxed"
+          },
+          {
+            "id": "rooms-footer",
+            "type": "footer",
+            "content": {
+              "note": "© 2026 De Classic",
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/",
+                  "label": "Home"
+                },
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ],
+              "tagline": "Hotel",
+              "whatsapp": "",
+              "instagram": ""
+            },
+            "variant": "columns"
+          }
+        ]
+      },
+      {
+        "id": "gallery",
+        "path": "/gallery",
+        "title": "Gallery",
+        "sections": [
+          {
+            "id": "gallery-navbar",
+            "type": "navbar",
+            "content": {
+              "cta": {
+                "href": "/contact",
+                "label": "Get in touch"
+              },
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ]
+            },
+            "variant": "centered"
+          },
+          {
+            "id": "gallery-hero",
+            "type": "hero",
+            "content": {
+              "image": {
+                "alt": "An expansive view of the De Classic hotel interior showing quiet space and minimalist design",
+                "src": ""
+              },
+              "eyebrow": "Visual Journey",
+              "heading": "The Spaces Within De Classic",
+              "primaryCta": {
+                "href": "/contact",
+                "label": "Reserve a Stay"
+              },
+              "subheading": "Explore the quiet rooms, open architecture, and calm grounds of our hotel through a curated lens.",
+              "secondaryCta": {
+                "href": "/rooms",
+                "label": "View Rooms"
+              }
+            },
+            "variant": "oversized-type"
+          },
+          {
+            "id": "gallery-gallery",
+            "type": "gallery",
+            "content": {
+              "intro": "A closer look at our architecture, suite details, grounds, and culinary preparation.",
+              "images": [
+                {
+                  "alt": "Exterior view of the De Classic hotel architecture",
+                  "src": ""
+                },
+                {
+                  "alt": "A quiet and spacious suite interior at De Classic",
+                  "src": ""
+                },
+                {
+                  "alt": "Detailed view of luxury bedding in a guest room",
+                  "src": ""
+                },
+                {
+                  "alt": "The hotel grounds and open outdoor areas",
+                  "src": ""
+                },
+                {
+                  "alt": "Fresh culinary art prepared in the hotel kitchen",
+                  "src": ""
+                },
+                {
+                  "alt": "Soft lighting in a private seating area",
+                  "src": ""
+                }
+              ],
+              "heading": "Moments at De Classic"
+            },
+            "variant": "masonry"
+          },
+          {
+            "id": "gallery-cta",
+            "type": "cta",
+            "content": {
+              "text": "Step into our quiet spaces and take time for yourself. Plan your visit to our hotel today.",
+              "image": {
+                "alt": "A serene view of the private courtyard garden at De Classic",
+                "src": ""
+              },
+              "button": {
+                "href": "/contact",
+                "label": "Book Your Stay"
+              },
+              "heading": "Experience De Classic in Person",
+              "secondary": {
+                "href": "/contact",
+                "label": "Contact Us"
+              }
+            },
+            "variant": "split"
+          },
+          {
+            "id": "gallery-footer",
+            "type": "footer",
+            "content": {
+              "note": "© 2026 De Classic",
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/",
+                  "label": "Home"
+                },
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ],
+              "tagline": "Hotel",
+              "whatsapp": "",
+              "instagram": ""
+            },
+            "variant": "columns"
+          }
+        ]
+      },
+      {
+        "id": "contact",
+        "path": "/contact",
+        "title": "Contact",
+        "sections": [
+          {
+            "id": "contact-navbar",
+            "type": "navbar",
+            "content": {
+              "cta": {
+                "href": "/contact",
+                "label": "Get in touch"
+              },
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ]
+            },
+            "variant": "centered"
+          },
+          {
+            "id": "contact-hero",
+            "type": "hero",
+            "content": {
+              "image": {
+                "alt": "Elegant hotel entrance and lobby at De Classic with warm lighting and spacious seating.",
+                "src": ""
+              },
+              "eyebrow": "Welcome to De Classic",
+              "heading": "We await your arrival.",
+              "primaryCta": {
+                "href": "#contact-contact",
+                "label": "Contact Desk"
+              },
+              "subheading": "Reach out to our front desk for reservations, inquiries, or personalized assistance during your stay.",
+              "secondaryCta": {
+                "href": "#contact-faq",
+                "label": "Explore FAQ"
+              }
+            },
+            "variant": "split-photo"
+          },
+          {
+            "id": "contact-contact",
+            "type": "contact",
+            "content": {
+              "email": "",
+              "hours": [
+                {
+                  "days": "Concierge",
+                  "time": "Available 24 hours"
+                }
+              ],
+              "intro": "Connect with our concierge team for hotel details, private chauffeur pickup points, and hours of availability.",
+              "phone": "",
+              "address": "De Classic Hotel",
+              "heading": "Plan your visit",
+              "mapQuery": "",
+              "whatsapp": ""
+            },
+            "variant": "map-and-hours"
+          },
+          {
+            "id": "contact-faq",
+            "type": "faq",
+            "content": {
+              "intro": "Find answers regarding check-in procedures, valet parking, and direct messaging.",
+              "items": [
+                {
+                  "answer": "Our front desk team is ready to welcome you and assist with a seamless check-in experience at any time.",
+                  "question": "What are the check-in procedures?"
+                },
+                {
+                  "answer": "Yes, valet parking and secure vehicle handling are provided for all guests.",
+                  "question": "Is valet parking available?"
+                },
+                {
+                  "answer": "Yes, you can reach out directly through WhatsApp for prompt assistance from our concierge.",
+                  "question": "Can I contact the hotel via WhatsApp?"
+                }
+              ],
+              "heading": "Frequently asked questions"
+            },
+            "variant": "accordion"
+          },
+          {
+            "id": "contact-footer",
+            "type": "footer",
+            "content": {
+              "note": "© 2026 De Classic",
+              "brand": "De Classic",
+              "links": [
+                {
+                  "href": "/",
+                  "label": "Home"
+                },
+                {
+                  "href": "/services",
+                  "label": "Services"
+                },
+                {
+                  "href": "/rooms",
+                  "label": "Rooms"
+                },
+                {
+                  "href": "/gallery",
+                  "label": "Gallery"
+                },
+                {
+                  "href": "/contact",
+                  "label": "Contact"
+                }
+              ],
+              "tagline": "Hotel",
+              "whatsapp": "",
+              "instagram": ""
+            },
+            "variant": "columns"
+          }
+        ]
+      }
+    ],
+    "theme": {
+      "mode": "light",
+      "fonts": {
+        "body": "Inter",
+        "heading": "Cormorant Garamond"
+      },
+      "colors": {
+        "text": "#1C1A17",
+        "muted": "#77716A",
+        "accent": "#A88B5C",
+        "primary": "#1C1A17",
+        "surface": "#FFFFFF",
+        "onPrimary": "#F4F1EC",
+        "background": "#F4F1EC"
+      },
+      "preset": "luxe-minimal",
+      "radius": {
+        "card": 0,
+        "input": 0,
+        "button": 0
+      }
+    },
+    "modules": {
+      "contact-form": true
+    },
+    "schemaVersion": 1
+  }
+}

@@ -250,3 +250,55 @@ describe('retired model detection', () => {
     expect(retiredModels(msg)).toEqual(['gemini-2.5-flash']);
   });
 });
+
+import deClassic from './fixtures/de-classic-site-data.json';
+import { buildConfig as assembleSite, fixLinks } from './assemble';
+import { thin } from './fill';
+import type { Section as SiteSection, SiteConfig as Site } from '@/site/schema';
+
+/** The first real generation (Gemini, hotel, name and type only), exported from production. */
+describe('regressions from the De Classic run', () => {
+  const realBrief = deClassic.generation.brief as Brief;
+  const realPlan = deClassic.generation.plan as unknown as Parameters<typeof assembleSite>[2];
+  const filled: Record<string, SiteSection[]> = Object.fromEntries(
+    (deClassic.config as unknown as Site).pages.map((p) => [p.id, p.sections.filter((s) => !['navbar', 'footer', 'whatsapp-float'].includes(s.type))]),
+  );
+
+  it('treats a name-and-type-only brief as thin', () => {
+    expect(thin(realBrief, EMPTY_EXTRACTED)).toBe(true);
+  });
+
+  it('never keeps a model-written address, hours or email', () => {
+    const contact = filled.contact.find((s) => s.type === 'contact')!;
+    const fixed = applyKnownFacts(contact, realBrief, EMPTY_EXTRACTED);
+    expect(fixed.type === 'contact' && [fixed.content.address, fixed.content.hours, fixed.content.email]).toEqual(['', [], '']);
+  });
+
+  it('swaps a price list for cards when there are no prices', () => {
+    const plan = normalisePlan({ pages: [{ path: '/rooms', title: 'Rooms', sections: [{ type: 'features', variant: 'price-list', note: 'rooms' }] }] }, { ...realBrief, pages: ['rooms'] }, EMPTY_EXTRACTED);
+    expect(plan.pages.find((p) => p.id === 'rooms')!.sections[0].variant).toBe('cards');
+  });
+
+  it('uses the hero line as tagline and keeps every internal link pointing somewhere real', () => {
+    const site = assembleSite(realBrief, EMPTY_EXTRACTED, realPlan, filled, []);
+    const footer = site.pages[0].sections.find((s) => s.type === 'footer')!;
+    expect(footer.type === 'footer' && footer.content.tagline).toMatch(/understated luxury/);
+    const ids = new Map(site.pages.map((p) => [p.path, new Set(p.sections.map((s) => s.id))]));
+    const hrefs: [string, string][] = [];
+    const walk = (v: unknown, path: string): void => {
+      if (Array.isArray(v)) v.forEach((x) => walk(x, path));
+      else if (v && typeof v === 'object') {
+        const o = v as Record<string, unknown>;
+        if (typeof o.href === 'string') hrefs.push([o.href, path]);
+        Object.values(o).forEach((x) => walk(x, path));
+      }
+    };
+    site.pages.forEach((p) => walk(p.sections, p.path));
+    for (const [href, path] of hrefs) {
+      const m = /^(\/[a-z0-9-]*)?#([a-z0-9-]*)$/.exec(href);
+      if (m) expect(ids.get(m[1] || path)?.has(m[2]), href).toBe(true);
+      else if (href.startsWith('/')) expect(ids.has(href), href).toBe(true);
+    }
+    expect(fixLinks({ ...site, pages: [{ ...site.pages[0], sections: [{ id: 'x', type: 'cta', variant: 'boxed', content: { heading: 'h', text: '', button: { label: 'Go', href: '/#nope' } } }] }] }).pages[0].sections[0]).toMatchObject({ content: { button: { href: '/' } } });
+  });
+});

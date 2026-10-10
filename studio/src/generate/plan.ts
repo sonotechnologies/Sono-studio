@@ -101,7 +101,9 @@ This preset prefers: ${Object.entries(preferred)
 Rules:
 - The home page has 4 to 7 sections and starts with a hero. Other pages have 2 to 5.
 - Only include "stats" if real numbers were given in the facts.
-- Each section gets a "note": one short line saying what it will show for this business.
+- Each section gets a "note": one short line saying the section's job, e.g. "the rooms, with prices if known".
+- Notes must not invent anything. Only mention amenities, services, products, rooms, materials, places or numbers that appear in the facts above. Nothing is known beyond what is listed.
+- Only include "faq" if the facts or contact details can answer real questions.
 - Vary variants across pages so the site doesn't repeat itself.
 
 Reply with JSON in exactly this shape:
@@ -123,26 +125,49 @@ function validVariant(type: SectionType, variant: string | undefined, preset: Br
  */
 export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extracted | null): Plan {
   const hasFacts = (extracted?.facts.length ?? 0) > 0;
+  const wanted = pagesFor(brief);
+  const norm = (path: string) => path.trim().replace(/\/+$/, '') || '/';
+  // Match pages by path, then by title, across all pages first, so a page the
+  // model reordered or skipped can't take another page's sections.
+  const match = new Map<string, number>();
   const used = new Set<number>();
+  for (const by of ['path', 'title'] as const) {
+    for (const want of wanted) {
+      if (match.has(want.key)) continue;
+      const i = raw?.pages.findIndex((p, j) => !used.has(j) && (by === 'path' ? norm(p.path) === want.path : p.title.trim().toLowerCase() === want.title.toLowerCase())) ?? -1;
+      if (i >= 0) {
+        match.set(want.key, i);
+        used.add(i);
+      }
+    }
+  }
+  // Only when the model returned exactly the pages asked for, in order, trust position for the rest.
+  if (raw && raw.pages.length === wanted.length) {
+    wanted.forEach((want, i) => {
+      if (!match.has(want.key) && !used.has(i)) {
+        match.set(want.key, i);
+        used.add(i);
+      }
+    });
+  }
   return {
-    pages: pagesFor(brief).map((want, index) => {
-      let pi = raw?.pages.findIndex((p, i) => !used.has(i) && p.path.replace(/\/+$/, '') === want.path.replace(/\/+$/, '')) ?? -1;
-      if (pi < 0) pi = raw?.pages.findIndex((p, i) => !used.has(i) && p.title.trim().toLowerCase() === want.title.toLowerCase()) ?? -1;
-      if (pi < 0 && raw && index < raw.pages.length && !used.has(index)) pi = index;
-      if (pi >= 0) used.add(pi);
+    pages: wanted.map((want) => {
+      const pi = match.get(want.key) ?? -1;
       const source: SourceSection[] = pi >= 0 && raw ? raw.pages[pi].sections : DEFAULT_PAGE_SECTIONS[want.key];
       const known = (t: string): t is SectionType => PLANNABLE_TYPES.includes(t as SectionType);
       let sections = source
         .map((s) => ({ ...s, type: s.type.toLowerCase().replace(/[\s_]+/g, '-') }))
         .filter((s): s is SourceSection & { type: SectionType } => known(s.type) && (s.type !== 'stats' || hasFacts));
       if (!sections.length) sections = DEFAULT_PAGE_SECTIONS[want.key];
+      const hasItems = (extracted?.items.length ?? 0) > 0;
       const counts: Record<string, number> = {};
       const out: PlanSection[] = sections.slice(0, 12).map((s) => {
         counts[s.type] = (counts[s.type] ?? 0) + 1;
         return {
           id: `${want.key}-${s.type}${counts[s.type] > 1 ? `-${counts[s.type]}` : ''}`,
           type: s.type,
-          variant: validVariant(s.type, s.variant, brief.preset),
+          // A price list with no prices to show reads as broken; use cards instead.
+          variant: s.type === 'features' && !hasItems && s.variant === 'price-list' ? 'cards' : validVariant(s.type, s.variant, brief.preset),
           note: (s.note || SECTIONS[s.type].purpose).slice(0, 200),
         };
       });
