@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type Repo } from './repo';
+import { byNewest, statusTimestamps, type Repo, type SiteVersion } from './repo';
 
 interface ClientRow {
   owner_name: string;
@@ -162,6 +162,25 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async deleteProject(id) {
       check(await db.from('projects').delete().eq('id', id));
+    },
+
+    async getSiteVersion(projectId) {
+      const row = check(
+        await db
+          .from('site_versions')
+          .select('version, config, summary, created_at')
+          .eq('project_id', projectId)
+          .order('version', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ) as { version: number; config: SiteVersion['config']; summary: string; created_at: string } | null;
+      return row ? { version: row.version, config: row.config, summary: row.summary, createdAt: row.created_at } : null;
+    },
+
+    async saveSiteVersion(projectId, config, summary) {
+      return check(
+        await db.rpc('save_site_version', { p_project_id: projectId, p_config: config, p_summary: summary }),
+      ) as number;
     },
 
     async getSettings() {

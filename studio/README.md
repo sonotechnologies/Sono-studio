@@ -4,7 +4,9 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phase 1, Foundation
+## Status: Phases 1 and 2 done
+
+### Phase 1, Foundation
 
 | Built | Notes |
 | --- | --- |
@@ -20,7 +22,26 @@ The design reference lives in `../project/` (Claude Design export) and the brief
 
 "Needs follow-up" means a pitch was sent and nothing has happened for 3 days since it was sent or last opened (`FOLLOW_UP_AFTER_DAYS` in `src/lib/format.ts`).
 
-Not yet built (later phases): site config and renderer, the section library, the wizard and AI pipeline, the workspace, public pitch pages and open tracking, export and deploy.
+### Phase 2, Config and renderer
+
+| Built | Notes |
+| --- | --- |
+| Site config schema | `src/site/schema.ts`: one JSON document per site (pages, ordered sections, content, theme, modules). Zod validates every section's content, links and ids, so bad AI output never reaches the preview |
+| Theme tokens | `src/site/theme.ts` turns a preset (plus optional brand colours) into tokens and CSS variables. Button text colour is picked for contrast |
+| Shared section library | 12 sections, 30 variants in `src/site/sections/`: navbar, hero, about, features or services, gallery, testimonials, stats, FAQ, call to action, contact with map, footer, WhatsApp button. Styled only through theme tokens; text and images carry `data-edit` markers for click-to-edit |
+| Renderer | `SitePageView` renders any page of a config. Sections respond to the site frame's width (container queries), so the same markup works full-page, in a phone-width preview and in thumbnails |
+| Proof site | `src/site/samples/kora-kitchen.ts`: a hand-written four-page showcase site. In the dev store it is Kora Kitchen's version 1 |
+| Versions | Every save is a full snapshot (`site_versions`, migration `0002`) |
+| Preview | `/preview/<project>` with page switcher and desktop, tablet and phone widths |
+| Starter sites | "Create starter site" on a project builds version 1 from its details, using the section variants its preset prefers |
+| Library page | Every section and variant rendered live, switchable across the six presets |
+
+Notes:
+- Sections only use the preset accent for decoration (borders, stars, icons); text uses the primary colour, which stays readable on every preset.
+- Photos stay as labelled striped placeholders until client uploads or stock search (phase 3).
+- Navbar and footer are repeated on each page in the config. Shared site-wide sections are worth adding when the workspace edits them (phase 4).
+
+Not yet built (later phases): the wizard and AI pipeline, the workspace, public pitch pages and open tracking, export and deploy.
 
 ## Run it locally
 
@@ -40,7 +61,7 @@ npm run build
 ## Connect Supabase
 
 1. Create a project on the free tier.
-2. Run `supabase/migrations/0001_foundation.sql` in the SQL editor (or `supabase db push` with the CLI).
+2. Run the files in `supabase/migrations/` in order in the SQL editor (or `supabase db push` with the CLI).
 3. Authentication → Providers → Email: keep email and password on, and **turn off "Allow new users to sign up"**.
 4. Authentication → Users → Add user: create your one login.
 5. Copy `.env.example` to `.env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Project settings → API).
@@ -61,7 +82,9 @@ src/
       projects/new/        manual project creation
       projects/[id]/       project details
       presets/ library/ settings/
+    preview/[id]/          full-page site preview
   components/              shell, theme, logo, UI primitives, site thumbnail
+  site/                    site config schema, theme, renderer, section library, samples, starter
   lib/
     auth.ts                session + picks the data store
     data/                  Repo interface, Supabase and dev-store implementations

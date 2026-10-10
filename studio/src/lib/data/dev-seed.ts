@@ -1,4 +1,6 @@
+import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import type { PresetId, Project, ProjectStatus, SiteType } from '../types';
+import type { SiteVersion } from './repo';
 
 const HOUR = 3_600_000;
 const DAY = 24 * HOUR;
@@ -69,4 +71,12 @@ export function devSeed(now: number = Date.now()): Project[] {
       },
     };
   });
+}
+
+/** Kora Kitchen starts with the hand-written sample site as version 1. */
+export function devSeedVersions(projects: Project[]): Record<string, SiteVersion[]> {
+  const kora = projects.find((p) => p.pitchSlug === 'kora-kitchen-7k2q');
+  if (!kora) return {};
+  kora.currentVersion = 1;
+  return { [kora.id]: [{ version: 1, config: KORA_KITCHEN, summary: 'Hand-written sample site', createdAt: kora.createdAt }] };
 }

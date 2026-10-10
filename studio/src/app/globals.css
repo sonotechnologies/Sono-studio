@@ -95,6 +95,22 @@
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
+  /* Generated-site tokens, set per site by themeStyle() in src/site/theme.ts. */
+  --color-site-bg: var(--s-bg);
+  --color-site-surface: var(--s-surface);
+  --color-site-text: var(--s-text);
+  --color-site-muted: var(--s-muted);
+  --color-site-primary: var(--s-primary);
+  --color-site-on-primary: var(--s-on-primary);
+  --color-site-accent: var(--s-accent);
+  --color-site-on-accent: var(--s-on-accent);
+  --font-site-heading: var(--s-font-heading);
+  --font-site-body: var(--s-font-body);
+  --radius-site-card: var(--s-r-card);
+  --radius-site-button: var(--s-r-button);
+  --radius-site-input: var(--s-r-input);
+  --radius-site-image: var(--s-r-image);
+
   --animate-fade-up: fade-up 200ms cubic-bezier(0.22, 1, 0.36, 1);
   --animate-fade-up-slow: fade-up 300ms ease-out;
   --animate-ring-orbit: ring-orbit 1.6s linear infinite;
@@ -132,6 +148,70 @@
   :where(a, button, [role='button'], [role='switch'], [role='tab'], summary):focus-visible {
     outline: 2px solid var(--terracotta);
     outline-offset: 2px;
+  }
+}
+
+/*
+ * Generated sites. Sections respond to the width of the site frame (a
+ * container), not the browser window, so the same markup works on a full
+ * pitch page, in the workspace preview at phone width and in library
+ * thumbnails. Type and spacing scale fluidly between the preset's phone and
+ * desktop sizes. Kept in a layer so section utility classes can override it.
+ */
+@layer components {
+  .sono-site {
+    container-type: inline-size;
+    background: var(--s-bg);
+    color: var(--s-text);
+    font-family: var(--s-font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  .sono-site .s-root {
+    font-size: clamp(var(--s-body-phone), 1.33cqi, var(--s-body-desktop));
+    line-height: 1.6;
+  }
+  .sono-site .s-heading {
+    margin: 0;
+    font-family: var(--s-font-heading);
+    font-weight: var(--s-heading-weight);
+    text-transform: var(--s-heading-case);
+    letter-spacing: var(--s-heading-tracking);
+    line-height: 1.04;
+    text-wrap: balance;
+  }
+  .sono-site .s-h1 {
+    font-size: clamp(var(--s-h1-phone), var(--s-h1-fluid), var(--s-h1-desktop));
+  }
+  .sono-site .s-h2 {
+    font-size: clamp(var(--s-h2-phone), var(--s-h2-fluid), var(--s-h2-desktop));
+  }
+  .sono-site .s-section {
+    padding-block: clamp(var(--s-section-phone), var(--s-section-fluid), var(--s-section-desktop));
+  }
+  .sono-site .s-outline {
+    border: var(--s-outline) solid var(--s-text);
+  }
+  .sono-site .s-placeholder {
+    background: repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--s-text) 7%, var(--s-bg)) 0 9px,
+      color-mix(in srgb, var(--s-text) 11%, var(--s-bg)) 9px 18px
+    );
+    color: color-mix(in srgb, var(--s-text) 55%, transparent);
+  }
+  .sono-site a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .sono-site :focus-visible {
+    outline: 2px solid var(--s-accent);
+    outline-offset: 3px;
+  }
+  .sono-site details > summary {
+    list-style: none;
+  }
+  .sono-site details > summary::-webkit-details-marker {
+    display: none;
   }
 }
 

@@ -17,7 +17,7 @@ import {
   type ProjectPatch,
   type ProjectStatus,
 } from '@/lib/types';
-import { deleteProjectAction, updateClientAction, updateProjectAction } from '../actions';
+import { createStarterSiteAction, deleteProjectAction, updateClientAction, updateProjectAction } from '../actions';
 
 const card = 'flex flex-col rounded-dialog border border-border bg-surface p-[22px]';
 
@@ -27,6 +27,7 @@ export function ProjectDetails({ project, link, now }: { project: Project; link:
   const [p, setP] = useState(project);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, startDelete] = useTransition();
+  const [creating, startCreate] = useTransition();
 
   useEffect(() => setP(project), [project]);
 
@@ -69,15 +70,22 @@ export function ProjectDetails({ project, link, now }: { project: Project; link:
           <button type="button" onClick={() => setConfirmDelete(true)} className={`${btn.dangerGhost} h-11 px-4 text-[14px]`}>
             Delete
           </button>
-          <button
-            type="button"
-            disabled
-            title="The workspace arrives in build phase 4"
-            className={`${btn.primary} h-11 px-5 text-[15px]`}
-          >
-            Open workspace
-            <ArrowRight size={16} strokeWidth={2} />
-          </button>
+{p.currentVersion !== null ? (
+            <Link href={`/preview/${p.id}`} className={`${btn.primary} h-11 px-5 text-[15px]`}>
+              Preview site
+              <ArrowRight size={16} strokeWidth={2} />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled={creating}
+              onClick={() => startCreate(() => createStarterSiteAction(p.id))}
+              title="Builds version 1 from this project's details"
+              className={`${btn.primary} h-11 px-5 text-[15px]`}
+            >
+              {creating ? 'Creating…' : 'Create starter site'}
+            </button>
+          )}
         </div>
       </div>
 

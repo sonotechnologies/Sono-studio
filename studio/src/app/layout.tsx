@@ -18,16 +18,16 @@ import './globals.css';
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-space-grotesk' });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'], variable: '--font-jetbrains-mono' });
 
-// Preset fonts appear only in site thumbnails, so they are not preloaded.
-const fraunces = Fraunces({ subsets: ['latin'], preload: false, weight: '500', variable: '--font-fraunces' });
-const cormorant = Cormorant_Garamond({ subsets: ['latin'], preload: false, weight: '500', variable: '--font-cormorant' });
+// Preset fonts are used by generated sites and thumbnails, so they are not preloaded on every app page.
+const fraunces = Fraunces({ subsets: ['latin'], preload: false, weight: ['500', '600'], variable: '--font-fraunces' });
+const cormorant = Cormorant_Garamond({ subsets: ['latin'], preload: false, weight: ['500', '600'], variable: '--font-cormorant' });
 const anton = Anton({ subsets: ['latin'], preload: false, weight: '400', variable: '--font-anton' });
-const manrope = Manrope({ subsets: ['latin'], preload: false, weight: ['500', '700'], variable: '--font-manrope' });
+const manrope = Manrope({ subsets: ['latin'], preload: false, weight: ['400', '500', '700'], variable: '--font-manrope' });
 const sora = Sora({ subsets: ['latin'], preload: false, weight: '600', variable: '--font-sora' });
 const playfair = Playfair_Display({ subsets: ['latin'], preload: false, weight: '500', variable: '--font-playfair' });
-const inter = Inter({ subsets: ['latin'], preload: false, weight: '400', variable: '--font-inter' });
-const dmSans = DM_Sans({ subsets: ['latin'], preload: false, weight: '400', variable: '--font-dm-sans' });
-const nunitoSans = Nunito_Sans({ subsets: ['latin'], preload: false, weight: '400', variable: '--font-nunito-sans' });
+const inter = Inter({ subsets: ['latin'], preload: false, weight: ['400', '500', '600'], variable: '--font-inter' });
+const dmSans = DM_Sans({ subsets: ['latin'], preload: false, weight: ['400', '500', '700'], variable: '--font-dm-sans' });
+const nunitoSans = Nunito_Sans({ subsets: ['latin'], preload: false, weight: ['400', '600', '700'], variable: '--font-nunito-sans' });
 
 const fontVars = [
   spaceGrotesk, jetbrainsMono, fraunces, cormorant, anton, manrope, sora, playfair, inter, dmSans, nunitoSans,
