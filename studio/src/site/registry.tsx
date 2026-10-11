@@ -12,6 +12,9 @@ import { Navbar } from './sections/navbar';
 import { Stats } from './sections/stats';
 import { Testimonials } from './sections/testimonials';
 import { WhatsappFloat } from './sections/whatsapp-float';
+import { ProductDetail } from './sections/product-detail';
+import { ProductFeature } from './sections/product-feature';
+import { ProductGrid } from './sections/product-grid';
 
 export interface VariantInfo<T extends SectionType> {
   id: VariantOf<T>;
@@ -147,6 +150,37 @@ export const SECTIONS: Registry = {
       { id: 'columns', label: 'Columns', note: 'Name and tagline, links, social' },
     ],
     Component: Footer,
+  },
+  'product-grid': {
+    type: 'product-grid',
+    label: 'Product grid',
+    purpose: 'Products with photos, prices and add to cart; optionally one category, with category buttons',
+    variants: [
+      { id: 'cards', label: 'Cards', note: 'Framed cards with an add-to-cart button' },
+      { id: 'minimal', label: 'Minimal', note: 'Photos with name and price, no frames' },
+      { id: 'list', label: 'List', note: 'One product per row, for longer lists' },
+    ],
+    Component: ProductGrid,
+  },
+  'product-feature': {
+    type: 'product-feature',
+    label: 'Product spotlight',
+    purpose: 'One product shown large: a launch, a bestseller or the dish of the week',
+    variants: [
+      { id: 'split', label: 'Split', note: 'Photo beside the details' },
+      { id: 'centered', label: 'Centered', note: 'Photo above, details centred' },
+    ],
+    Component: ProductFeature,
+  },
+  'product-detail': {
+    type: 'product-detail',
+    label: 'Product page',
+    purpose: 'A product’s own page; made automatically for every product',
+    variants: [
+      { id: 'gallery', label: 'Gallery', note: 'Large first photo, the rest in a grid' },
+      { id: 'compact', label: 'Compact', note: 'Photos stacked in one column' },
+    ],
+    Component: ProductDetail,
   },
   'whatsapp-float': {
     type: 'whatsapp-float',

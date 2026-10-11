@@ -65,7 +65,11 @@ export function Stage({
 
   const onClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('a, button')) e.preventDefault();
+    if (target.closest('a, button, summary')) {
+      // In the editor, links don't navigate and buttons (add to cart, menus) don't act: a click selects.
+      e.preventDefault();
+      e.stopPropagation();
+    }
     if (target.isContentEditable) return;
     const sec = target.closest<HTMLElement>('[data-section-id]');
     if (!sec) return;

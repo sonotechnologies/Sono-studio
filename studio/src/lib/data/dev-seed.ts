@@ -1,3 +1,4 @@
+import { VOLT_SUPPLY } from '@/site/samples/volt-supply';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import type { PresetId, Project, ProjectStatus, SiteType } from '../types';
 import type { SiteVersion } from './repo';
@@ -75,8 +76,16 @@ export function devSeed(now: number = Date.now()): Project[] {
 
 /** Kora Kitchen starts with the hand-written sample site as version 1. */
 export function devSeedVersions(projects: Project[]): Record<string, SiteVersion[]> {
+  const out: Record<string, SiteVersion[]> = {};
   const kora = projects.find((p) => p.pitchSlug === 'kora-kitchen-7k2q');
-  if (!kora) return {};
-  kora.currentVersion = 1;
-  return { [kora.id]: [{ version: 1, config: KORA_KITCHEN, summary: 'Hand-written sample site', createdAt: kora.createdAt }] };
+  if (kora) {
+    kora.currentVersion = 1;
+    out[kora.id] = [{ version: 1, config: KORA_KITCHEN, summary: 'Hand-written sample site', createdAt: kora.createdAt }];
+  }
+  const volt = projects.find((p) => p.pitchSlug === 'volt-supply-h3vk');
+  if (volt) {
+    volt.currentVersion = 1;
+    out[volt.id] = [{ version: 1, config: VOLT_SUPPLY, summary: 'Hand-written sample store', createdAt: volt.createdAt }];
+  }
+  return out;
 }

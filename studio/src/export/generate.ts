@@ -37,6 +37,9 @@ const COMPONENTS: Record<SectionType, { file: string; name: string }> = {
   cta: { file: 'cta', name: 'Cta' },
   contact: { file: 'contact', name: 'Contact' },
   footer: { file: 'footer', name: 'Footer' },
+  'product-grid': { file: 'product-grid', name: 'ProductGrid' },
+  'product-feature': { file: 'product-feature', name: 'ProductFeature' },
+  'product-detail': { file: 'product-detail', name: 'ProductDetail' },
   'whatsapp-float': { file: 'whatsapp-float', name: 'WhatsappFloat' },
 };
 
@@ -102,7 +105,9 @@ export async function exportSite(input: { config: SiteConfig; projectName: strin
     img.src = copied.get(img.src)!;
   }
 
-  const used = [...new Set(config.pages.flatMap((p) => p.sections.map((s) => s.type)))].sort() as SectionType[];
+  const store = config.store?.products.length ? config.store : null;
+  // A store always has product pages, and the store sections share the grid's price and card parts.
+  const used = [...new Set([...config.pages.flatMap((p) => p.sections.map((s) => s.type)), ...(store ? (['product-detail', 'product-grid'] as const) : [])])].sort() as SectionType[];
   const t = template as { files: Record<string, string>; css: { fonts: string; tokens: string; site: string }; versions: Record<string, string> };
   const v = t.versions;
 
@@ -155,6 +160,8 @@ export async function exportSite(input: { config: SiteConfig; projectName: strin
 
   /* ---------- Renderer (shared with the studio) ---------- */
   for (const f of ['src/site/primitives.tsx', 'src/site/render.tsx', 'src/site/theme.ts', 'src/site/schema.ts', 'src/lib/presets.ts', 'src/lib/presets.json']) add(f, t.files[f]);
+  // The cart is part of the renderer (it shows only when the site has products).
+  for (const [f, data] of Object.entries(t.files)) if (f.startsWith('src/site/store/')) add(f, data);
   for (const type of used) add(`src/site/sections/${COMPONENTS[type].file}.tsx`, t.files[`src/site/sections/${COMPONENTS[type].file}.tsx`]);
   add(
     'src/lib/types.ts',
@@ -258,6 +265,32 @@ export const metadata: Metadata = ${page.path === '/' ? '{}' : `{ title: ${str(p
 
 export default function Page() {
   return <SitePage path=${str(page.path)} />;
+}
+`,
+    );
+  }
+  if (store) {
+    add(
+      'src/app/product/[id]/page.tsx',
+      `import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { SitePage, site } from '@/site/page';
+
+/** One page per product, built ahead of time. */
+export function generateStaticParams() {
+  return (site.store?.products ?? []).map((p) => ({ id: p.id }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const product = site.store?.products.find((p) => p.id === id);
+  return product ? { title: product.name, description: product.description.slice(0, 160) } : {};
+}
+
+export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!site.store?.products.some((p) => p.id === id)) notFound();
+  return <SitePage path={\`/product/\${id}\`} />;
 }
 `,
     );

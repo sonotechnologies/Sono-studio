@@ -144,6 +144,60 @@ export const whatsappFloatContent = z.object({
   label: text(30),
 });
 
+/* ---------- Store ---------- */
+
+export const productSchema = z.object({
+  id,
+  name: text(80),
+  /** In the store's currency, e.g. 4500 or 12.5. */
+  price: z.number().min(0).max(100_000_000),
+  /** The old price, shown struck through. */
+  compareAt: z.number().min(0).max(100_000_000).optional(),
+  category: text(40),
+  description: text(600),
+  image: imageSchema,
+  /** More photos on the product page. */
+  images: z.array(imageSchema).max(6).optional(),
+  /** Choices such as Size or Colour. */
+  options: z.array(z.object({ name: text(24), values: z.array(text(24)).min(1).max(12) })).max(2).optional(),
+  soldOut: z.boolean().optional(),
+  /** Placeholder made when no products were given; the checklist asks for real ones. */
+  sample: z.boolean().optional(),
+});
+export type Product = z.infer<typeof productSchema>;
+
+export const storeSchema = z.object({
+  /** ISO 4217 code: NGN, GHS, KES, ZAR, USD, EUR, GBP, ... */
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  /** Where WhatsApp orders go (digits, with country code). */
+  whatsapp: text(32),
+  products: z.array(productSchema).max(300),
+});
+export type Store = z.infer<typeof storeSchema>;
+
+export const productGridContent = z.object({
+  eyebrow: text(60),
+  heading: text(120),
+  intro: text(300),
+  /** Only this category; empty shows every product. */
+  category: text(40),
+  /** Category buttons above the grid. */
+  filter: z.boolean().optional(),
+  /** At most this many products (the first in the list); empty shows all. */
+  limit: z.number().int().min(1).max(60).optional(),
+});
+
+export const productFeatureContent = z.object({
+  eyebrow: text(60),
+  /** The product to show; empty picks the first. */
+  productId: text(64),
+  /** Overrides the product name as the heading. */
+  heading: text(120),
+});
+
+/** A product's own page. Made for every product, not placed by hand. */
+export const productDetailContent = z.object({ productId: text(64) });
+
 /* ---------- Section instances ---------- */
 
 const base = { id, hidden: z.boolean().optional() };
@@ -185,6 +239,9 @@ export const sectionSchema = z.discriminatedUnion('type', [
     content: contactContent,
   }),
   z.object({ ...base, type: z.literal('footer'), variant: z.enum(['simple', 'columns']), content: footerContent }),
+  z.object({ ...base, type: z.literal('product-grid'), variant: z.enum(['cards', 'minimal', 'list']), content: productGridContent }),
+  z.object({ ...base, type: z.literal('product-feature'), variant: z.enum(['split', 'centered']), content: productFeatureContent }),
+  z.object({ ...base, type: z.literal('product-detail'), variant: z.enum(['gallery', 'compact']), content: productDetailContent }),
   z.object({
     ...base,
     type: z.literal('whatsapp-float'),
@@ -261,6 +318,8 @@ export const siteConfigSchema = z
     theme: themeSchema,
     pages: z.array(pageSchema).min(1).max(12),
     modules: z.partialRecord(z.enum(MODULE_IDS), z.boolean()),
+    /** Products and ordering, for online stores. */
+    store: storeSchema.optional(),
   })
   .superRefine((site, ctx) => {
     const paths = new Set<string>();
@@ -273,6 +332,11 @@ export const siteConfigSchema = z
         if (sectionIds.has(s.id)) ctx.addIssue({ code: 'custom', message: `Duplicate section id ${s.id}`, path: ['pages', pi, 'sections', si, 'id'] });
         sectionIds.add(s.id);
       });
+    });
+    const productIds = new Set<string>();
+    site.store?.products.forEach((p, i) => {
+      if (productIds.has(p.id)) ctx.addIssue({ code: 'custom', message: `Duplicate product id ${p.id}`, path: ['store', 'products', i, 'id'] });
+      productIds.add(p.id);
     });
   });
 

@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import type { SiteImage, SiteLink } from './schema';
+import type { SiteImage, SiteLink, Store } from './schema';
 
 /**
  * Passed to every section. `link` maps a site path ("/about") to wherever the
@@ -9,11 +9,16 @@ import type { SiteImage, SiteLink } from './schema';
 export interface RenderCtx {
   link: (href: string) => string;
   editable: boolean;
+  /** The site's products and ordering settings, for store sections. */
+  store?: Store;
+  /** Keeps each site's cart separate in the visitor's browser. */
+  siteKey?: string;
 }
 
 /** Marks a text or image as editable; the path is relative to the section's content. */
 export function edit(ctx: RenderCtx, path: string, kind: 'text' | 'image' | 'link' = 'text') {
-  return ctx.editable ? { 'data-edit': path, 'data-edit-kind': kind } : {};
+  // Product fields live in the store, not the section: they're edited in the Products tab.
+  return ctx.editable && path ? { 'data-edit': path, 'data-edit-kind': kind } : {};
 }
 
 export function isExternal(href: string) {

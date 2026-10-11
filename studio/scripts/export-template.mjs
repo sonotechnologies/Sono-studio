@@ -16,6 +16,7 @@ function region(css, name) {
 const files = {};
 for (const f of ['src/site/primitives.tsx', 'src/site/render.tsx', 'src/site/theme.ts', 'src/site/schema.ts', 'src/lib/presets.json']) files[f] = await read(f);
 for (const f of await readdir(path.join(root, 'src/site/sections'))) if (f.endsWith('.tsx')) files[`src/site/sections/${f}`] = await read(`src/site/sections/${f}`);
+for (const f of await readdir(path.join(root, 'src/site/store'))) if (/\.tsx?$/.test(f) && !f.includes('.test.')) files[`src/site/store/${f}`] = await read(`src/site/store/${f}`);
 const presets = await read('src/lib/presets.ts');
 const cut = presets.indexOf('// export:end');
 if (cut < 0) throw new Error('presets.ts has no export:end marker');

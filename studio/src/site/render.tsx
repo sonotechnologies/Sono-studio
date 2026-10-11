@@ -2,9 +2,37 @@ import type { RenderCtx } from './primitives';
 import { renderSection } from './registry';
 import type { SiteConfig, SitePage } from './schema';
 import { themeStyle } from './theme';
+import { CartDrawer } from './store/cart';
 
+/** A page by path. Product pages ("/product/<id>") are made from the home page's navbar and footer. */
 export function findPage(config: SiteConfig, path: string): SitePage | undefined {
-  return config.pages.find((p) => p.path === path);
+  const page = config.pages.find((p) => p.path === path);
+  if (page) return page;
+  const m = /^\/product\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path);
+  const product = m && config.store?.products.find((p) => p.id === m[1]);
+  return product ? productPage(config, product.id) : undefined;
+}
+
+export function productPage(config: SiteConfig, productId: string): SitePage {
+  const home = config.pages.find((p) => p.path === '/') ?? config.pages[0];
+  const product = config.store?.products.find((p) => p.id === productId);
+  const shared = (type: string) => home.sections.filter((s) => s.type === type);
+  return {
+    id: 'product',
+    path: `/product/${productId}`,
+    title: product?.name ?? 'Product',
+    sections: [
+      ...shared('navbar'),
+      { id: 'product-detail', type: 'product-detail', variant: 'gallery', content: { productId } },
+      ...shared('footer'),
+      ...shared('whatsapp-float'),
+    ],
+  };
+}
+
+/** A short, stable key for the site's cart in the visitor's browser. */
+export function siteKey(config: SiteConfig): string {
+  return config.meta.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || 'site';
 }
 
 /**
@@ -22,6 +50,9 @@ export function SitePageView({
   ctx: RenderCtx;
   className?: string;
 }) {
+  const store = config.store;
+  const key = siteKey(config);
+  const sectionCtx: RenderCtx = store ? { ...ctx, store, siteKey: key } : ctx;
   return (
     <div className={`sono-site ${className}`} style={themeStyle(config.theme)} data-motion={config.theme.motion ?? 'none'}>
       <div className="s-root" lang={config.meta.language}>
@@ -38,9 +69,10 @@ export function SitePageView({
               data-s={s.type}
               {...(ctx.editable ? { 'data-section-id': s.id, 'data-section-type': s.type } : {})}
             >
-              {renderSection(s, ctx)}
+              {renderSection(s, sectionCtx)}
             </div>
           ))}
+        {store && store.products.length > 0 && !ctx.editable && <CartDrawer site={key} business={config.meta.businessName} currency={store.currency} whatsapp={store.whatsapp} />}
       </div>
     </div>
   );
