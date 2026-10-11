@@ -11,7 +11,7 @@ import { PLANNABLE_TYPES } from '@/generate/plan';
 import { SECTIONS } from '@/site/registry';
 import { SitePageView } from '@/site/render';
 import type { SectionType, SiteConfig } from '@/site/schema';
-import { PREFERRED_VARIANTS } from '@/site/starter';
+import { layoutsFor } from '@/generate/plan';
 
 export function PipelineColumn({ job }: { job: GenerationJob }) {
   const name = job.brief.businessName || 'your site';
@@ -76,7 +76,8 @@ export function PipelineColumn({ job }: { job: GenerationJob }) {
 
 /* ---------- Plan review ---------- */
 
-export function PlanReview({ plan, setPlan, preset }: { plan: Plan; setPlan: (p: Plan) => void; preset: GenerationJob['brief']['preset'] }) {
+export function PlanReview({ plan, setPlan, brief }: { plan: Plan; setPlan: (p: Plan) => void; brief: GenerationJob['brief'] }) {
+  const layouts = layoutsFor(brief);
   const [drag, setDrag] = useState<{ page: string; id: string } | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
@@ -98,7 +99,7 @@ export function PlanReview({ plan, setPlan, preset }: { plan: Plan; setPlan: (p:
       {
         id: `${pageId}-${type}-${Math.random().toString(36).slice(2, 6)}`,
         type,
-        variant: (PREFERRED_VARIANTS[preset][type] as string | undefined) ?? SECTIONS[type].variants[0].id,
+        variant: SECTIONS[type].variants.some((v) => v.id === layouts[type]) ? layouts[type] : SECTIONS[type].variants[0].id,
         note: SECTIONS[type].purpose,
       },
     ]);

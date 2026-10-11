@@ -77,3 +77,39 @@ describe('reading a page’s CSS', () => {
     expect([...fonts.keys()]).toEqual(['Inter', 'Sora']);
   });
 });
+
+describe('reading a page’s look', () => {
+  it('finds motion, corners, spacing and layouts', async () => {
+    const { readLook } = await import('./css');
+    const html = '<html><head><script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/ScrollTrigger.min.js"></script></head><body><header><video autoplay muted src="a.mp4"></video></header></body></html>';
+    const css = [
+      `.btn-primary { border-radius: 999px; padding: 12px 24px } .card { border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,.1) }
+       .product-card { box-shadow: 0 2px 8px #0002; border-radius: 1.25rem }
+       section { padding: 120px 0 } .hero { padding-top: 160px } nav { display:flex; justify-content: center }
+       @keyframes fade { from { opacity: 0 } }`,
+    ];
+    const look = readLook(html, css);
+    expect(look.motion).toBe('lively');
+    expect(look.radius).toEqual({ card: 20, button: 999, input: 16 });
+    expect(look.density).toBe('airy');
+    expect(look.layouts).toEqual({ hero: 'full-bleed', navbar: 'centered', features: 'cards' });
+    expect(look.notes).toContain('animation (GSAP)');
+
+    const plain = readLook('<html><body><h1>Hi</h1></body></html>', ['a { color: red } section { padding: 32px 0 } button { border-radius: 0 }']);
+    expect(plain.motion).toBe('none');
+    expect(plain.density).toBe('compact');
+    expect(plain.radius?.button).toBe(0);
+  });
+
+  it('carries the look into the style, and reads spacing from a screenshot', () => {
+    const s = styleFromReference({
+      kind: 'link',
+      colors: [w('#FFFFFF', 60), w('#111111', 30), w('#E11D48', 10)],
+      look: { motion: 'lively', density: 'airy', radius: { card: 20, button: 999, input: 16 }, layouts: { hero: 'full-bleed' }, notes: ['animation (GSAP)'] },
+    });
+    expect(s.theme).toMatchObject({ motion: 'lively', density: 'airy', radius: { button: 999 }, layouts: { hero: 'full-bleed' } });
+    expect(s.look).toContain('animation (GSAP)');
+    const airy = styleFromReference({ kind: 'screenshot', colors: [w('#FAFAFA', 80), w('#222222', 15), w('#0EA5E9', 5)] });
+    expect(airy.theme.density).toBe('airy');
+  });
+});

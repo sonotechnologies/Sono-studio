@@ -230,6 +230,70 @@
     display: none;
   }
 }
+
+/*
+ * Motion, set per site (theme.motion). Pure CSS: sections reveal as they
+ * scroll into view where the browser supports scroll-driven animations, and
+ * simply show everywhere else. Nothing moves for visitors who ask for reduced
+ * motion. Sections already on screen when the page opens are not hidden.
+ */
+@keyframes s-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes s-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .sono-site:is([data-motion='subtle'], [data-motion='lively']) .s-root > div:not(.contents):not([data-s='navbar']) > * {
+      animation: s-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 45%;
+    }
+    /* Lively: cards and grid items arrive one after another. */
+    .sono-site[data-motion='lively'] .s-root > div:not(.contents):not([data-s='navbar']) :is(.grid, ul) > * {
+      animation: s-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 5% entry 60%;
+    }
+  }
+  /* Lively: the first screen's headline rises in as the page opens. */
+  .sono-site[data-motion='lively'] .s-root > div[data-s='hero'] :is(.s-heading, .s-h1) {
+    animation: s-rise 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .sono-site[data-motion='lively'] [class*='rounded-site-button'] {
+    transition:
+      transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+      filter 150ms,
+      background-color 150ms;
+  }
+  .sono-site[data-motion='lively'] [class*='rounded-site-button']:hover {
+    transform: translateY(-2px);
+  }
+  .sono-site:is([data-motion='subtle'], [data-motion='lively']) [class*='rounded-site-card'] {
+    transition:
+      transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 240ms;
+  }
+  .sono-site[data-motion='lively'] [class*='rounded-site-card']:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px color-mix(in srgb, var(--s-text) 14%, transparent);
+  }
+}
 /* export:site:end */
 
 /* Loading mark: the logo's rings turn; with reduced motion they fade instead. */

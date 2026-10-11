@@ -351,7 +351,7 @@ export function SetupFlow({
             <PipelineColumn job={job!} />
             <div className="flex min-h-[320px] flex-col gap-5 overflow-auto bg-stage p-5 md:p-10">
               {job!.status === 'plan_review' && planDraft ? (
-                <PlanReview plan={planDraft} setPlan={setPlanDraft} preset={job!.brief.preset} />
+                <PlanReview plan={planDraft} setPlan={setPlanDraft} brief={job!.brief} />
               ) : job!.plan ? (
                 <LivePreview job={job!} assets={assets} />
               ) : (

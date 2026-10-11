@@ -128,6 +128,7 @@ export function ReferencePicker({ onPick, compact = false }: { onPick: (r: Picke
           <span className="min-w-0 flex-1 pl-2">
             From <span className="font-medium">{result.label}</span>: closest to <span className="font-medium">{PRESETS[result.style.suggested].name}</span> ({result.style.reasons.join(', ')}). Fonts:{' '}
             {result.style.theme.fonts.heading} and {result.style.theme.fonts.body}.
+            {result.style.look.length > 0 && <> Also: {result.style.look.join(', ')}.</>}
           </span>
         </div>
       )}

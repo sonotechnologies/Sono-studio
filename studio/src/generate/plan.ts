@@ -1,7 +1,7 @@
 import { PRESETS } from '@/lib/presets';
 import { SECTIONS } from '@/site/registry';
 import type { SectionType } from '@/site/schema';
-import { PREFERRED_VARIANTS } from '@/site/starter';
+import { preferredLayouts } from '@/site/starter';
 import { pagesFor, type Brief, type Extracted, type PageKey, type Plan, type PlanSection, type RawPlan } from './brief';
 
 /** Navbar, footer and the WhatsApp button are added to every page by the assembler, not planned. */
@@ -79,7 +79,7 @@ export function briefSummary(brief: Brief, extracted: Extracted | null): string 
 
 export function planPrompt(brief: Brief, extracted: Extracted | null) {
   const pages = pagesFor(brief);
-  const preferred = PREFERRED_VARIANTS[brief.preset];
+  const preferred = layoutsFor(brief);
   return {
     system:
       'You plan small-business websites built from a fixed library of sections. You reply with a single JSON object and nothing else.',
@@ -93,7 +93,7 @@ ${pages.map((p) => `- path "${p.path}", title "${p.title}" (${p.note})`).join('\
 Section library (use only these types and variants; navbar, footer and the WhatsApp button are added automatically, so leave them out):
 ${catalogue()}
 
-This preset prefers: ${Object.entries(preferred)
+This style prefers: ${Object.entries(preferred)
       .filter(([t]) => PLANNABLE_TYPES.includes(t as SectionType))
       .map(([t, v]) => `${t}=${v}`)
       .join(', ')}
@@ -111,10 +111,15 @@ Reply with JSON in exactly this shape:
   };
 }
 
-function validVariant(type: SectionType, variant: string | undefined, preset: Brief['preset']): string {
+/** Preferred layouts for a brief: the chosen style's own, then its preset's. */
+export function layoutsFor(brief: Pick<Brief, 'preset' | 'style'>): Record<string, string> {
+  return preferredLayouts({ preset: brief.preset, layouts: brief.style?.theme.layouts });
+}
+
+function validVariant(type: SectionType, variant: string | undefined, brief: Pick<Brief, 'preset' | 'style'>): string {
   const ids = SECTIONS[type].variants.map((v) => v.id as string);
   if (variant && ids.includes(variant)) return variant;
-  const pref = PREFERRED_VARIANTS[preset][type] as string | undefined;
+  const pref = layoutsFor(brief)[type];
   return pref && ids.includes(pref) ? pref : ids[0];
 }
 
@@ -167,7 +172,7 @@ export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extr
           id: `${want.key}-${s.type}${counts[s.type] > 1 ? `-${counts[s.type]}` : ''}`,
           type: s.type,
           // A price list with no prices to show reads as broken; use cards instead.
-          variant: s.type === 'features' && !hasItems && s.variant === 'price-list' ? 'cards' : validVariant(s.type, s.variant, brief.preset),
+          variant: s.type === 'features' && !hasItems && s.variant === 'price-list' ? 'cards' : validVariant(s.type, s.variant, brief),
           note: (s.note || SECTIONS[s.type].purpose).slice(0, 200),
         };
       });
@@ -189,7 +194,7 @@ export function cleanEditedPlan(plan: Plan, brief: Brief): Plan {
           let id = s.id.replace(/[^a-z0-9-]/g, '').slice(0, 60) || `${p.id}-${s.type}-${i}`;
           while (ids.has(id)) id = `${id}-x`;
           ids.add(id);
-          return { id, type: s.type, variant: validVariant(s.type, s.variant, brief.preset), note: s.note.slice(0, 200) };
+          return { id, type: s.type, variant: validVariant(s.type, s.variant, brief), note: s.note.slice(0, 200) };
         }),
     })),
   };

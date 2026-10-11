@@ -27,6 +27,14 @@ export interface ReferenceInput {
   text?: string;
   /** A logo gives brand colours, not a page background. */
   kind: 'logo' | 'screenshot' | 'link';
+  /** Motion, corners, spacing and layouts, when the source shows them (links). */
+  look?: {
+    motion?: SiteTheme['motion'];
+    density?: SiteTheme['density'];
+    radius?: SiteTheme['radius'];
+    layouts?: Record<string, string>;
+    notes?: string[];
+  };
 }
 
 export interface ReferenceStyle {
@@ -36,6 +44,8 @@ export interface ReferenceStyle {
   reasons: string[];
   /** The brand colours found, strongest first (shown as swatches). */
   swatches: string[];
+  /** What else was read: "animation (GSAP)", "pill buttons", "full bleed hero", ... */
+  look: string[];
 }
 
 /* ---------- Colour helpers ---------- */
@@ -258,8 +268,18 @@ export function styleFromReference(input: ReferenceInput): ReferenceStyle {
     mode: dark ? 'dark' : 'light',
     colors: { background, surface, text, muted, accent, ...buttonColors(primary, background, text) },
     fonts: { heading: headingFont ?? base.fonts.heading, body: bodyFont ?? base.fonts.body },
-    radius: { ...base.radius },
+    radius: input.look?.radius ? { ...input.look.radius } : { ...base.radius },
   };
+  const lookNotes = [...(input.look?.notes ?? [])];
+  if (input.look?.motion && input.look.motion !== 'none') theme.motion = input.look.motion;
+  // How much of a screenshot is empty background says how spacious the design is.
+  const bgShare = colors.find((c) => c.hex === background)?.weight ?? 0;
+  const density = input.look?.density ?? (input.kind === 'screenshot' ? (bgShare >= 0.72 ? 'airy' : bgShare <= 0.4 ? 'compact' : undefined) : undefined);
+  if (density && density !== 'balanced') {
+    theme.density = density;
+    if (!input.look?.density) lookNotes.push(density === 'airy' ? 'lots of space' : 'compact spacing');
+  }
+  if (input.look?.layouts && Object.keys(input.look.layouts).length) theme.layouts = { ...input.look.layouts };
   // Logos only give brand colours: keep the preset's own background and text.
   if (input.kind === 'logo') {
     const own = (base.colors.light ?? base.colors.dark)!;
@@ -269,7 +289,7 @@ export function styleFromReference(input: ReferenceInput): ReferenceStyle {
   }
 
   const reasons = (Object.keys(REASON) as (keyof Features)[]).filter((k) => features[k] && (score(suggested, { ...features, [k]: false }) < score(suggested, features))).map((k) => REASON[k]!);
-  return { theme, suggested, reasons: reasons.length ? reasons : ['closest overall match'], swatches: brand.slice(0, 5).map((c) => c.hex) };
+  return { theme, suggested, reasons: reasons.length ? reasons : ['closest overall match'], swatches: brand.slice(0, 5).map((c) => c.hex), look: lookNotes };
 }
 
 /** Contrast problems in a theme, in plain words (shared by every theme editor). */

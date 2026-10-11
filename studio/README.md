@@ -113,6 +113,9 @@ Notes:
 | References, no AI | A screenshot (colours by area, read in the browser), a link (the page's CSS, theme colour and Google Fonts, read by the server) or a logo (brand colours). One function (`src/style/reference.ts`) gives the colours roles, keeps text and buttons readable, matches fonts to ones sites can load, and suggests the closest preset with its reasons |
 | Wizard | The style step offers your styles and "Start from a reference" next to the presets. The chosen style is copied into the brief, so editing it later doesn't change a site being generated; logo colours can still go on top |
 | Workspace | Your styles appear in the Theme panel's style list |
+| Look and feel from a reference | A link also gives motion (animation libraries such as GSAP, AOS or Framer Motion, keyframes, transitions), corners (button and card radii), spacing (section padding) and layouts (video or photo behind the hero → full-bleed, centred hero or menu, card grids). A screenshot gives spacing from how much of it is empty background |
+| Motion and spacing | Themes have Motion (none, subtle, lively) and Spacing (compact, balanced, airy). Motion is pure CSS: sections fade up as they scroll into view, lively adds staggered cards, a rising headline and hover lifts. Browsers without scroll-driven animations show the page as is, and visitors who ask for reduced motion see nothing move. Exported sites keep it |
+| Style layouts | A style can carry preferred layouts per section type. Plans, new sections and the plan review use them; the workspace Theme panel can apply them to a site's existing sections |
 | Safety | Links are fetched only from public web addresses (private and local network addresses are refused, redirects re-checked), with time and size limits |
 
 Notes:

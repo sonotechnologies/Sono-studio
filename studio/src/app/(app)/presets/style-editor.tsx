@@ -11,7 +11,7 @@ import { PRESETS } from '@/lib/presets';
 import { SitePageView } from '@/site/render';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import type { Section, SiteConfig, SiteTheme } from '@/site/schema';
-import { PREFERRED_VARIANTS } from '@/site/starter';
+import { preferredLayouts } from '@/site/starter';
 import { SECTIONS } from '@/site/registry';
 import { ThemePanel } from '@/app/workspace/panels';
 import { deleteStyleAction, saveStyleAction } from './actions';
@@ -21,7 +21,7 @@ const PREVIEW_TYPES = ['navbar', 'hero', 'features', 'testimonials', 'cta', 'foo
 /** The sample home page in the base preset's preferred layouts, wearing this theme. */
 function previewConfig(theme: SiteTheme): SiteConfig {
   const home = KORA_KITCHEN.pages[0];
-  const preferred = PREFERRED_VARIANTS[theme.preset] as Record<string, string | undefined>;
+  const preferred = preferredLayouts(theme) as Record<string, string | undefined>;
   const sections = home.sections
     .filter((s) => PREVIEW_TYPES.includes(s.type))
     .map((s) => {

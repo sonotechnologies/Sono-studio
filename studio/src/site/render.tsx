@@ -23,7 +23,7 @@ export function SitePageView({
   className?: string;
 }) {
   return (
-    <div className={`sono-site ${className}`} style={themeStyle(config.theme)}>
+    <div className={`sono-site ${className}`} style={themeStyle(config.theme)} data-motion={config.theme.motion ?? 'none'}>
       <div className="s-root" lang={config.meta.language}>
         {page.sections
           .filter((s) => !s.hidden)
@@ -35,6 +35,7 @@ export function SitePageView({
               id={s.type === 'whatsapp-float' ? undefined : s.id}
               // A sticky navbar sticks on its wrapper, which spans the page; on the header itself it would stay inside its own box.
               className={s.type === 'whatsapp-float' ? 'contents' : s.type === 'navbar' && s.content.sticky ? 'sticky top-0 z-40' : 'scroll-mt-4'}
+              data-s={s.type}
               {...(ctx.editable ? { 'data-section-id': s.id, 'data-section-type': s.type } : {})}
             >
               {renderSection(s, ctx)}

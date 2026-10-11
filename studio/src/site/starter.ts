@@ -1,5 +1,5 @@
 import type { PresetId, Project } from '@/lib/types';
-import type { Section, SectionType, SiteConfig, VariantOf } from './schema';
+import type { Section, SectionType, SiteConfig, SiteTheme, VariantOf } from './schema';
 import { themeFromPreset } from './theme';
 
 /** Which variant each preset prefers, so two sites with the same sections still look different. */
@@ -13,6 +13,11 @@ export const PREFERRED_VARIANTS: Record<PresetId, Preferred> = {
   'tech-dark': { navbar: 'inline', hero: 'centered', about: 'statement', features: 'cards', gallery: 'masonry', testimonials: 'cards', cta: 'banner', contact: 'card', footer: 'columns', faq: 'accordion', stats: 'cards' },
   'soft-studio': { navbar: 'centered', hero: 'split-photo', about: 'split', features: 'price-list', gallery: 'masonry', testimonials: 'rating-strip', cta: 'split', contact: 'card', footer: 'simple', faq: 'accordion', stats: 'row' },
 };
+
+/** Layout per section type for a theme: its own preferences over its preset's. */
+export function preferredLayouts(theme: Pick<SiteTheme, 'preset' | 'layouts'>): Record<string, string> {
+  return { ...(PREFERRED_VARIANTS[theme.preset] as Record<string, string>), ...theme.layouts };
+}
 
 function variant<T extends SectionType>(preset: PresetId, type: T, fallback: VariantOf<T>): VariantOf<T> {
   return (PREFERRED_VARIANTS[preset][type] as VariantOf<T> | undefined) ?? fallback;

@@ -15,6 +15,7 @@ import {
   setVariant,
   syncShared,
   toggleHidden,
+  applyLayouts,
 } from './model';
 
 const site = (): SiteConfig => structuredClone(KORA_KITCHEN);
@@ -157,5 +158,23 @@ describe('honest chat replies', () => {
     expect(chatReplyText('That needs a booking module.', 0, false, [])).toBe('That needs a booking module.');
     expect(chatReplyText('Done it.', 2, true, [])).toBe('Done it.');
     expect(chatReplyText('Done it.', 2, true, ['remove: the navbar and footer stay'])).toMatch(/couldn’t be applied: the navbar and footer stay/);
+  });
+});
+
+describe('style layouts', () => {
+  it('switches sections to the theme’s preferred layouts and leaves unknown ones alone', () => {
+    const c = site();
+    c.theme = { ...c.theme, layouts: { hero: 'full-bleed', navbar: 'centered', gallery: 'not-a-layout' } };
+    const r = applyLayouts(c);
+    expect(heroOf(r.config).variant).toBe('full-bleed');
+    expect(r.config.pages.every((p) => p.sections[0].variant === 'centered')).toBe(true);
+    expect(r.changed).toBe(1 + r.config.pages.length + (c.pages.flatMap((p) => p.sections).filter((s) => s.type === 'hero').length - 1));
+    expect(applyLayouts(r.config).changed).toBe(0);
+  });
+
+  it('adds new sections in the style’s layout', () => {
+    const c = site();
+    c.theme = { ...c.theme, layouts: { faq: 'two-column' } };
+    expect(newSection(c, 'faq', 'home', 'restaurant').variant).toBe('two-column');
   });
 });

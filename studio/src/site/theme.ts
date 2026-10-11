@@ -84,6 +84,8 @@ export function themeStyle(theme: SiteTheme): CSSProperties {
   const px = (n: number) => `${n}px`;
   /** Reaches the desktop size when the site frame is 1280px wide. */
   const fluid = (desktop: number) => `${((desktop / 1280) * 100).toFixed(2)}cqi`;
+  const space = theme.density === 'airy' ? 1.3 : theme.density === 'compact' ? 0.7 : 1;
+  const section = def.spacing.section.map((n) => Math.round(n * space));
   const c = theme.colors;
   return {
     '--s-bg': c.background,
@@ -110,11 +112,11 @@ export function themeStyle(theme: SiteTheme): CSSProperties {
     '--s-h2-desktop': px(def.type.desktop.h2),
     '--s-h1-fluid': fluid(def.type.desktop.h1),
     '--s-h2-fluid': fluid(def.type.desktop.h2),
-    '--s-section-fluid': fluid(def.spacing.section[1] ?? def.spacing.section[0]),
+    '--s-section-fluid': fluid(section[1] ?? section[0]),
     '--s-body-phone': px(def.type.phone.body),
     '--s-body-desktop': px(def.type.desktop.body),
-    '--s-section-phone': px(def.spacing.section[0]),
-    '--s-section-desktop': px(def.spacing.section[1] ?? def.spacing.section[0]),
+    '--s-section-phone': px(section[0]),
+    '--s-section-desktop': px(section[1] ?? section[0]),
     colorScheme: theme.mode,
   } as CSSProperties;
 }

@@ -2,7 +2,7 @@ import { demoContent } from '@/ai/demo';
 import { EMPTY_EXTRACTED, type Brief } from '@/generate/brief';
 import { SECTIONS } from '@/site/registry';
 import { sectionSchema, siteConfigSchema, type Section, type SectionType, type SiteConfig, type SitePage } from '@/site/schema';
-import { PREFERRED_VARIANTS } from '@/site/starter';
+import { preferredLayouts } from '@/site/starter';
 
 /*
  * Every workspace edit is a pure function from one config to the next, so
@@ -131,7 +131,8 @@ export function newSection(config: SiteConfig, type: SectionType, pageId: string
     brandColors: [],
     useBrand: false,
   };
-  const variant = (PREFERRED_VARIANTS[config.theme.preset][type] as string | undefined) ?? SECTIONS[type].variants[0].id;
+  const wanted = preferredLayouts(config.theme)[type];
+  const variant = SECTIONS[type].variants.some((v) => v.id === wanted) ? wanted : SECTIONS[type].variants[0].id;
   const page = config.pages.find((p) => p.id === pageId);
   return sectionSchema.parse({
     id: uniqueSectionId(config, `${pageId}-${type}`),
@@ -194,4 +195,20 @@ export function revertChange(current: SiteConfig, before: SiteConfig, after: Sit
     out = { ...out, theme: before.theme };
   }
   return siteConfigSchema.parse(out);
+}
+
+/** Switches every section to the theme's preferred layout for its type, where it has one. */
+export function applyLayouts(config: SiteConfig): { config: SiteConfig; changed: number } {
+  const wanted = config.theme.layouts ?? {};
+  let changed = 0;
+  const pages = config.pages.map((p) => ({
+    ...p,
+    sections: p.sections.map((s) => {
+      const v = wanted[s.type];
+      if (!v || v === s.variant || !SECTIONS[s.type].variants.some((x) => x.id === v)) return s;
+      changed++;
+      return sectionSchema.parse({ ...s, variant: v });
+    }),
+  }));
+  return { config: changed ? { ...config, pages } : config, changed };
 }

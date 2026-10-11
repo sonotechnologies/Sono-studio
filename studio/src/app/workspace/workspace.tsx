@@ -41,6 +41,7 @@ import type { Project } from '@/lib/types';
 import { SECTIONS } from '@/site/registry';
 import type { SectionType, SiteConfig, SiteImage, SiteTheme } from '@/site/schema';
 import {
+  applyLayouts,
   duplicateSection,
   findSection,
   getIn,
@@ -731,6 +732,12 @@ export function Workspace({
             theme={config.theme}
             onChange={(theme: SiteTheme, summary) => commit({ ...configRef.current, theme }, summary, { coalesce: `theme:${summary}` })}
             styles={styles}
+            onApplyLayouts={() => {
+              const r = applyLayouts(configRef.current);
+              if (!r.changed) return toast('Every section already uses these layouts');
+              commit(r.config, 'Layouts');
+              toast(`${r.changed} section${r.changed === 1 ? '' : 's'} switched to the style’s layouts`);
+            }}
             onSaveAsStyle={async (name) => {
               const r = await saveStyleAction({ name, note: `From ${project.name}`, theme: configRef.current.theme });
               if (r.error) return r.error;

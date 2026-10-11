@@ -219,6 +219,12 @@ export const themeSchema = z.object({
     button: z.number().int().min(0).max(999),
     input: z.number().int().min(0).max(999),
   }),
+  /** Scroll reveals and hover movement. Absent means none. */
+  motion: z.enum(['none', 'subtle', 'lively']).optional(),
+  /** Space between and inside sections, relative to the preset. Absent means balanced. */
+  density: z.enum(['compact', 'balanced', 'airy']).optional(),
+  /** Preferred layout per section type ("hero": "full-bleed"), over the preset's own. Used for new sections and plans. */
+  layouts: z.record(z.string().regex(/^[a-z-]{2,30}$/), z.string().max(40)).optional(),
 });
 export type SiteTheme = z.infer<typeof themeSchema>;
 

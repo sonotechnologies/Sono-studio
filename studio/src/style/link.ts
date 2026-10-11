@@ -1,7 +1,7 @@
 import 'server-only';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import { readCss } from './css';
+import { readCss, readLook } from './css';
 import { parseColor, type ReferenceInput, type WeightedColor } from './reference';
 
 /*
@@ -109,7 +109,11 @@ export async function readLink(address: string): Promise<LinkReference> {
   const themeColor = theme ? parseColor(theme[1]) : null;
   if (themeColor) colors.set(themeColor, (colors.get(themeColor) ?? 0) + 8);
 
-  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) readCss(m[1], colors, fonts, out);
+  const cssTexts: string[] = [];
+  for (const m of html.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/gi)) {
+    readCss(m[1], colors, fonts, out);
+    cssTexts.push(m[1]);
+  }
   for (const m of html.matchAll(/\sstyle=["']([^"']+)["']/gi)) readCss(`x{${m[1]}}`, colors, fonts, {});
   const sheets = [...html.matchAll(/<link[^>]+>/gi)]
     .map((m) => m[0])
@@ -121,6 +125,7 @@ export async function readLink(address: string): Promise<LinkReference> {
     try {
       const css = await get(new URL(href.replace(/&amp;/g, '&'), page.url).toString(), MAX_CSS, 'text/css');
       readCss(css.text, colors, fonts, out);
+      cssTexts.push(css.text);
     } catch {
       // A stylesheet that can't be read just contributes nothing.
     }
@@ -135,6 +140,7 @@ export async function readLink(address: string): Promise<LinkReference> {
     fonts: [...fonts].sort((a, b) => b[1] - a[1]).map(([f]) => f),
     background: out.background,
     text: out.text,
+    look: readLook(html, cssTexts),
     title,
     url: page.url.toString(),
   };

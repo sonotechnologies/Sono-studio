@@ -146,6 +146,7 @@ export function ThemePanel({
   styles = [],
   onSaveAsStyle,
   baseLabel = false,
+  onApplyLayouts,
 }: {
   theme: SiteTheme;
   onChange: (theme: SiteTheme, summary: string) => void;
@@ -155,6 +156,8 @@ export function ThemePanel({
   onSaveAsStyle?: (name: string) => Promise<string | void>;
   /** In the style editor the preset is the style's base. */
   baseLabel?: boolean;
+  /** Switches the site's existing sections to the theme's preferred layouts. */
+  onApplyLayouts?: () => void;
 }) {
   const [choosing, setChoosing] = useState(false);
   const [naming, setNaming] = useState<string | null>(null);
@@ -315,6 +318,50 @@ export function ThemePanel({
           onPick={(k) => onChange({ ...theme, radius: { ...CORNERS[k].radius } }, 'Corners')}
         />
       </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="text-[13px] font-medium">Motion</div>
+        <Seg
+          options={[['none', 'None'], ['subtle', 'Subtle'], ['lively', 'Lively']] as const}
+          value={theme.motion ?? 'none'}
+          onPick={(m) => onChange({ ...theme, motion: m === 'none' ? undefined : m }, 'Motion')}
+        />
+        <span className="text-[12px] text-muted">
+          {theme.motion === 'lively'
+            ? 'Sections and cards reveal as you scroll, the headline rises in, buttons and cards lift on hover.'
+            : theme.motion === 'subtle'
+              ? 'Sections fade up gently as they scroll into view.'
+              : 'Nothing moves.'}{' '}
+          Visitors who ask for reduced motion see none.
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <div className="text-[13px] font-medium">Spacing</div>
+        <Seg
+          options={[['compact', 'Compact'], ['balanced', 'Balanced'], ['airy', 'Airy']] as const}
+          value={theme.density ?? 'balanced'}
+          onPick={(d) => onChange({ ...theme, density: d === 'balanced' ? undefined : d }, 'Spacing')}
+        />
+      </div>
+
+      {theme.layouts && Object.keys(theme.layouts).length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="text-[13px] font-medium">Layouts</div>
+          <span className="text-[13px] text-muted">
+            {Object.entries(theme.layouts)
+              .filter(([t]) => t in SECTIONS)
+              .map(([t, v]) => `${SECTIONS[t as keyof typeof SECTIONS].label}: ${SECTIONS[t as keyof typeof SECTIONS].variants.find((x) => x.id === v)?.label ?? v}`)
+              .join(' · ')}
+            . Used for new sections and new sites.
+          </span>
+          {onApplyLayouts && (
+            <button type="button" onClick={onApplyLayouts} className="cursor-pointer self-start text-[13px] font-medium text-accent-text hover:underline">
+              Apply to this site’s sections
+            </button>
+          )}
+        </div>
+      )}
 
       {onSaveAsStyle &&
         (naming === null ? (
