@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { cache } from 'react';
 import { getRepo } from '@/lib/auth';
 import { shortDate, siteUrl } from '@/lib/format';
@@ -46,6 +46,8 @@ export default async function PitchPage({ params }: Props) {
   const data = await load(slug);
   if (!data) notFound();
   const { pitch, config } = data;
+  // A live site replaces its concept: links already sent keep working.
+  if (pitch.liveUrl && /^https:\/\//.test(pitch.liveUrl)) redirect(`${pitch.liveUrl.replace(/\/+$/, '')}/${(path ?? []).join('/')}`);
 
   if (pitch.paused || !config) {
     const expired = !pitch.paused && pitch.expiresAt && new Date(pitch.expiresAt) <= new Date();

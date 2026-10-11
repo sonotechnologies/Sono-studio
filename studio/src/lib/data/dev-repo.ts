@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type Deployment, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 /**
  * Local development store: one JSON file under .data/. Seeded with the sample
@@ -21,6 +21,7 @@ interface DevDb {
   keys: ProviderKeyRow[];
   chat: (ChatMessage & { projectId: string })[];
   pitchEvents: (PitchEvent & { projectId: string })[];
+  deployments: Deployment[];
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -41,11 +42,12 @@ async function load(): Promise<DevDb> {
     db.keys ??= [];
     db.chat ??= [];
     db.pitchEvents ??= [];
+    db.deployments ??= [];
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [] };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [] };
     await save(db);
     return db;
   }
@@ -140,6 +142,7 @@ export const devRepo: Repo = {
       db.assets = db.assets.filter((a) => a.projectId !== id);
       db.chat = db.chat.filter((m) => m.projectId !== id);
       db.pitchEvents = db.pitchEvents.filter((e) => e.projectId !== id);
+      db.deployments = db.deployments.filter((d) => d.projectId !== id);
     }).then(() => rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }));
   },
 
@@ -189,6 +192,7 @@ export const devRepo: Repo = {
       expiresAt,
       whatsapp: db.settings.bannerWhatsapp,
       instagram: db.settings.bannerInstagram,
+      liveUrl: p.status === 'live' ? p.liveUrl : null,
       config: live ? (db.versions[p.id]?.at(-1)?.config ?? null) : null,
     };
   },
@@ -211,6 +215,36 @@ export const devRepo: Repo = {
       .reverse()
       .slice(0, limit)
       .map(({ projectId: _p, ...e }) => e);
+  },
+
+  async getLatestDeployment(projectId) {
+    return (await load()).deployments.filter((d) => d.projectId === projectId).at(-1) ?? null;
+  },
+
+  createDeployment(projectId, init) {
+    return mutate((db) => {
+      find(db, projectId);
+      const now = new Date().toISOString();
+      const d: Deployment = { ...init, id: randomUUID(), projectId, createdAt: now, updatedAt: now };
+      db.deployments.push(d);
+      return d;
+    });
+  },
+
+  updateDeployment(id, patch) {
+    return mutate((db) => {
+      const d = db.deployments.find((x) => x.id === id);
+      if (d) Object.assign(d, patch, { updatedAt: new Date().toISOString() });
+    });
+  },
+
+  setProjectLinks(projectId, links) {
+    return mutate((db) => {
+      const p = find(db, projectId);
+      if (links.liveUrl !== undefined) p.liveUrl = links.liveUrl;
+      if (links.repoUrl !== undefined) p.repoUrl = links.repoUrl;
+      p.updatedAt = new Date().toISOString();
+    });
   },
 
   addChatMessage(projectId, message) {

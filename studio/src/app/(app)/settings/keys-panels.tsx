@@ -25,6 +25,23 @@ export interface KeyView {
   state: 'ready' | 'cooling' | 'limit';
 }
 
+const DEPLOY_INFO = {
+  github: {
+    name: 'GitHub',
+    note: 'Keeps each site’s code in its own private repository',
+    keyUrl: 'https://github.com/settings/tokens/new?scopes=repo&description=Sono%20Studio',
+    keyLabel: 'token',
+    steps: 'Sign in to GitHub, open the link, choose an expiry, keep the “repo” box ticked, then Generate token and paste it here.',
+  },
+  vercel: {
+    name: 'Vercel',
+    note: 'Builds and hosts each site at name.vercel.app or a custom domain',
+    keyUrl: 'https://vercel.com/account/settings/tokens',
+    keyLabel: 'token',
+    steps: 'Open the link, name the token “Sono Studio”, set the scope to your personal account, choose an expiry, then Create and paste it here.',
+  },
+} as const;
+
 const STOCK_INFO = {
   unsplash: { name: 'Unsplash', note: 'Stock photos when a client sends none', keyUrl: 'https://unsplash.com/oauth/applications', keyLabel: 'Access Key' },
   pexels: { name: 'Pexels', note: 'Backup stock photo source', keyUrl: 'https://www.pexels.com/api/new/', keyLabel: 'API key' },
@@ -355,8 +372,34 @@ export function ConnectionsPanel({ rows, supabase }: { rows: KeyView[]; supabase
           </ConnectionRow>
         );
       })}
-      <ConnectionRow initial="G" name="GitHub" note="Pushes each site to its own repository" status="Phase 6" good={false} />
-      <ConnectionRow initial="V" name="Vercel" note="Deploys to project.vercel.app or a custom domain" status="Phase 6" good={false} />
+      {(['github', 'vercel'] as const).map((p) => {
+        const row = rows.find((r) => r.provider === p);
+        const info = DEPLOY_INFO[p];
+        return (
+          <ConnectionRow key={p} initial={info.name[0]} name={info.name} note={info.note} status={row ? `Token ends ${row.hint}` : p === 'vercel' ? 'Needed to deploy' : 'Optional'} good={!!row}>
+            <div className="flex flex-col gap-2 pl-0 md:pl-[52px]">
+              {!row && <p className="m-0 text-[13px] leading-normal text-muted">{info.steps}</p>}
+              <KeyForm provider={p} label={`${info.name} ${info.keyLabel}`} />
+              <div className="flex flex-wrap gap-4 text-[13px]">
+                <a href={info.keyUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 font-medium text-accent-text hover:underline">
+                  Create a token
+                  <ExternalLink size={12} />
+                </a>
+                {row && (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => start(async () => (await removeKeyAction(p), toast(`${info.name} removed`)))}
+                    className="cursor-pointer font-medium text-danger hover:underline"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          </ConnectionRow>
+        );
+      })}
     </div>
   );
 }

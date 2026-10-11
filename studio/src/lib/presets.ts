@@ -27,6 +27,8 @@ export interface PresetDefinition {
   variants: Record<string, string>;
 }
 
+// export:end (exported sites keep only what is above this line)
+
 /**
  * How a preset looks as a small mock home page (dashboard thumbnails and preset
  * cards). Values are taken from the Studio App design.

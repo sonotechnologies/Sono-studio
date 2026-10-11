@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { JetBrains_Mono, Space_Grotesk } from 'next/font/google';
 import { THEME_INIT_SCRIPT } from '@/lib/constants';
+import { GOOGLE_FONTS, googleFontsHref } from '@/site/fonts';
 import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-space-grotesk' });
@@ -12,8 +13,8 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], weight: ['400', '500'
  * made the build depend on what Google served the build machine (one variable
  * font broke the Vercel build). Their CSS variables are set in globals.css.
  */
-const PRESET_FONTS_CSS =
-  'https://fonts.googleapis.com/css2?family=Anton&family=Cormorant+Garamond:wght@500;600&family=DM+Sans:wght@400;500;700&family=Fraunces:wght@500;600&family=Inter:wght@400;500;600&family=Manrope:wght@400;500;700&family=Nunito+Sans:wght@400;600;700&family=Playfair+Display:wght@500&family=Sora:wght@600&display=swap';
+// Space Grotesk comes from next/font above.
+const PRESET_FONTS_CSS = googleFontsHref(Object.keys(GOOGLE_FONTS).filter((f) => f !== 'Space Grotesk'));
 
 const fontVars = `${spaceGrotesk.variable} ${jetbrainsMono.variable}`;
 

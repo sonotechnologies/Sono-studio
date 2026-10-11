@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl } from '@/lib/format';
+import { handoverChecklist } from '@/export/checklist';
+import { siteConfigSchema } from '@/site/schema';
 import { ProjectDetails } from './project-details';
 
 type Props = { params: Promise<{ id: string }> };
@@ -24,11 +26,27 @@ export default async function ProjectPage({ params }: Props) {
   const project = await load((await params).id);
   if (!project) notFound();
   const repo = await getRepo();
-  const [job, events] = await Promise.all([repo.getLatestJob(project.id), repo.listPitchEvents(project.id, 50)]);
+  const [job, events, version, keys, latest] = await Promise.all([
+    repo.getLatestJob(project.id),
+    repo.listPitchEvents(project.id, 50),
+    repo.getSiteVersion(project.id),
+    repo.listProviderKeys(),
+    repo.getLatestDeployment(project.id),
+  ]);
+  const parsed = version ? siteConfigSchema.safeParse(version.config) : null;
+  const website = parsed?.success
+    ? {
+        version: version!.version,
+        checklist: handoverChecklist(parsed.data),
+        hasVercel: keys.some((k) => k.provider === 'vercel'),
+        hasGithub: keys.some((k) => k.provider === 'github'),
+        latest,
+      }
+    : null;
   const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} />
+      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} />
     </Page>
   );
 }

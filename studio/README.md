@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 5 done
+## Status: Phases 1 to 6 done
 
 ### Phase 1, Foundation
 
@@ -88,7 +88,24 @@ Notes:
 - Supabase needs `supabase/migrations/0005_pitch.sql`.
 - Pitch links use `NEXT_PUBLIC_SITE_URL` when set, otherwise the Vercel production address.
 
-Not yet built (later phases): export and deploy.
+### Phase 6, Export and deploy
+
+| Built | Notes |
+| --- | --- |
+| Code generator (`src/export/`) | Turns a site config into a standalone Next.js + Tailwind project: the same section components the studio renders with (only the ones the site uses), the config as `src/site/config.json`, one route per page, every page prerendered as static HTML. The client's own photos are copied into `public/images`; Unsplash and Pexels photos stay linked, as their terms ask. No dependency on Sono Studio, no environment variables |
+| Export | Export in the workspace or "Export zip" on the project page downloads the current version |
+| Deploy | Commits the exported site to a private GitHub repository (when a GitHub token is set), then uploads it to Vercel, which builds and hosts it. Redeploy commits and publishes the newest version to the same repo and project. It never writes to a repo or Vercel project it didn't create: a taken name gets a suffix |
+| Going live | When the build is ready the live address is recorded, the project becomes Live and its pitch link forwards to the live site. The project page shows the address, the repo, the deployed version and whether newer edits are waiting |
+| Handover checklist | Built from the site: placeholder photos, sample reviews, missing contact details, stock photo credits, then domain and hosting-account steps. Shown before deploying, on the project page and in the exported README |
+| Settings → Connections | GitHub (classic token with the `repo` scope) and Vercel (personal token) are checked with each service and stored encrypted like the other keys |
+
+How the export stays in sync with the studio: `scripts/export-template.mjs` collects the renderer's files and the site CSS (between `export:` markers in `globals.css`) into `src/export/template.generated.json` before every dev, build, lint and test run.
+
+Notes:
+- Supabase needs `supabase/migrations/0006_deploy.sql`.
+- Vercel's free Hobby plan is for non-commercial use: fine for your own demos; a paying client's live site belongs on their own Vercel account or a paid plan (the checklist says so).
+
+Not yet built (later phases): style presets from references, stores, bookings and the admin panel, custom sections.
 
 ## Run it locally
 

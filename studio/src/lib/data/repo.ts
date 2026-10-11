@@ -3,6 +3,7 @@ import type { Asset, Brief, GenerationJob } from '@/generate/brief';
 import type { SiteConfig } from '@/site/schema';
 import type {
   ClientPatch,
+  DeployProviderId,
   NewProjectInput,
   Project,
   ProjectPatch,
@@ -49,10 +50,16 @@ export interface Repo {
   logPitchOpen(slug: string, open: { device: Device; isBot: boolean; path: string }): Promise<void>;
   /** Newest first. */
   listPitchEvents(projectId: string, limit?: number): Promise<PitchEvent[]>;
+  /** The newest deploy of a project, if any. */
+  getLatestDeployment(projectId: string): Promise<Deployment | null>;
+  createDeployment(projectId: string, init: Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>): Promise<Deployment>;
+  updateDeployment(id: string, patch: Partial<Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>>): Promise<void>;
+  /** Records where the site lives once a deploy is ready. */
+  setProjectLinks(projectId: string, links: { liveUrl?: string; repoUrl?: string }): Promise<void>;
   updateSettings(settings: StudioSettings): Promise<void>;
 }
 
-export type KeyProvider = Exclude<ProviderId, 'demo'> | StockProviderId;
+export type KeyProvider = Exclude<ProviderId, 'demo'> | StockProviderId | DeployProviderId;
 
 export interface ProviderKeyRow {
   provider: KeyProvider;
@@ -112,6 +119,8 @@ export interface PitchView {
   /** Your contact details for the banner, from Settings. */
   whatsapp: string;
   instagram: string;
+  /** Set once the site is live: the pitch link forwards here. */
+  liveUrl?: string | null;
   /** The current site config; null while the link is paused or expired, or before version 1 exists. */
   config: unknown;
 }
@@ -129,6 +138,21 @@ export function pitchExpiresAt(p: Pick<Project, 'pitchExpiryDays' | 'pitchSentAt
   if (p.pitchExpiryDays === null) return null;
   const start = new Date(p.pitchSentAt ?? p.createdAt).getTime();
   return new Date(start + p.pitchExpiryDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+export interface Deployment {
+  id: string;
+  projectId: string;
+  version: number;
+  status: 'building' | 'ready' | 'error';
+  repoFullName: string | null;
+  repoUrl: string | null;
+  vercelProject: string | null;
+  vercelDeploymentId: string | null;
+  url: string | null;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SiteVersion {

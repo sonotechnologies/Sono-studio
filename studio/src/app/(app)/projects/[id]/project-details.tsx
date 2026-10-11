@@ -7,7 +7,10 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { SiteThumb } from '@/components/site-thumb';
 import { ConfirmDialog, STATUS_STYLE, Segmented, StatusPill, Switch, btn, inputClass, useToast } from '@/components/ui';
 import type { JobStatus } from '@/generate/brief';
-import { pitchExpiresAt, type PitchEvent } from '@/lib/data/repo';
+import { pitchExpiresAt, type Deployment, type PitchEvent } from '@/lib/data/repo';
+import type { ChecklistItem } from '@/export/checklist';
+import { ChecklistList, DeployDialog, fetchDeployment } from '@/components/deploy-dialog';
+import { MiniSpin } from '@/components/orbit';
 import { compactWhen, displayUrl, shortDate, timeAgo } from '@/lib/format';
 import { PRESETS } from '@/lib/presets';
 import {
@@ -37,12 +40,15 @@ export function ProjectDetails({
   now,
   setup,
   events,
+  website,
 }: {
   project: Project;
   link: string;
   now: number;
   /** Recent pitch-link opens, newest first. */
   events: PitchEvent[];
+  /** Export and deploy state; null until the project has a valid site. */
+  website: WebsiteInfo | null;
   /** An unfinished generation for this project, if there is one. */
   setup: { jobId: string; status: JobStatus } | null;
 }) {
@@ -128,7 +134,10 @@ export function ProjectDetails({
           <PitchCard p={p} link={link} onPatch={patch} events={events} now={now} />
           <ClientCard id={p.id} client={p.client} />
         </div>
-        <ActivityCard p={p} now={now} events={events} />
+        <div className="flex flex-col gap-5">
+          {website && <WebsiteCard p={p} info={website} now={now} onLive={() => router.refresh()} />}
+          <ActivityCard p={p} now={now} events={events} />
+        </div>
       </div>
 
       {confirmDelete && (
@@ -452,6 +461,104 @@ interface Activity {
   url?: string;
   icon: React.ReactNode;
   tone: string;
+}
+
+export interface WebsiteInfo {
+  version: number;
+  checklist: ChecklistItem[];
+  hasVercel: boolean;
+  hasGithub: boolean;
+  latest: Deployment | null;
+}
+
+/** Export, deploy and the handover checklist. */
+function WebsiteCard({ p, info, now, onLive }: { p: Project; info: WebsiteInfo; now: number; onLive: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [d, setD] = useState(info.latest);
+  useEffect(() => setD(info.latest), [info.latest]);
+  // Keep checking while a build runs, even with the dialog closed.
+  const building = d?.status === 'building' && !open;
+  useEffect(() => {
+    if (!building) return;
+    const t = setInterval(async () => {
+      const next = await fetchDeployment(p.id).catch(() => null);
+      if (next && next.status !== 'building') {
+        setD(next);
+        if (next.status === 'ready') onLive();
+      }
+    }, 5000);
+    return () => clearInterval(t);
+  }, [building, p.id, onLive]);
+  const todo = info.checklist.filter((c) => !c.done).length;
+  const live = d?.status === 'ready' ? d : null;
+  const outdated = live && live.version < info.version;
+
+  return (
+    <section className={`${card} gap-4`}>
+      <h2 className="m-0 text-[16px] font-semibold">Website</h2>
+      <div className="flex flex-col gap-1.5 text-[14px]">
+        {!d && <span className="text-muted">Not deployed yet. Export the code or deploy it to Vercel.</span>}
+        {d?.status === 'building' && (
+          <span className="flex items-center gap-2">
+            <MiniSpin /> Deploying version {d.version}…
+          </span>
+        )}
+        {d?.status === 'error' && <span className="text-danger">The last deploy failed: {d.error}</span>}
+        {(live ?? (p.liveUrl ? { url: p.liveUrl } : null))?.url && (
+          <a href={(live?.url ?? p.liveUrl)!} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 self-start font-mono text-[13px] font-medium text-accent-text hover:underline">
+            {(live?.url ?? p.liveUrl)!.replace(/^https:\/\//, '')}
+            <ExternalLink size={13} />
+          </a>
+        )}
+        {live && (
+          <span className="text-[13px] text-muted">
+            Version {live.version} deployed {compactWhen(live.updatedAt, now)}
+            {outdated ? ` · version ${info.version} has changes not deployed yet` : ''}
+          </span>
+        )}
+        {(d?.repoUrl ?? p.repoUrl) && (
+          <a href={(d?.repoUrl ?? p.repoUrl)!} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 self-start text-[13px] text-muted hover:text-text hover:underline">
+            Code on GitHub{d?.repoFullName ? `: ${d.repoFullName}` : ''}
+            <ExternalLink size={12} />
+          </a>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <a href={`/api/projects/${p.id}/export`} className={`${btn.secondary} h-10 px-4 text-[14px]`}>
+          Export zip
+        </a>
+        <button type="button" onClick={() => setOpen(true)} className={`${btn.primary} h-10 px-4 text-[14px]`}>
+          {d?.status === 'building' ? 'See progress' : live ? 'Redeploy' : 'Deploy'}
+        </button>
+      </div>
+      <details className="group border-t border-border pt-3">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-[14px] font-medium">
+          <ChevronDown size={15} className="-rotate-90 text-muted transition-transform group-open:rotate-0" />
+          Handover checklist
+          <span className="text-[13px] font-normal text-muted">{todo ? `${todo} to do` : 'all done'}</span>
+        </summary>
+        <div className="pt-3">
+          <ChecklistList items={info.checklist} />
+        </div>
+      </details>
+      {open && (
+        <DeployDialog
+          projectId={p.id}
+          projectName={p.name}
+          version={info.version}
+          checklist={info.checklist}
+          hasVercel={info.hasVercel}
+          hasGithub={info.hasGithub}
+          initial={d}
+          onDone={(next) => {
+            setD(next);
+            onLive();
+          }}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </section>
+  );
 }
 
 const DEVICE = {

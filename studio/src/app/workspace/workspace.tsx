@@ -32,7 +32,9 @@ import { StatusPill, useToast } from '@/components/ui';
 import type { ChatScope } from '@/ai/chat';
 import type { Asset } from '@/generate/brief';
 import { PLANNABLE_TYPES } from '@/generate/plan';
-import type { ChatMessage } from '@/lib/data/repo';
+import type { ChatMessage, Deployment } from '@/lib/data/repo';
+import { handoverChecklist } from '@/export/checklist';
+import { DeployDialog, fetchDeployment } from '@/components/deploy-dialog';
 import { PRESETS } from '@/lib/presets';
 import type { Project } from '@/lib/types';
 import { SECTIONS } from '@/site/registry';
@@ -84,6 +86,7 @@ export function Workspace({
   aiMode,
   stockSearch,
   pitchLink,
+  deploy,
 }: {
   project: Project;
   initialConfig: SiteConfig;
@@ -93,9 +96,12 @@ export function Workspace({
   aiMode: AiMode;
   stockSearch: boolean;
   pitchLink: string;
+  deploy: { hasVercel: boolean; hasGithub: boolean; latest: Deployment | null };
 }) {
   const toast = useToast();
   const projectId = project.id;
+  const [deployOpen, setDeployOpen] = useState(false);
+  const [deployment, setDeployment] = useState(deploy.latest);
 
   /* ----- The config, with undo and redo ----- */
   const [config, setConfig] = useState(initialConfig);
@@ -601,12 +607,27 @@ export function Workspace({
             <Share2 size={16} />
             <span className="@max-[940px]:hidden">Share</span>
           </button>
-          <button type="button" disabled title="Export arrives in phase 6" className="flex h-[34px] flex-none items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] font-medium opacity-45 @max-[640px]:hidden">
+          <button
+            type="button"
+            title="Download the site as a Next.js project (zip)"
+            aria-label="Export"
+            onClick={async () => {
+              await flush();
+              window.location.href = `/api/projects/${projectId}/export`;
+              toast('Preparing the zip…');
+            }}
+            className="flex h-[34px] flex-none cursor-pointer items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] font-medium hover:bg-hover active:scale-[0.97] @max-[520px]:hidden"
+          >
             <Download size={16} />
             <span className="@max-[940px]:hidden">Export</span>
           </button>
-          <button type="button" disabled title="Deploy arrives in phase 6" className="flex h-[34px] flex-none items-center gap-1.5 rounded-full bg-terracotta px-3.5 text-[13px] font-semibold text-white opacity-45">
-            Deploy
+          <button
+            type="button"
+            onClick={() => setDeployOpen(true)}
+            className="flex h-[34px] flex-none cursor-pointer items-center gap-1.5 rounded-full bg-terracotta px-3.5 text-[13px] font-semibold text-white hover:bg-terracotta-hover active:scale-[0.97]"
+          >
+            {deployment?.status === 'building' ? <MiniSpin /> : null}
+            {deployment?.status === 'ready' ? 'Redeploy' : 'Deploy'}
             <ArrowRight size={16} />
           </button>
         </div>
@@ -720,6 +741,23 @@ export function Workspace({
         />
       )}
       {historyOpen && <HistoryDialog projectId={projectId} current={version} onRestore={restore} onClose={() => setHistoryOpen(false)} />}
+      {deployOpen && (
+        <DeployDialog
+          projectId={projectId}
+          projectName={project.name}
+          version={version}
+          checklist={handoverChecklist(config)}
+          hasVercel={deploy.hasVercel}
+          hasGithub={deploy.hasGithub}
+          initial={deployment}
+          beforeDeploy={flush}
+          onDone={setDeployment}
+          onClose={() => {
+            setDeployOpen(false);
+            void fetchDeployment(projectId).then(setDeployment, () => {});
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@
 :root {
   color-scheme: light;
   /* Preset fonts, loaded by the Google Fonts stylesheet in the root layout. */
+  /* export:fonts:start (copied into exported sites by scripts/export-template.mjs) */
   --font-fraunces: 'Fraunces', Georgia, serif;
   --font-cormorant: 'Cormorant Garamond', Georgia, serif;
   --font-anton: 'Anton', Impact, sans-serif;
@@ -21,6 +22,7 @@
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-dm-sans: 'DM Sans', system-ui, sans-serif;
   --font-nunito-sans: 'Nunito Sans', system-ui, sans-serif;
+  /* export:fonts:end */
   --ink: #16140f;
   --paper: #f7f5f1;
   --terracotta: #b4502e;
@@ -71,6 +73,7 @@
   --color-transparent: transparent;
   --color-current: currentColor;
   --color-white: #ffffff;
+  --color-black: #000000;
   --color-ink: var(--ink);
   --color-paper: var(--paper);
   --color-terracotta: var(--terracotta);
@@ -106,6 +109,7 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Generated-site tokens, set per site by themeStyle() in src/site/theme.ts. */
+  /* export:tokens:start */
   --color-site-bg: var(--s-bg);
   --color-site-surface: var(--s-surface);
   --color-site-text: var(--s-text);
@@ -120,6 +124,7 @@
   --radius-site-button: var(--s-r-button);
   --radius-site-input: var(--s-r-input);
   --radius-site-image: var(--s-r-image);
+  /* export:tokens:end */
 
   --animate-fade-up: fade-up 200ms cubic-bezier(0.22, 1, 0.36, 1);
   --animate-fade-up-slow: fade-up 300ms ease-out;
@@ -168,6 +173,7 @@
  * thumbnails. Type and spacing scale fluidly between the preset's phone and
  * desktop sizes. Kept in a layer so section utility classes can override it.
  */
+/* export:site:start */
 @layer components {
   .sono-site {
     container-type: inline-size;
@@ -224,6 +230,7 @@
     display: none;
   }
 }
+/* export:site:end */
 
 /* Loading mark: the logo's rings turn; with reduced motion they fade instead. */
 .sono-orbit {

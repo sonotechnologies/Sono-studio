@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ChatMessage, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type Deployment, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 interface ClientRow {
   owner_name: string;
@@ -124,6 +124,52 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
 }
 
 /** Row-level security scopes every query to the signed-in owner. */
+interface DeploymentRow {
+  id: string;
+  project_id: string;
+  version: number;
+  status: Deployment['status'];
+  repo_full_name: string | null;
+  repo_url: string | null;
+  vercel_project: string | null;
+  vercel_deployment_id: string | null;
+  url: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function toDeployment(r: DeploymentRow): Deployment {
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    version: r.version,
+    status: r.status,
+    repoFullName: r.repo_full_name,
+    repoUrl: r.repo_url,
+    vercelProject: r.vercel_project,
+    vercelDeploymentId: r.vercel_deployment_id,
+    url: r.url,
+    error: r.error,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function deploymentRow(d: Partial<Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>>): Record<string, unknown> {
+  const map: Record<string, string> = {
+    version: 'version',
+    status: 'status',
+    repoFullName: 'repo_full_name',
+    repoUrl: 'repo_url',
+    vercelProject: 'vercel_project',
+    vercelDeploymentId: 'vercel_deployment_id',
+    url: 'url',
+    error: 'error',
+  };
+  return Object.fromEntries(Object.entries(d).filter(([k, v]) => map[k] && v !== undefined).map(([k, v]) => [map[k], v]));
+}
+
 export function supabaseRepo(db: SupabaseClient): Repo {
   return {
     async listProjects() {
@@ -265,6 +311,29 @@ export function supabaseRepo(db: SupabaseClient): Repo {
         await db.from('pitch_events').select('id, opened_at, device, is_bot, path').eq('project_id', projectId).order('opened_at', { ascending: false }).limit(limit),
       ) as { id: string; opened_at: string; device: PitchEvent['device']; is_bot: boolean; path: string }[];
       return rows.map((r) => ({ id: r.id, openedAt: r.opened_at, device: r.device, isBot: r.is_bot, path: r.path }));
+    },
+
+    async getLatestDeployment(projectId) {
+      const row = check(
+        await db.from('deployments').select('*').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ) as DeploymentRow | null;
+      return row ? toDeployment(row) : null;
+    },
+
+    async createDeployment(projectId, init) {
+      const row = check(await db.from('deployments').insert({ project_id: projectId, ...deploymentRow(init) }).select('*').single()) as DeploymentRow;
+      return toDeployment(row);
+    },
+
+    async updateDeployment(id, patch) {
+      check(await db.from('deployments').update(deploymentRow(patch)).eq('id', id));
+    },
+
+    async setProjectLinks(projectId, links) {
+      const row: Record<string, unknown> = {};
+      if (links.liveUrl !== undefined) row.live_url = links.liveUrl;
+      if (links.repoUrl !== undefined) row.repo_url = links.repoUrl;
+      if (Object.keys(row).length) check(await db.from('projects').update(row).eq('id', projectId));
     },
 
     async addChatMessage(projectId, m) {

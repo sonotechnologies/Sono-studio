@@ -8,8 +8,11 @@ import { AI_PROVIDERS, PROVIDER_INFO, ProviderError, STOCK_PROVIDERS, type AiPro
 import { getRepo, requireUser } from '@/lib/auth';
 import { decryptSecret, encryptSecret, keyHint } from '@/lib/crypto';
 import type { KeyProvider } from '@/lib/data/repo';
+import { DEPLOY_PROVIDERS } from '@/lib/types';
+import { DeployError, githubAccount } from '@/deploy/github';
+import { vercelAccount } from '@/deploy/vercel';
 
-const ALL: readonly string[] = [...AI_PROVIDERS, ...STOCK_PROVIDERS];
+const ALL: readonly string[] = [...AI_PROVIDERS, ...STOCK_PROVIDERS, ...DEPLOY_PROVIDERS];
 
 function provider(p: string): KeyProvider {
   if (!ALL.includes(p)) throw new Error('Unknown provider');
@@ -26,6 +29,16 @@ async function checkStockKey(p: 'unsplash' | 'pexels', key: string): Promise<'ok
     return res.ok ? 'ok' : 'unchecked';
   } catch {
     return 'unchecked';
+  }
+}
+
+/** Asks GitHub or Vercel who the token belongs to. */
+async function checkDeployToken(p: 'github' | 'vercel', token: string): Promise<{ account?: string; rejected?: string }> {
+  try {
+    return { account: p === 'github' ? await githubAccount(token) : await vercelAccount(token) };
+  } catch (err) {
+    if (err instanceof DeployError && /rejected|scope|access/i.test(err.message)) return { rejected: err.message.replace(/ Add a new one.*$/, '') };
+    return {};
   }
 }
 
@@ -50,6 +63,10 @@ export async function saveKeyAction(p: string, rawKey: string): Promise<SaveKeyR
       if (err instanceof ProviderError && err.kind === 'auth') return { error: `${PROVIDER_INFO[id].name} rejected that key. Check you copied all of it.` };
       warning = 'Saved, but the key couldn’t be checked right now. Generation will tell you if it doesn’t work.';
     }
+  } else if (id === 'github' || id === 'vercel') {
+    const check = await checkDeployToken(id, key);
+    if (check.rejected) return { error: `${check.rejected} Check you copied all of it.` };
+    warning = check.account ? `Connected as ${check.account}.` : 'Saved, but the token couldn’t be checked right now. Deploy will tell you if it doesn’t work.';
   } else {
     const check = await checkStockKey(id as 'unsplash' | 'pexels', key);
     if (check === 'rejected') return { error: 'That key was rejected. For Unsplash use the Access Key, not the Secret key.' };

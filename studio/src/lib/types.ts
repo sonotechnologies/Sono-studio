@@ -30,6 +30,10 @@ export const PRESET_IDS = [
 export type PresetId = (typeof PRESET_IDS)[number];
 
 /** Pitch link lifetime in days; null means it never expires. */
+/** Where sites are pushed and deployed. Their tokens live with the other keys. */
+export const DEPLOY_PROVIDERS = ['github', 'vercel'] as const;
+export type DeployProviderId = (typeof DEPLOY_PROVIDERS)[number];
+
 export const PITCH_EXPIRY_OPTIONS = [7, 30, 90, null] as const;
 export type PitchExpiryDays = (typeof PITCH_EXPIRY_OPTIONS)[number];
 
