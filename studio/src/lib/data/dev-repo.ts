@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, statusTimestamps, type ChatMessage, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 /**
  * Local development store: one JSON file under .data/. Seeded with the sample
@@ -20,6 +20,7 @@ interface DevDb {
   assets: Asset[];
   keys: ProviderKeyRow[];
   chat: (ChatMessage & { projectId: string })[];
+  pitchEvents: (PitchEvent & { projectId: string })[];
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -39,11 +40,12 @@ async function load(): Promise<DevDb> {
     db.assets ??= [];
     db.keys ??= [];
     db.chat ??= [];
+    db.pitchEvents ??= [];
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [] };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [] };
     await save(db);
     return db;
   }
@@ -137,6 +139,7 @@ export const devRepo: Repo = {
       db.jobs = db.jobs.filter((j) => j.projectId !== id);
       db.assets = db.assets.filter((a) => a.projectId !== id);
       db.chat = db.chat.filter((m) => m.projectId !== id);
+      db.pitchEvents = db.pitchEvents.filter((e) => e.projectId !== id);
     }).then(() => rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }));
   },
 
@@ -171,6 +174,43 @@ export const devRepo: Repo = {
 
   async listChatMessages(projectId) {
     return (await load()).chat.filter((m) => m.projectId === projectId).map(({ projectId: _p, ...m }) => m);
+  },
+
+  async getPitch(slug) {
+    const db = await load();
+    const p = db.projects.find((x) => x.pitchSlug === slug);
+    if (!p) return null;
+    const expiresAt = pitchExpiresAt(p);
+    const live = !p.pitchPaused && (!expiresAt || expiresAt > new Date().toISOString());
+    return {
+      name: p.name,
+      paused: p.pitchPaused,
+      banner: p.pitchBanner,
+      expiresAt,
+      whatsapp: db.settings.bannerWhatsapp,
+      instagram: db.settings.bannerInstagram,
+      config: live ? (db.versions[p.id]?.at(-1)?.config ?? null) : null,
+    };
+  },
+
+  logPitchOpen(slug, open) {
+    return mutate((db) => {
+      const p = db.projects.find((x) => x.pitchSlug === slug);
+      if (!p || p.pitchPaused) return;
+      const expiresAt = pitchExpiresAt(p);
+      const now = new Date().toISOString();
+      if (expiresAt && expiresAt <= now) return;
+      db.pitchEvents.push({ id: randomUUID(), projectId: p.id, openedAt: now, device: open.device, isBot: open.isBot, path: open.path.slice(0, 100) });
+      if (!open.isBot) p.lastOpenedAt = now;
+    });
+  },
+
+  async listPitchEvents(projectId, limit = 50) {
+    return (await load()).pitchEvents
+      .filter((e) => e.projectId === projectId)
+      .reverse()
+      .slice(0, limit)
+      .map(({ projectId: _p, ...e }) => e);
   },
 
   addChatMessage(projectId, message) {

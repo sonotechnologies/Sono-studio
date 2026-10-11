@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ChatMessage, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 interface ClientRow {
   owner_name: string;
@@ -250,6 +250,21 @@ export function supabaseRepo(db: SupabaseClient): Repo {
         await db.from('chat_messages').select('id, role, text, scope, change, version, created_at').eq('project_id', projectId).order('created_at').limit(200),
       ) as { id: string; role: ChatMessage['role']; text: string; scope: ChatMessage['scope']; change: string; version: number | null; created_at: string }[];
       return rows.map((r) => ({ id: r.id, role: r.role, text: r.text, scope: r.scope, change: r.change, version: r.version, createdAt: r.created_at }));
+    },
+
+    async getPitch(slug) {
+      return check(await db.rpc('get_pitch', { p_slug: slug })) as PitchView | null;
+    },
+
+    async logPitchOpen(slug, open) {
+      check(await db.rpc('log_pitch_open', { p_slug: slug, p_device: open.device, p_bot: open.isBot, p_path: open.path.slice(0, 100) }));
+    },
+
+    async listPitchEvents(projectId, limit = 50) {
+      const rows = check(
+        await db.from('pitch_events').select('id, opened_at, device, is_bot, path').eq('project_id', projectId).order('opened_at', { ascending: false }).limit(limit),
+      ) as { id: string; opened_at: string; device: PitchEvent['device']; is_bot: boolean; path: string }[];
+      return rows.map((r) => ({ id: r.id, openedAt: r.opened_at, device: r.device, isBot: r.is_bot, path: r.path }));
     },
 
     async addChatMessage(projectId, m) {

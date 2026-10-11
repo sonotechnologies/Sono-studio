@@ -9,7 +9,8 @@ export function WhatsappFloat({ section, ctx }: { section: SectionOf<'whatsapp-f
   const pill = section.variant === 'pill';
   return (
     // A zero-height sticky strip at the end of the page, so the button floats without taking up space.
-    <div className="pointer-events-none sticky bottom-0 z-20 h-0">
+    // Pitch pages set --s-float-offset to lift it above the "Concept by" banner.
+    <div className="pointer-events-none sticky bottom-[var(--s-float-offset,0px)] z-20 h-0">
       <a
         {...edit(ctx, 'label')}
         href={whatsappHref(c.number, c.message)}

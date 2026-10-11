@@ -43,6 +43,12 @@ export interface Repo {
   recordUsage(provider: ProviderId): Promise<void>;
   setCooldown(provider: ProviderId, until: string | null): Promise<void>;
   getSettings(): Promise<StudioSettings>;
+  /** What the public pitch page shows. Works without a signed-in user. */
+  getPitch(slug: string): Promise<PitchView | null>;
+  /** Logs one open of a live pitch link. Works without a signed-in user. */
+  logPitchOpen(slug: string, open: { device: Device; isBot: boolean; path: string }): Promise<void>;
+  /** Newest first. */
+  listPitchEvents(projectId: string, limit?: number): Promise<PitchEvent[]>;
   updateSettings(settings: StudioSettings): Promise<void>;
 }
 
@@ -94,6 +100,35 @@ export interface ChatMessage {
   change: string;
   version: number | null;
   createdAt: string;
+}
+
+export type Device = 'mobile' | 'tablet' | 'desktop';
+
+export interface PitchView {
+  name: string;
+  paused: boolean;
+  banner: boolean;
+  expiresAt: string | null;
+  /** Your contact details for the banner, from Settings. */
+  whatsapp: string;
+  instagram: string;
+  /** The current site config; null while the link is paused or expired, or before version 1 exists. */
+  config: unknown;
+}
+
+export interface PitchEvent {
+  id: string;
+  openedAt: string;
+  device: Device;
+  isBot: boolean;
+  path: string;
+}
+
+/** When a pitch link stops working: the expiry counts from the day the pitch was sent, or the project was created. */
+export function pitchExpiresAt(p: Pick<Project, 'pitchExpiryDays' | 'pitchSentAt' | 'createdAt'>): string | null {
+  if (p.pitchExpiryDays === null) return null;
+  const start = new Date(p.pitchSentAt ?? p.createdAt).getTime();
+  return new Date(start + p.pitchExpiryDays * 24 * 60 * 60 * 1000).toISOString();
 }
 
 export interface SiteVersion {

@@ -1,13 +1,14 @@
 'use client';
 
-import { ArrowRight, Check, ChevronDown, ChevronLeft, Copy, Eye, Plus, Rocket, Send } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronLeft, Copy, ExternalLink, Eye, Monitor, Plus, Rocket, Send, Smartphone, Tablet } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { SiteThumb } from '@/components/site-thumb';
 import { ConfirmDialog, STATUS_STYLE, Segmented, StatusPill, Switch, btn, inputClass, useToast } from '@/components/ui';
 import type { JobStatus } from '@/generate/brief';
-import { compactWhen, displayUrl, shortDate } from '@/lib/format';
+import { pitchExpiresAt, type PitchEvent } from '@/lib/data/repo';
+import { compactWhen, displayUrl, shortDate, timeAgo } from '@/lib/format';
 import { PRESETS } from '@/lib/presets';
 import {
   PROJECT_STATUSES,
@@ -35,10 +36,13 @@ export function ProjectDetails({
   link,
   now,
   setup,
+  events,
 }: {
   project: Project;
   link: string;
   now: number;
+  /** Recent pitch-link opens, newest first. */
+  events: PitchEvent[];
   /** An unfinished generation for this project, if there is one. */
   setup: { jobId: string; status: JobStatus } | null;
 }) {
@@ -121,10 +125,10 @@ export function ProjectDetails({
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-5">
         <div className="flex flex-col gap-5">
-          <PitchCard p={p} link={link} onPatch={patch} />
+          <PitchCard p={p} link={link} onPatch={patch} events={events} now={now} />
           <ClientCard id={p.id} client={p.client} />
         </div>
-        <ActivityCard p={p} now={now} />
+        <ActivityCard p={p} now={now} events={events} />
       </div>
 
       {confirmDelete && (
@@ -226,7 +230,7 @@ const EXPIRY: { value: PitchExpiryDays; label: string }[] = [
   { value: null, label: 'Never' },
 ];
 
-function PitchCard({ p, link, onPatch }: { p: Project; link: string; onPatch: (c: ProjectPatch) => void }) {
+function PitchCard({ p, link, onPatch, events, now }: { p: Project; link: string; onPatch: (c: ProjectPatch) => void; events: PitchEvent[]; now: number }) {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -242,8 +246,22 @@ function PitchCard({ p, link, onPatch }: { p: Project; link: string; onPatch: (c
     clearTimeout(timer.current);
     setCopied(true);
     timer.current = setTimeout(() => setCopied(false), 1000);
-    toast('Pitch link copied');
+    // Sending the link is the usual next step, so offer to record it.
+    if (p.status === 'draft') toast('Pitch link copied', { label: 'Mark as sent', onClick: () => onPatch({ status: 'pitch_sent' }) });
+    else toast('Pitch link copied');
   };
+
+  const expiresAt = pitchExpiresAt(p);
+  const expired = !!expiresAt && new Date(expiresAt).getTime() <= now;
+  const opens = events.filter((e) => !e.isBot);
+  const state =
+    p.currentVersion === null
+      ? { tone: 'text-muted', text: 'The link starts working once version 1 of the site exists.' }
+      : p.pitchPaused
+        ? { tone: 'text-warn', text: 'Paused: visitors see a “This concept is paused” page.' }
+        : expired
+          ? { tone: 'text-danger', text: `Expired on ${shortDate(expiresAt!)}. Choose a longer time or Never to reopen it.` }
+          : { tone: 'text-success', text: expiresAt ? `Live until ${shortDate(expiresAt)}` : 'Live, no expiry' };
 
   return (
     <section className={`${card} gap-4`}>
@@ -264,10 +282,18 @@ function PitchCard({ p, link, onPatch }: { p: Project; link: string; onPatch: (c
           {copied ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={2} />}
           <span>{copied ? 'Copied' : 'Copy'}</span>
         </button>
+        <a href={link} target="_blank" rel="noreferrer" title="Open the pitch page (your own visits aren’t counted)" aria-label="Open the pitch page" className={`${btn.secondary} size-11`}>
+          <ExternalLink size={16} strokeWidth={2} />
+        </a>
       </div>
-      {p.currentVersion === null && (
-        <p className="-mt-1 m-0 text-[13px] text-muted">The link starts working once version 1 of the site exists.</p>
-      )}
+      <div className="-mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-[13px]">
+        <span className={state.tone}>{state.text}</span>
+        {p.currentVersion !== null && (
+          <span className="text-muted">
+            {opens.length ? `${opens.length}${events.length >= 50 ? '+' : ''} open${opens.length === 1 ? '' : 's'} · last ${timeAgo(opens[0].openedAt, now)}` : 'Not opened yet'}
+          </span>
+        )}
+      </div>
       <div className="flex flex-col border-t border-border">
         <SettingRow
           title="Pause link"
@@ -428,14 +454,24 @@ interface Activity {
   tone: string;
 }
 
-/**
- * Built from the project's own timestamps for now. Individual pitch opens
- * (time and device) and deployments join this list in phases 5 and 6.
- */
-function ActivityCard({ p, now }: { p: Project; now: number }) {
+const DEVICE = {
+  mobile: { label: 'Phone', Icon: Smartphone },
+  tablet: { label: 'Tablet', Icon: Tablet },
+  desktop: { label: 'Computer', Icon: Monitor },
+} as const;
+
+/** Pitch opens (link previews left out), status milestones and creation. Deployments join in phase 6. */
+function ActivityCard({ p, now, events }: { p: Project; now: number; events: PitchEvent[] }) {
   const items: Activity[] = [];
-  if (p.lastOpenedAt)
+  const opens = events.filter((e) => !e.isBot).slice(0, 15);
+  for (const e of opens) {
+    const { label, Icon } = DEVICE[e.device];
+    items.push({ key: e.id, title: 'Pitch opened', meta: `${label}${e.path !== '/' ? ` · ${e.path}` : ''}`, at: e.openedAt, icon: <Icon size={16} strokeWidth={2} />, tone: 'bg-warn-bg text-warn' });
+  }
+  // Opens from before tracking existed only left a timestamp.
+  if (!opens.length && p.lastOpenedAt)
     items.push({ key: 'open', title: 'Pitch opened', meta: 'Most recent open', at: p.lastOpenedAt, icon: <Eye size={16} strokeWidth={2} />, tone: 'bg-warn-bg text-warn' });
+  const previews = events.filter((e) => e.isBot).length;
   if (p.liveAt)
     items.push({ key: 'live', title: 'Went live', meta: 'Production', at: p.liveAt, url: p.liveUrl ?? undefined, icon: <Rocket size={16} strokeWidth={2} />, tone: 'bg-success-bg text-success' });
   if (p.pitchSentAt)
@@ -445,7 +481,14 @@ function ActivityCard({ p, now }: { p: Project; now: number }) {
 
   return (
     <section className={`${card} gap-1.5`}>
-      <h2 className="m-0 pb-2 text-[16px] font-semibold">Activity</h2>
+      <div className="flex items-baseline gap-2 pb-2">
+        <h2 className="m-0 flex-1 text-[16px] font-semibold">Activity</h2>
+        {previews > 0 && (
+          <span className="text-[12px] text-muted" title="WhatsApp, Instagram and other apps fetch the page to show a preview. These aren’t counted as opens.">
+            {previews} link preview{previews === 1 ? '' : 's'} not counted
+          </span>
+        )}
+      </div>
       <ul className="m-0 list-none p-0">
         {items.map((a) => (
           <li key={a.key} className="flex gap-3.5 border-t border-border py-3">

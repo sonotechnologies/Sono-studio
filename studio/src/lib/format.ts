@@ -79,9 +79,17 @@ export function pitchSlug(name: string, random: () => number = Math.random): str
 }
 
 /** Base URL for pitch links, kept in one variable so a domain switch is a single change. */
+/**
+ * The studio's public address, for pitch links. Set NEXT_PUBLIC_SITE_URL when
+ * you have a domain; on Vercel the production address is used until then.
+ */
+export function siteUrl(): string {
+  const vercel = process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return (process.env.NEXT_PUBLIC_SITE_URL || (vercel ? `https://${vercel}` : 'http://localhost:3000')).replace(/\/+$/, '');
+}
+
 export function pitchUrl(slug: string): string {
-  const base = (process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000').replace(/\/+$/, '');
-  return `${base}/p/${slug}`;
+  return `${siteUrl()}/p/${slug}`;
 }
 
 export function displayUrl(url: string): string {

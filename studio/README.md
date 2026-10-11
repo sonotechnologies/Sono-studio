@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 4 done
+## Status: Phases 1 to 5 done
 
 ### Phase 1, Foundation
 
@@ -70,10 +70,25 @@ Notes:
 | History | Every change autosaves after a moment as a new version. Undo and redo (Ctrl+Z, Ctrl+Shift+Z) in the session; version history lists every save and restores any of them as a new version |
 
 Notes:
-- Share copies the pitch link; the public pitch page itself arrives in phase 5. Export and Deploy are shown disabled until phase 6.
+- Export and Deploy are shown disabled until phase 6.
 - Supabase needs `supabase/migrations/0004_workspace.sql` (the chat history table).
 
-Not yet built (later phases): public pitch pages and open tracking, export and deploy.
+### Phase 5, Pitch links and tracking
+
+| Built | Notes |
+| --- | --- |
+| Public pitch page (`/p/[slug]`) | The current version of the site, every page, no sign-in. Shared links show the business name, description and hero photo as the preview in WhatsApp and Instagram. Pitch pages are never indexed by search engines |
+| Banner | "Concept by Sono Technologies" with your WhatsApp and Instagram from Settings → Pitch defaults; visitors can hide it. Switch it off per project |
+| Pause and expiry | Paused links show "This concept is paused"; expired ones say when they ended, with a button to ask you for a new link. Expiry counts from the date the pitch was marked sent (or the project was created). A longer time or Never reopens an expired link |
+| Open tracking | One open per visit with time, device type and page. Link previews and crawlers (WhatsApp, Instagram/Facebook, Telegram, Slack, Google and others) are logged as bots and not counted. Your own visits while signed in aren't counted |
+| Project page | Link status (live until, paused, expired), open count and last open, an Open button, each open in Activity with device, and "Mark as sent" offered after copying a draft's link |
+| Security | Visitors never touch the tables: two narrow database functions return what a pitch page shows and log an open. Nothing private (client notes, keys, other projects) reaches the page |
+
+Notes:
+- Supabase needs `supabase/migrations/0005_pitch.sql`.
+- Pitch links use `NEXT_PUBLIC_SITE_URL` when set, otherwise the Vercel production address.
+
+Not yet built (later phases): export and deploy.
 
 ## Run it locally
 

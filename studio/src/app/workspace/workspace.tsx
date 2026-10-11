@@ -410,7 +410,7 @@ export function Workspace({
   const share = async () => {
     try {
       await navigator.clipboard.writeText(pitchLink);
-      toast('Pitch link copied', { label: 'Preview', href: `/preview/${projectId}` });
+      toast('Pitch link copied', { label: 'Open it', href: pitchLink });
     } catch {
       toast(pitchLink);
     }
