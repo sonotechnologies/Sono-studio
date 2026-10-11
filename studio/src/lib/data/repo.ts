@@ -1,6 +1,7 @@
 import type { ProviderId, StockProviderId, Tier } from '@/ai/types';
 import type { Asset, Brief, GenerationJob } from '@/generate/brief';
 import type { SiteConfig, SiteTheme } from '@/site/schema';
+import type { MirrorMeta } from '@/mirror/copy';
 import type {
   ClientPatch,
   DeployProviderId,
@@ -54,6 +55,10 @@ export interface Repo {
   getLatestDeployment(projectId: string): Promise<Deployment | null>;
   createDeployment(projectId: string, init: Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>): Promise<Deployment>;
   updateDeployment(id: string, patch: Partial<Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>>): Promise<void>;
+  /** An exact copy of a client's own site: what it holds, and the zip itself. */
+  getSiteCopyMeta(projectId: string): Promise<MirrorMeta | null>;
+  getSiteCopy(projectId: string): Promise<{ meta: MirrorMeta; zip: Uint8Array } | null>;
+  saveSiteCopy(projectId: string, meta: MirrorMeta, zip: Uint8Array): Promise<void>;
   /** Your own styles, newest first. */
   listStyles(): Promise<CustomStyle[]>;
   getStyle(id: string): Promise<CustomStyle | null>;

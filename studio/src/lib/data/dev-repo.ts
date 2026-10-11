@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
+import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
 import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
@@ -23,12 +24,14 @@ interface DevDb {
   pitchEvents: (PitchEvent & { projectId: string })[];
   deployments: Deployment[];
   styles: CustomStyle[];
+  copies: Record<string, MirrorMeta>;
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
 export const UPLOAD_DIR = path.join(process.cwd(), '.data', 'uploads');
 
 const FILE = path.join(process.cwd(), '.data', 'dev-db.json');
+const COPY_DIR = path.join(process.cwd(), '.data', 'copies');
 
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -45,11 +48,12 @@ async function load(): Promise<DevDb> {
     db.pitchEvents ??= [];
     db.deployments ??= [];
     db.styles ??= [];
+    db.copies ??= {};
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [] };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {} };
     await save(db);
     return db;
   }
@@ -145,6 +149,7 @@ export const devRepo: Repo = {
       db.chat = db.chat.filter((m) => m.projectId !== id);
       db.pitchEvents = db.pitchEvents.filter((e) => e.projectId !== id);
       db.deployments = db.deployments.filter((d) => d.projectId !== id);
+      delete db.copies[id];
     }).then(() => rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }));
   },
 
@@ -237,6 +242,29 @@ export const devRepo: Repo = {
     return mutate((db) => {
       const d = db.deployments.find((x) => x.id === id);
       if (d) Object.assign(d, patch, { updatedAt: new Date().toISOString() });
+    });
+  },
+
+  async getSiteCopyMeta(projectId) {
+    return (await load()).copies[projectId] ?? null;
+  },
+
+  async getSiteCopy(projectId) {
+    const meta = (await load()).copies[projectId];
+    if (!meta) return null;
+    try {
+      return { meta, zip: new Uint8Array(await readFile(path.join(COPY_DIR, `${projectId}.zip`))) };
+    } catch {
+      return null;
+    }
+  },
+
+  async saveSiteCopy(projectId, meta, zip) {
+    await mkdir(COPY_DIR, { recursive: true });
+    await writeFile(path.join(COPY_DIR, `${projectId}.zip`), zip);
+    await mutate((db) => {
+      find(db, projectId);
+      db.copies[projectId] = meta;
     });
   },
 

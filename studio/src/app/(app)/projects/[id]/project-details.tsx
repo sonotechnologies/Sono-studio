@@ -9,6 +9,7 @@ import { ConfirmDialog, STATUS_STYLE, Segmented, StatusPill, Switch, btn, inputC
 import type { JobStatus } from '@/generate/brief';
 import { pitchExpiresAt, type Deployment, type PitchEvent } from '@/lib/data/repo';
 import type { ChecklistItem } from '@/export/checklist';
+import type { MirrorMeta } from '@/mirror/copy';
 import { ChecklistList, DeployDialog, fetchDeployment } from '@/components/deploy-dialog';
 import { MiniSpin } from '@/components/orbit';
 import { compactWhen, displayUrl, shortDate, timeAgo } from '@/lib/format';
@@ -41,6 +42,7 @@ export function ProjectDetails({
   setup,
   events,
   website,
+  copy,
 }: {
   project: Project;
   link: string;
@@ -49,6 +51,8 @@ export function ProjectDetails({
   events: PitchEvent[];
   /** Export and deploy state; null until the project has a valid site. */
   website: WebsiteInfo | null;
+  /** Set when the project is an exact copy of the client's own site. */
+  copy: MirrorMeta | null;
   /** An unfinished generation for this project, if there is one. */
   setup: { jobId: string; status: JobStatus } | null;
 }) {
@@ -100,7 +104,12 @@ export function ProjectDetails({
           <button type="button" onClick={() => setConfirmDelete(true)} className={`${btn.dangerGhost} h-11 px-4 text-[14px]`}>
             Delete
           </button>
-{p.currentVersion !== null ? (
+{copy && p.currentVersion === null ? (
+            <a href={`/copy/${p.id}/index.html`} target="_blank" rel="noreferrer" className={`${btn.primary} h-11 px-5 text-[15px]`}>
+              Open the copy
+              <ExternalLink size={16} strokeWidth={2} />
+            </a>
+          ) : p.currentVersion !== null ? (
             <>
               <Link href={`/preview/${p.id}`} className={`${btn.secondary} h-11 px-4 text-[14px]`}>
                 Preview
@@ -135,6 +144,7 @@ export function ProjectDetails({
           <ClientCard id={p.id} client={p.client} />
         </div>
         <div className="flex flex-col gap-5">
+          {copy && <CopyCard p={p} copy={copy} now={now} />}
           {website && <WebsiteCard p={p} info={website} now={now} onLive={() => router.refresh()} />}
           <ActivityCard p={p} now={now} events={events} />
         </div>
@@ -461,6 +471,65 @@ interface Activity {
   url?: string;
   icon: React.ReactNode;
   tone: string;
+}
+
+/** An exact copy of the client's own site: what's in it, and copying it again. */
+function CopyCard({ p, copy, now }: { p: Project; copy: MirrorMeta; now: number }) {
+  const router = useRouter();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const recopy = async () => {
+    setBusy(true);
+    const res = await fetch('/api/site-copy', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: copy.sourceUrl, confirmed: true, projectId: p.id }) });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    setBusy(false);
+    if (!res.ok) return toast(body.error ?? 'The site couldn’t be copied again');
+    toast('Copied again from the live site');
+    router.refresh();
+  };
+  const mb = (copy.bytes / 1024 / 1024).toFixed(1);
+  return (
+    <section className={`${card} gap-4`}>
+      <h2 className="m-0 text-[16px] font-semibold">Exact copy</h2>
+      <div className="flex flex-col gap-1 text-[14px]">
+        <span>
+          Of{' '}
+          <a href={copy.sourceUrl} target="_blank" rel="noreferrer" className="font-mono text-[13px] text-accent-text hover:underline">
+            {displayUrl(copy.sourceUrl)}
+          </a>
+        </span>
+        <span className="text-[13px] text-muted">
+          {copy.pages.length} page{copy.pages.length === 1 ? '' : 's'} · {copy.files} files · {mb} MB · copied {compactWhen(copy.copiedAt, now)}
+        </span>
+      </div>
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-[14px] font-medium">
+          <ChevronDown size={15} className="-rotate-90 text-muted transition-transform group-open:rotate-0" />
+          Pages
+        </summary>
+        <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0 text-[13px]">
+          {copy.pages.map((pg) => (
+            <li key={pg.path} className="flex gap-2">
+              <a href={`/copy/${p.id}/${pg.path}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-accent-text hover:underline">
+                {pg.title || pg.path}
+              </a>
+              <span className="font-mono text-[12px] text-muted">{pg.path}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+      <div className="flex flex-wrap gap-2">
+        <a href={`/copy/${p.id}/index.html`} target="_blank" rel="noreferrer" className={`${btn.secondary} h-10 px-4 text-[14px]`}>
+          Open the copy
+        </a>
+        <button type="button" disabled={busy} onClick={recopy} className={`${btn.secondary} h-10 px-4 text-[14px]`}>
+          {busy ? <MiniSpin /> : null}
+          {busy ? 'Copying… (up to 3 minutes)' : 'Copy again'}
+        </button>
+      </div>
+      <p className="m-0 text-[12px] text-muted">The copy is the client’s site as visitors see it. It can’t be edited in the workspace; forms and anything their old host ran on its server don’t come across.</p>
+    </section>
+  );
 }
 
 export interface WebsiteInfo {

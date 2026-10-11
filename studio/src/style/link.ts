@@ -178,3 +178,23 @@ export async function fetchImage(raw: string): Promise<{ bytes: Uint8Array; cont
   } catch {}
   return null;
 }
+
+/** Downloads any file from a public address (every redirect re-checked), up to `limit` bytes. */
+export async function fetchBytes(raw: string, limit: number): Promise<{ url: URL; bytes: Uint8Array; type: string } | null> {
+  try {
+    let url = await checkUrl(raw);
+    for (let hop = 0; hop < 5; hop++) {
+      const res = await fetch(url, { redirect: 'manual', headers: { 'user-agent': 'Mozilla/5.0 (compatible; SonoStudio/1.0; site copy)' }, signal: AbortSignal.timeout(15_000) });
+      if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+        url = await checkUrl(new URL(res.headers.get('location')!, url).toString());
+        continue;
+      }
+      if (!res.ok) return null;
+      if (Number(res.headers.get('content-length') ?? 0) > limit) return null;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.byteLength > limit) return null;
+      return { url, bytes, type: (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase() };
+    }
+  } catch {}
+  return null;
+}

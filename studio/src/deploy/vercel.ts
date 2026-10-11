@@ -66,7 +66,7 @@ async function chooseProject(vc: ReturnType<typeof client>, existing: string | n
   throw new DeployError('Couldn’t find a free Vercel project name.');
 }
 
-export async function deployToVercel(opts: { token: string; existing: string | null; name: string; files: ExportFile[]; fetch?: Fetch }): Promise<VercelDeployment> {
+export async function deployToVercel(opts: { token: string; existing: string | null; name: string; files: ExportFile[]; framework?: 'nextjs' | null; fetch?: Fetch }): Promise<VercelDeployment> {
   const vc = client(opts.token, opts.fetch ?? fetch);
   const project = await chooseProject(vc, opts.existing, opts.name);
 
@@ -90,7 +90,8 @@ export async function deployToVercel(opts: { token: string; existing: string | n
     project,
     target: 'production',
     files: files.map((f) => ({ file: f.file, sha: f.sha, size: f.size })),
-    projectSettings: { framework: 'nextjs' },
+    // A copied site is plain files: no framework, no build step.
+    projectSettings: { framework: opts.framework === null ? null : 'nextjs' },
   });
   return { id: d!.id, project, url: `https://${d!.url}` };
 }

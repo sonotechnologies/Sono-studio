@@ -131,6 +131,20 @@ Notes:
 | Their look | The current site's colours, fonts, motion, corners and layouts are read too; "Keep their current look" makes them the style, or the site is rebuilt in the style you picked |
 | Limits | Public addresses only, about 25 seconds of reading, up to 10 photos (5 MB each). Sites that build their pages with JavaScript give little text: paste it instead |
 
+### Exact copy of a client's own site
+
+| Built | Notes |
+| --- | --- |
+| Copy as it is (`/projects/copy`) | For moving a client's existing site unchanged. With a tick-box confirming it's the client's own site, the studio follows its pages (same site, up to 40) and downloads their stylesheets, scripts, fonts, images and video, rewriting every link to point at the copy. Shared CDNs and third-party services (Google Fonts, analytics, maps, video embeds) stay linked; a site builder's own CDN is copied, since it may go with the old account |
+| Storage | One zip per project in a private bucket (`site-copies`), up to 45 MB |
+| Project page | An "Exact copy" card: the source, pages, size, "Open the copy" and "Copy again". The usual Export zip and Deploy buttons work on it; Vercel serves it as static files with clean URLs |
+| Preview | The copy opens inside the studio with its scripts switched off, so its code can't act as your signed-in session. Styles, images, fonts and CSS animations show exactly; JavaScript effects show once deployed or opened from the export |
+| Checklist | Generated from what was found: forms that still post to the old server, the old site's analytics codes, pages that are built by JavaScript, site-builder features that don't come across, files that couldn't be copied |
+| Limits | Only what browsers receive can be copied: forms, bookings, shops, logins and CMS editing stay with the old host. A copy can't be edited in the workspace |
+
+Notes:
+- Supabase needs `supabase/migrations/0008_site_copies.sql`.
+
 Not yet built (later phases): stores, bookings and the admin panel, custom sections.
 
 ## Run it locally

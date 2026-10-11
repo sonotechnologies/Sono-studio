@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { Check, ImagePlus, Loader2, Upload, X } from 'lucide-react';
+import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { Switch, inputClass } from '@/components/ui';
 import { BUSINESS_KINDS, PAGE_OPTIONS, type Asset, type Brief, type PageKey } from '@/generate/brief';
@@ -47,6 +48,12 @@ export function BusinessStep({ brief, set }: { brief: Brief; set: (b: Brief) => 
   return (
     <div className="flex flex-col gap-10">
       <StepTitle title="Who is the site for?" sub="The business name and type shape the sections, copy and photos." />
+      <p className="-mt-4 m-0 text-[14px] text-muted">
+        Moving a client’s existing site unchanged?{' '}
+        <Link href="/projects/copy" className="font-medium text-accent-text hover:underline">
+          Copy it as it is
+        </Link>
+      </p>
       <label className="flex max-w-[480px] flex-col gap-2 text-[14px] font-medium">
         Business name
         <input
@@ -266,7 +273,13 @@ function ImportBox({ brief, set, onImport }: { brief: Brief; set: (b: Brief) => 
     <div className="flex flex-col gap-3 rounded-card border border-border bg-surface px-[18px] py-4">
       <div className="flex flex-col gap-0.5">
         <span className="text-[14px] font-semibold">Rebuild from their current website</span>
-        <span className="text-[13px] text-muted">Imports the text of its main pages, contact details, photos and logo. The new site is written from it.</span>
+        <span className="text-[13px] text-muted">
+          Imports the text of its main pages, contact details, photos and logo. The new site is written from it. To keep their site exactly as it is instead,{' '}
+          <Link href="/projects/copy" className="font-medium text-accent-text hover:underline">
+            copy it as it is
+          </Link>
+          .
+        </span>
       </div>
       <form
         onSubmit={async (e) => {

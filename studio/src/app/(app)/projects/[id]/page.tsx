@@ -5,6 +5,7 @@ import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl } from '@/lib/format';
 import { handoverChecklist } from '@/export/checklist';
 import { siteConfigSchema } from '@/site/schema';
+import { copyChecklist } from '@/mirror/checklist';
 import { ProjectDetails } from './project-details';
 
 type Props = { params: Promise<{ id: string }> };
@@ -33,6 +34,7 @@ export default async function ProjectPage({ params }: Props) {
     repo.listProviderKeys(),
     repo.getLatestDeployment(project.id),
   ]);
+  const copy = version ? null : await repo.getSiteCopyMeta(project.id);
   const parsed = version ? siteConfigSchema.safeParse(version.config) : null;
   const website = parsed?.success
     ? {
@@ -42,11 +44,19 @@ export default async function ProjectPage({ params }: Props) {
         hasGithub: keys.some((k) => k.provider === 'github'),
         latest,
       }
-    : null;
+    : copy
+      ? {
+          version: 1,
+          checklist: copyChecklist(copy),
+          hasVercel: keys.some((k) => k.provider === 'vercel'),
+          hasGithub: keys.some((k) => k.provider === 'github'),
+          latest,
+        }
+      : null;
   const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} />
+      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} />
     </Page>
   );
 }

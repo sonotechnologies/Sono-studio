@@ -3,6 +3,8 @@ import { decryptSecret } from '@/lib/crypto';
 import type { Deployment, Repo } from '@/lib/data/repo';
 import { exportSite, packageName, type ExportResult, type ImageLoader } from '@/export/generate';
 import { siteConfigSchema } from '@/site/schema';
+import { unzipSync } from 'fflate';
+import { copyChecklist } from '@/mirror/checklist';
 import { DeployError, pushToGitHub } from './github';
 import { deployToVercel, deploymentState, projectUrl } from './vercel';
 
@@ -37,13 +39,35 @@ export async function tokens(repo: Repo): Promise<{ github: string | null; verce
   return { github: get('github'), vercel: get('vercel') };
 }
 
-export async function exportProject(repo: Repo, projectId: string, origin: string): Promise<ExportResult & { name: string; version: number }> {
+export interface ProjectExport extends ExportResult {
+  name: string;
+  version: number;
+  /** "nextjs" for generated sites; null for an exact copy, which Vercel serves as plain files. */
+  framework: 'nextjs' | null;
+}
+
+export async function exportProject(repo: Repo, projectId: string, origin: string): Promise<ProjectExport> {
   const project = await repo.getProject(projectId);
+  if (!project) throw new DeployError('This project no longer exists.');
   const version = await repo.getSiteVersion(projectId);
-  if (!project || !version) throw new DeployError('This project has no site yet.');
+  if (!version) {
+    // A project made by copying a client's site as it is.
+    const copy = await repo.getSiteCopy(projectId);
+    if (!copy) throw new DeployError('This project has no site yet.');
+    const checklist = copyChecklist(copy.meta);
+    const files = Object.entries(unzipSync(copy.zip)).map(([path, data]) => ({ path, data }));
+    files.push({ path: 'vercel.json', data: new TextEncoder().encode(`${JSON.stringify({ cleanUrls: true, trailingSlash: false }, null, 2)}\n`) });
+    files.push({
+      path: 'HANDOVER.md',
+      data: new TextEncoder().encode(
+        `# ${project.name}\n\nAn exact copy of ${copy.meta.sourceUrl}, made ${copy.meta.copiedAt.slice(0, 10)}: ${copy.meta.pages.length} pages, ${copy.meta.files} files. Static files: open index.html, or deploy the folder to any static host.\n\n## Before it replaces the original\n\n${checklist.map((c) => `- [ ] **${c.title}.** ${c.detail}`).join('\n')}\n`,
+      ),
+    });
+    return { files, checklist, name: packageName(project.name), version: 1, framework: null };
+  }
   const config = siteConfigSchema.parse(version.config);
   const result = await exportSite({ config, projectName: project.name, version: version.version, loadImage: imageLoader(origin) });
-  return { ...result, name: packageName(project.name), version: version.version };
+  return { ...result, name: packageName(project.name), version: version.version, framework: 'nextjs' };
 }
 
 export async function startDeploy(repo: Repo, projectId: string, origin: string): Promise<Deployment> {
@@ -77,7 +101,7 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string)
       await repo.setProjectLinks(projectId, { repoUrl: pushed.url });
       Object.assign(d, { repoFullName: pushed.fullName, repoUrl: pushed.url });
     }
-    const vd = await deployToVercel({ token: vercel, existing: previous?.vercelProject ?? null, name: site.name, files: site.files });
+    const vd = await deployToVercel({ token: vercel, existing: previous?.vercelProject ?? null, name: site.name, files: site.files, framework: site.framework });
     await repo.updateDeployment(d.id, { vercelProject: vd.project, vercelDeploymentId: vd.id });
     return { ...d, vercelProject: vd.project, vercelDeploymentId: vd.id };
   } catch (err) {

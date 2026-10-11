@@ -2,6 +2,7 @@ import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
+import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
 import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
@@ -115,6 +116,7 @@ interface KeyRow {
 }
 
 const BUCKET = 'site-assets';
+const COPY_BUCKET = 'site-copies';
 
 const SELECT = '*, clients(owner_name, whatsapp, instagram, address, notes)';
 
@@ -269,6 +271,8 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       const files = check(await db.from('assets').select('storage_path').eq('project_id', id).not('storage_path', 'is', null)) as { storage_path: string }[];
       check(await db.from('projects').delete().eq('id', id));
       if (files.length) await db.storage.from(BUCKET).remove(files.map((f) => f.storage_path));
+      const { data } = await db.auth.getUser();
+      if (data.user) await db.storage.from(COPY_BUCKET).remove([`${data.user.id}/${id}/site.zip`]);
     },
 
     async getSiteVersion(projectId) {
@@ -340,6 +344,28 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async updateDeployment(id, patch) {
       check(await db.from('deployments').update(deploymentRow(patch)).eq('id', id));
+    },
+
+    async getSiteCopyMeta(projectId) {
+      const row = check(await db.from('site_copies').select('meta').eq('project_id', projectId).maybeSingle()) as { meta: MirrorMeta } | null;
+      return row?.meta ?? null;
+    },
+
+    async getSiteCopy(projectId) {
+      const row = check(await db.from('site_copies').select('meta, storage_path').eq('project_id', projectId).maybeSingle()) as { meta: MirrorMeta; storage_path: string } | null;
+      if (!row) return null;
+      const { data, error } = await db.storage.from(COPY_BUCKET).download(row.storage_path);
+      if (error || !data) throw new Error(`The site copy couldn’t be loaded: ${error?.message ?? 'missing file'}`);
+      return { meta: row.meta, zip: new Uint8Array(await data.arrayBuffer()) };
+    },
+
+    async saveSiteCopy(projectId, meta, zip) {
+      const { data } = await db.auth.getUser();
+      if (!data.user) throw new Error('Not signed in');
+      const storagePath = `${data.user.id}/${projectId}/site.zip`;
+      const up = await db.storage.from(COPY_BUCKET).upload(storagePath, zip, { contentType: 'application/zip', upsert: true });
+      if (up.error) throw new Error(up.error.message);
+      check(await db.from('site_copies').upsert({ project_id: projectId, meta, storage_path: storagePath }));
     },
 
     async listStyles() {
