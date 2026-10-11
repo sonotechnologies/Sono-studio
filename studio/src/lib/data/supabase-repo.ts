@@ -249,6 +249,7 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       if (patch.name !== undefined) row.name = patch.name;
       if (patch.businessType !== undefined) row.business_type = patch.businessType;
       if (patch.preset !== undefined) row.preset = patch.preset;
+      if (patch.siteType !== undefined) row.site_type = patch.siteType;
       if (patch.headline !== undefined) row.headline = patch.headline;
       if (patch.pitchPaused !== undefined) row.pitch_paused = patch.pitchPaused;
       if (patch.pitchBanner !== undefined) row.pitch_banner = patch.pitchBanner;

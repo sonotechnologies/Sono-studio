@@ -218,7 +218,11 @@ export function SetupFlow({
   const reviewRows = [
     { label: 'Business', value: brief.businessName || 'Untitled', edit: () => goStep(0) },
     { label: 'Site type', value: brief.businessType, edit: () => goStep(0) },
-    { label: 'Pages', value: pagesFor(brief).map((p) => p.title).join(', '), edit: () => goStep(0) },
+    {
+      label: 'Pages',
+      value: pagesFor(brief).map((p) => p.title).join(', ') + (brief.pages.includes('shop') ? ` · prices in ${brief.currency ?? 'the price list’s currency'}` : ''),
+      edit: () => goStep(0),
+    },
     { label: 'Style', value: presetLabel(brief), edit: () => goStep(1) },
     {
       label: 'Files',

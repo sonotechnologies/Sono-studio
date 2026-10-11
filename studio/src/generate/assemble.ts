@@ -2,6 +2,7 @@ import { PRESETS } from '@/lib/presets';
 import { siteConfigSchema, type Section, type SiteConfig, type SiteTheme } from '@/site/schema';
 import { contrast, readableOn, themeFromPreset } from '@/site/theme';
 import type { Asset, Brief, Extracted, Plan } from './brief';
+import { storeFor } from './products';
 
 /**
  * Logo colours replace the preset's primary and accent, but only where they
@@ -62,6 +63,8 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
   const ctaHref = contactPage ? contactPage.path : '/#contact';
   const navLinks = plan.pages.filter((p) => p.path !== '/').map((p) => ({ label: p.title, href: p.path }));
   const wa = brief.client.whatsapp;
+  const store = storeFor(brief, extracted);
+  const shop = plan.pages.find((p) => p.id === 'shop');
 
   const fixed = (pageId: string) => {
     const navbar: Section = {
@@ -72,7 +75,7 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
         brand: name,
         ...(logo ? { logo: { src: logo.url, alt: `${name} logo` } } : {}),
         links: navLinks.slice(0, 6),
-        cta: { label: wa ? 'Message us' : 'Get in touch', href: ctaHref },
+        cta: store && shop ? { label: 'Shop now', href: shop.path } : { label: wa ? 'Message us' : 'Get in touch', href: ctaHref },
       },
     };
     const footer: Section = {
@@ -110,6 +113,7 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
     },
     theme: siteTheme(brief),
     modules: { 'contact-form': true },
+    ...(store ? { store } : {}),
     pages: plan.pages.map((p) => {
       const { navbar, footer, float } = fixed(p.id);
       return { id: p.id, path: p.path, title: p.title, sections: [navbar, ...(filled[p.id] ?? []), footer, ...float] };

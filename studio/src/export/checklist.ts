@@ -50,6 +50,12 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
     (s) => (s.type === 'contact' && (s.content.phone || s.content.whatsapp || s.content.email)) || (s.type === 'whatsapp-float' && s.content.number),
   );
 
+  const products = config.store?.products ?? [];
+  const sampleProducts = products.filter((p) => p.sample).length;
+  const unpriced = products.filter((p) => !p.sample && p.price === 0).length;
+  const unphotographed = products.filter((p) => !p.image.src).length;
+  const orderTo = (config.store?.whatsapp ?? '').replace(/[^0-9]/g, '');
+
   const items: ChecklistItem[] = [
     {
       key: 'photos',
@@ -91,6 +97,34 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
       detail: 'None needed: this site has no database, payments or forms.',
     },
   ];
+  if (config.store) {
+    const problems = [
+      sampleProducts && `${plural(sampleProducts, 'sample product')} to replace with real ones`,
+      unpriced && `${plural(unpriced, 'product')} without a price`,
+      unphotographed && `${plural(unphotographed, 'product')} without a photo`,
+    ].filter(Boolean);
+    items.splice(
+      0,
+      0,
+      {
+        key: 'products',
+        title: 'Products',
+        done: problems.length === 0,
+        important: sampleProducts > 0 || unpriced > 0,
+        detail: problems.length ? `${problems.join('; ')}. Edit them in the workspace’s Products tab.` : `${plural(products.length, 'product')}, each with a price and photo. Check them with the client.`,
+      },
+      {
+        key: 'orders',
+        title: 'Orders',
+        done: orderTo.length >= 8,
+        important: orderTo.length < 8,
+        detail:
+          orderTo.length >= 8
+            ? `Cart orders go to WhatsApp ${config.store.whatsapp}. Send a test order before launch.`
+            : 'There’s no WhatsApp number for orders, so the cart can’t send them. Add one in the Products tab.',
+      },
+    );
+  }
   if (stock) {
     items.splice(1, 0, {
       key: 'stock',

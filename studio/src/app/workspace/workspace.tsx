@@ -31,7 +31,7 @@ import { ThemeToggle } from '@/components/theme';
 import { StatusPill, useToast } from '@/components/ui';
 import type { ChatScope } from '@/ai/chat';
 import type { Asset } from '@/generate/brief';
-import { PLANNABLE_TYPES } from '@/generate/plan';
+import { PLANNABLE_TYPES, STORE_TYPES } from '@/generate/plan';
 import type { ChatMessage, CustomStyle, Deployment } from '@/lib/data/repo';
 import { saveStyleAction } from '@/app/(app)/presets/actions';
 import { handoverChecklist } from '@/export/checklist';
@@ -52,19 +52,22 @@ import {
   revertChange,
   sectionLabel,
   setField,
+  setIn,
   setVariant,
   syncShared,
   toggleHidden,
 } from '@/workspace/model';
+import { addShop, saveProduct } from '@/workspace/store';
 import type { AiMode } from '../new/setup-flow';
 import { chatAction, restoreVersionAction, saveSiteAction } from './actions';
 import { ChatPanel, type ChatView } from './chat-panel';
 import { HistoryDialog, MediaDialog } from './dialogs';
 import type { FieldCtx } from './fields';
 import { EditPanel, ThemePanel } from './panels';
+import { ProductsPanel } from './products-panel';
 import { Stage, type Device } from './stage';
 
-type Tab = 'chat' | 'edit' | 'theme';
+type Tab = 'chat' | 'edit' | 'theme' | 'products';
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'error';
 type ScopeKind = ChatScope['kind'];
 
@@ -237,6 +240,8 @@ export function Workspace({
   const [addMenu, setAddMenu] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [media, setMedia] = useState<{ sectionId: string; path: string } | null>(null);
+  const [productMedia, setProductMedia] = useState<{ productId: string; path: string } | null>(null);
+  const [openProduct, setOpenProduct] = useState<string | null>(null);
   const [assets, setAssets] = useState(initialAssets);
   const [flashIds, setFlashIds] = useState<string[]>([]);
   const [focus, setFocus] = useState<{ path: string; n: number } | null>(null);
@@ -290,6 +295,33 @@ export function Workspace({
     pickImage: (path) => selectedId && setMedia({ sectionId: selectedId, path }),
     pages: config.pages.map((p) => ({ path: p.path, title: p.title })),
     focusPath: focus?.path ?? null,
+    products: config.store?.products.map((p) => ({ id: p.id, name: p.name })),
+    categories: config.store ? [...new Set(config.store.products.map((p) => p.category).filter(Boolean))] : undefined,
+  };
+
+  /* ----- Products ----- */
+  const showProduct = (id: string) => {
+    setOpenProduct(id);
+    setTab('products');
+    setSheet(true);
+    setDrawer(false);
+  };
+  const changeStore = (next: SiteConfig, summary: string, coalesce?: string) => {
+    try {
+      commit(next, summary, { coalesce });
+    } catch (err) {
+      toast(`Not changed: ${(err as Error).message}`);
+    }
+  };
+  const pickProductImage = (image: SiteImage) => {
+    const target = productMedia && configRef.current.store?.products.find((p) => p.id === productMedia.productId);
+    setProductMedia(null);
+    if (!target) return;
+    const path = productMedia!.path;
+    const current = (getIn(target, path) as SiteImage | undefined) ?? null;
+    const picked = { ...image, alt: image.alt || current?.alt || target.name };
+    const next = path === 'image' ? { ...target, image: picked } : setIn({ ...target, images: [...(target.images ?? [])] }, path, picked);
+    changeStore(saveProduct(configRef.current, { ...next, sample: undefined }), target.name);
   };
 
   const moveTo = (id: string, to: number) => {
@@ -489,7 +521,7 @@ export function Workspace({
           </button>
           {addMenu && (
             <div className="absolute top-10 right-3 z-20 flex max-h-[60dvh] w-[220px] flex-col gap-0.5 overflow-auto rounded-xl border border-border bg-raised p-1.5 shadow-raised">
-              {PLANNABLE_TYPES.map((t) => (
+              {PLANNABLE_TYPES.filter((t) => config.store || !STORE_TYPES.includes(t)).map((t) => (
                 <button key={t} type="button" onClick={() => addSection(t)} className="flex cursor-pointer flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-hover">
                   <span className="text-[13px] font-medium">{SECTIONS[t].label}</span>
                   <span className="text-[11px] leading-snug text-muted">{SECTIONS[t].purpose}</span>
@@ -653,6 +685,7 @@ export function Workspace({
               setFocus((f) => ({ path, n: (f?.n ?? 0) + 1 }));
             }}
             onPickImage={(id, path) => setMedia({ sectionId: id, path })}
+            onProduct={showProduct}
           />
         </div>
       </div>
@@ -667,8 +700,8 @@ export function Workspace({
         <button type="button" aria-label={sheet ? 'Collapse panel' : 'Expand panel'} onClick={() => setSheet((v) => !v)} className="flex flex-none cursor-pointer justify-center pt-2 md:hidden">
           <span className="h-1 w-10 rounded-full bg-border" />
         </button>
-        <div role="tablist" className="flex flex-none gap-5 border-b border-border px-5">
-          {(['chat', 'edit', 'theme'] as const).map((t) => (
+        <div role="tablist" className="flex flex-none gap-4 border-b border-border px-5">
+          {(['chat', 'edit', 'theme', 'products'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -684,7 +717,7 @@ export function Workspace({
               {t}
             </button>
           ))}
-          {selected && tab !== 'edit' && (
+          {selected && (tab === 'chat' || tab === 'theme') && (
             <span className="ml-auto flex items-center text-[12px] text-muted max-md:hidden">
               <span className="max-w-[90px] truncate">{SECTIONS[selected.type].label}</span>
               <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="ml-0.5 flex size-6 cursor-pointer items-center justify-center rounded-full hover:bg-hover">
@@ -727,6 +760,27 @@ export function Workspace({
             onAsk={askAboutSelection}
           />
         )}
+        {tab === 'products' && (
+          <ProductsPanel
+            config={config}
+            openId={openProduct}
+            onOpen={setOpenProduct}
+            onChange={changeStore}
+            onPickImage={(productId, path) => setProductMedia({ productId, path })}
+            onAddShop={(currency) => {
+              const r = addShop(configRef.current, currency);
+              changeStore(r.config, 'Added a shop');
+              goPage(r.pageId);
+              flash(r.config.pages.find((p) => p.id === r.pageId)?.sections.map((s) => s.id) ?? []);
+              toast('Shop page added with three sample products');
+            }}
+            onPreview={async (id) => {
+              const w = window.open('about:blank', '_blank');
+              await flush();
+              if (w) w.location.href = `/preview/${projectId}/product/${id}`;
+            }}
+          />
+        )}
         {tab === 'theme' && (
           <ThemePanel
             theme={config.theme}
@@ -761,6 +815,21 @@ export function Workspace({
             setMedia(null);
           }}
           onClose={() => setMedia(null)}
+        />
+      )}
+      {productMedia && (
+        <MediaDialog
+          projectId={projectId}
+          assets={assets}
+          onAssetAdded={(a) => setAssets((list) => [a, ...list.filter((x) => x.id !== a.id)])}
+          stockSearch={stockSearch}
+          current={(() => {
+            const p = config.store?.products.find((x) => x.id === productMedia.productId);
+            return p ? ((getIn(p, productMedia.path) as SiteImage | undefined) ?? null) : null;
+          })()}
+          kind="photo"
+          onPick={pickProductImage}
+          onClose={() => setProductMedia(null)}
         />
       )}
       {historyOpen && <HistoryDialog projectId={projectId} current={version} onRestore={restore} onClose={() => setHistoryOpen(false)} />}

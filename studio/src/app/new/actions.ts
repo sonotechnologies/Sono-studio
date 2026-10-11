@@ -10,6 +10,7 @@ import { getRepo, requireUser } from '@/lib/auth';
 import { pitchSlug } from '@/lib/format';
 import { SECTION_TYPES } from '@/site/registry';
 import type { SectionType } from '@/site/schema';
+import { isStore } from '@/generate/products';
 
 async function jobFor(jobId: string): Promise<GenerationJob> {
   const job = await (await getRepo()).getJob(jobId);
@@ -20,7 +21,7 @@ async function jobFor(jobId: string): Promise<GenerationJob> {
 /** Keeps the project record (name, type, style, client) in step with the brief. */
 async function syncProject(projectId: string, brief: Brief) {
   const repo = await getRepo();
-  await repo.updateProject(projectId, { name: brief.businessName, businessType: brief.businessType, preset: brief.preset });
+  await repo.updateProject(projectId, { name: brief.businessName, businessType: brief.businessType, preset: brief.preset, siteType: isStore(brief) ? 'store' : 'showcase' });
   await repo.updateClient(projectId, {
     ownerName: brief.client.ownerName,
     whatsapp: brief.client.whatsapp,
@@ -49,7 +50,7 @@ export async function startWizardAction(input: Pick<Brief, 'businessName' | 'bus
     {
       name: brief.businessName,
       businessType: brief.businessType,
-      siteType: 'showcase',
+      siteType: isStore(brief) ? 'store' : 'showcase',
       preset: brief.preset,
       headline: '',
       client: { ownerName: '', whatsapp: '', instagram: '', address: '', notes: '' },

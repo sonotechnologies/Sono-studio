@@ -18,7 +18,10 @@ export async function saveSiteAction(projectId: string, config: SiteConfig, summ
     const i = parsed.error.issues[0];
     return { error: `Not saved: ${i?.path.join('.')} ${i?.message}` };
   }
-  const version = await (await getRepo()).saveSiteVersion(projectId, parsed.data, summary.slice(0, 300) || 'Edited');
+  const repo = await getRepo();
+  const version = await repo.saveSiteVersion(projectId, parsed.data, summary.slice(0, 300) || 'Edited');
+  // A shop added in the workspace makes the project a store in the projects list.
+  if (parsed.data.store && summary.includes('Added a shop')) await repo.updateProject(projectId, { siteType: 'store' });
   revalidatePath(`/projects/${projectId}`);
   return { version };
 }

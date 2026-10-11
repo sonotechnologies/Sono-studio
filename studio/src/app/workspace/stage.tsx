@@ -27,6 +27,7 @@ export function Stage({
   onEditText,
   onFocusField,
   onPickImage,
+  onProduct,
 }: {
   config: SiteConfig;
   page: SitePage;
@@ -41,6 +42,8 @@ export function Stage({
   onEditText: (sectionId: string, path: string, value: string) => void;
   onFocusField: (sectionId: string, path: string) => void;
   onPickImage: (sectionId: string, path: string) => void;
+  /** A click on a product (not on text of the section itself) opens it in the Products tab. */
+  onProduct?: (productId: string) => void;
 }) {
   const frame = useRef<HTMLDivElement>(null);
   const ctx = useMemo(() => ({ link: (href: string) => href, editable: true }), []);
@@ -76,6 +79,9 @@ export function Stage({
     const id = sec.dataset.sectionId!;
     onSelect(id);
     const el = target.closest<HTMLElement>('[data-edit]');
+    const product = target.closest<HTMLElement>('[data-product-id]');
+    // Product cards and photos have nothing to edit in place: they open the product instead.
+    if (product && sec.contains(product) && !(el && sec.contains(el))) return onProduct?.(product.dataset.productId!);
     if (!el || !sec.contains(el)) return;
     const path = el.dataset.edit!;
     const kind = el.dataset.editKind;

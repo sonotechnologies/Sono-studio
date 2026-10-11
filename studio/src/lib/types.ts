@@ -115,6 +115,7 @@ export const projectPatchSchema = z
     name: trimmed(80).min(1),
     businessType: trimmed(60).min(1),
     preset: z.enum(PRESET_IDS),
+    siteType: z.enum(SITE_TYPES),
     headline: trimmed(120),
     status: z.enum(PROJECT_STATUSES),
     pitchPaused: z.boolean(),

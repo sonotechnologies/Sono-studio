@@ -2,6 +2,7 @@ import { PRESETS } from '@/lib/presets';
 import { SECTIONS } from '@/site/registry';
 import type { SectionType } from '@/site/schema';
 import { preferredLayouts } from '@/site/starter';
+import { isStore } from './products';
 import { pagesFor, type Brief, type Extracted, type PageKey, type Plan, type PlanSection, type RawPlan } from './brief';
 
 /** Navbar, footer and the WhatsApp button are added to every page by the assembler, not planned. */
@@ -49,14 +50,20 @@ export const DEFAULT_PAGE_SECTIONS: Record<PageKey, { type: SectionType; note: s
     { type: 'hero', variant: 'centered', note: 'Gallery header' },
     { type: 'gallery', variant: 'masonry', note: 'All the photos' },
   ],
+  shop: [{ type: 'product-grid', note: 'Every product, with prices and category buttons' }],
   contact: [
     { type: 'contact', note: 'Address, hours, map and WhatsApp' },
     { type: 'faq', note: 'Practical questions: parking, groups, payment' },
   ],
 };
 
-function catalogue(): string {
-  return PLANNABLE_TYPES.map((t) => {
+/** The section types a brief can use: store sections only for a shop. */
+export function plannableFor(brief: Pick<Brief, 'pages'>): SectionType[] {
+  return isStore(brief) ? PLANNABLE_TYPES : PLANNABLE_TYPES.filter((t) => !STORE_TYPES.includes(t));
+}
+
+function catalogue(brief: Brief): string {
+  return plannableFor(brief).map((t) => {
     const d = SECTIONS[t];
     return `- ${t}: ${d.purpose}. Variants: ${d.variants.map((v) => `${v.id} (${v.note})`).join(', ')}`;
   }).join('\n');
@@ -94,7 +101,7 @@ Pages to plan, in this order:
 ${pages.map((p) => `- path "${p.path}", title "${p.title}" (${p.note})`).join('\n')}
 
 Section library (use only these types and variants; navbar, footer and the WhatsApp button are added automatically, so leave them out):
-${catalogue()}
+${catalogue(brief)}
 
 This style prefers: ${Object.entries(preferred)
       .filter(([t]) => PLANNABLE_TYPES.includes(t as SectionType))
@@ -108,7 +115,12 @@ Rules:
 - Notes must not invent anything. Only mention amenities, services, products, rooms, materials, places or numbers that appear in the facts above. Nothing is known beyond what is listed.
 - Only include "faq" if the facts or contact details can answer real questions.
 - Vary variants across pages so the site doesn't repeat itself.
-
+${
+  isStore(brief)
+    ? `- This business sells online. The Shop page leads with "product-grid". The home page shows a few products with "product-grid" or one with "product-feature". Products, prices and product pages are added automatically from their list.
+`
+    : ''
+}
 Reply with JSON in exactly this shape:
 {"pages":[{"path":"/","title":"Home","sections":[{"type":"hero","variant":"split-photo","note":"..."}]}]}`,
   };
@@ -162,11 +174,18 @@ export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extr
     pages: wanted.map((want) => {
       const pi = match.get(want.key) ?? -1;
       const source: SourceSection[] = pi >= 0 && raw ? raw.pages[pi].sections : DEFAULT_PAGE_SECTIONS[want.key];
-      const known = (t: string): t is SectionType => PLANNABLE_TYPES.includes(t as SectionType);
+      const allowed = plannableFor(brief);
+      const known = (t: string): t is SectionType => allowed.includes(t as SectionType);
       let sections = source
         .map((s) => ({ ...s, type: s.type.toLowerCase().replace(/[\s_]+/g, '-') }))
         .filter((s): s is SourceSection & { type: SectionType } => known(s.type) && (s.type !== 'stats' || hasFacts));
       if (!sections.length) sections = DEFAULT_PAGE_SECTIONS[want.key];
+      // A shop always shows its products: the grid leads the Shop page, and home gets a few after the hero.
+      if (isStore(brief) && want.key === 'shop' && !sections.some((s) => s.type === 'product-grid')) sections = [DEFAULT_PAGE_SECTIONS.shop[0], ...sections];
+      if (isStore(brief) && want.key === 'home' && !sections.some((s) => STORE_TYPES.includes(s.type))) {
+        const at = sections[0]?.type === 'hero' ? 1 : 0;
+        sections = [...sections.slice(0, at), { type: 'product-grid', note: 'A few products, with a link to the shop' }, ...sections.slice(at)];
+      }
       const hasItems = (extracted?.items.length ?? 0) > 0;
       const counts: Record<string, number> = {};
       const out: PlanSection[] = sections.slice(0, 12).map((s) => {
@@ -191,7 +210,7 @@ export function cleanEditedPlan(plan: Plan, brief: Brief): Plan {
     pages: plan.pages.map((p) => ({
       ...p,
       sections: p.sections
-        .filter((s) => PLANNABLE_TYPES.includes(s.type))
+        .filter((s) => plannableFor(brief).includes(s.type))
         .slice(0, 12)
         .map((s, i) => {
           let id = s.id.replace(/[^a-z0-9-]/g, '').slice(0, 60) || `${p.id}-${s.type}-${i}`;

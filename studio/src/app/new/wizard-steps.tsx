@@ -5,6 +5,7 @@ import { Check, ImagePlus, Loader2, Upload, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { Switch, inputClass } from '@/components/ui';
+import { CURRENCIES } from '@/workspace/store';
 import { BUSINESS_KINDS, PAGE_OPTIONS, type Asset, type Brief, type PageKey } from '@/generate/brief';
 import { PRESETS, PRESET_THUMBS } from '@/lib/presets';
 import { PRESET_IDS } from '@/lib/types';
@@ -134,6 +135,26 @@ export function BusinessStep({ brief, set }: { brief: Brief; set: (b: Brief) => 
             );
           })}
         </div>
+        {brief.pages.includes('shop') && (
+          <div className="mt-4 flex max-w-[560px] flex-col gap-2 rounded-xl border border-border bg-surface p-4">
+            <label className="flex flex-wrap items-center gap-3 text-[14px] font-medium">
+              Prices in
+              <select
+                value={brief.currency ?? ''}
+                onChange={(e) => set({ ...brief, currency: e.target.value || undefined })}
+                className={`${inputClass} h-10 max-w-[260px] cursor-pointer px-3 text-[14px]`}
+              >
+                <option value="">Read from their prices</option>
+                {CURRENCIES.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </label>
+            <p className="m-0 text-[13px] leading-normal text-muted">
+              Products come from the price list or site you add in the next steps; none are made up. Without one, the shop starts with three samples to replace. Visitors order through a cart that sends the order to the business’s WhatsApp.
+            </p>
+          </div>
+        )}
       </fieldset>
     </div>
   );

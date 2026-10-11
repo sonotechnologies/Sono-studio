@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { SECTIONS } from '@/site/registry';
 import { sectionSchema, type Section, type SectionType } from '@/site/schema';
 import { briefSummary } from './plan';
+import { storeFor } from './products';
 import type { Brief, Extracted, PlanPage } from './brief';
 
 /** Content schema for each section type, taken from the discriminated union in the site schema. */
@@ -87,7 +88,13 @@ Rules for fields:
 - Contact: leave address, phone, WhatsApp, email and hours empty unless they are given; they are filled in from the owner's details.
 - Never mention WhatsApp, Instagram, email or a phone number unless it was given.
 - Keep headings under 8 words.
-
+${
+  page.sections.some((s) => s.type === 'product-grid' || s.type === 'product-feature')
+    ? `- Products are shown automatically from the shop's list; write only the headings and intro around them. product-grid: leave category empty to show every product (or use one of the categories below); leave limit out on the Shop page and set it to 3 or 4 elsewhere. product-feature: productId is one of the ids below.
+  Products: ${(storeFor(brief, extracted)?.products ?? []).slice(0, 30).map((p) => `${p.id} (${p.name}${p.category ? `, ${p.category}` : ''})`).join('; ')}
+`
+    : ''
+}
 Reply with JSON in exactly this shape:
 {"sections":[{"id":"${page.sections[0]?.id ?? 'section-id'}","content":{ ... }}]}`,
   };
@@ -137,6 +144,12 @@ export function applyKnownFacts(section: Section, brief: Brief, extracted: Extra
     c.mapQuery = brief.client.address;
     c.hours = extracted?.hours ?? [];
   }
+  if (s.type === 'product-grid' || s.type === 'product-feature') {
+    // Only real products and categories: anything else would show an empty grid.
+    const products = storeFor(brief, extracted)?.products ?? [];
+    if (s.type === 'product-grid' && s.content.category && !products.some((p) => p.category === s.content.category)) s.content.category = '';
+    if (s.type === 'product-feature' && !products.some((p) => p.id === s.content.productId)) s.content.productId = products[0]?.id ?? '';
+  }
   if (s.type === 'testimonials') {
     // We never have real reviews at this point, so they must read as samples.
     delete s.content.rating;
@@ -149,7 +162,14 @@ export function applyKnownFacts(section: Section, brief: Brief, extracted: Extra
 export function toSections(reply: { sections: { id: string; content: unknown }[] }, page: PlanPage, brief: Brief, extracted: Extracted | null): Section[] {
   return page.sections.map((planned) => {
     const got = reply.sections.find((s) => s.id === planned.id)!;
-    const section = sectionSchema.parse({ id: planned.id, type: planned.type, variant: planned.variant, content: got.content });
-    return applyKnownFacts(section, brief, extracted);
+    const section = applyKnownFacts(sectionSchema.parse({ id: planned.id, type: planned.type, variant: planned.variant, content: got.content }), brief, extracted);
+    if (section.type === 'product-grid') {
+      // The Shop page shows everything with category buttons; elsewhere a few products are a taste.
+      if (page.id === 'shop') {
+        delete section.content.limit;
+        section.content.filter = new Set((storeFor(brief, extracted)?.products ?? []).map((p) => p.category).filter(Boolean)).size > 1 || undefined;
+      } else section.content.limit ??= 4;
+    }
+    return section;
   });
 }

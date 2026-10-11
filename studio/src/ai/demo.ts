@@ -97,6 +97,16 @@ export function demoContent(type: SectionType, brief: Brief, extracted: Extracte
         hours: extracted?.hours ?? [],
         mapQuery: brief.client.address,
       } satisfies ContentOf<'contact'>;
+    case 'product-grid':
+      return {
+        eyebrow: pageTitle === 'Home' ? 'Shop' : '',
+        heading: pageTitle === 'Home' ? 'Popular right now' : 'Shop',
+        intro: '',
+        category: '',
+        ...(pageTitle === 'Home' ? { limit: 4 } : { filter: true }),
+      } satisfies ContentOf<'product-grid'>;
+    case 'product-feature':
+      return { eyebrow: 'Featured', heading: '', productId: '' } satisfies ContentOf<'product-feature'>;
     default:
       throw new Error(`Demo provider does not write ${type}`);
   }
@@ -104,12 +114,18 @@ export function demoContent(type: SectionType, brief: Brief, extracted: Extracte
 
 function demoParse(brief: Brief): Extracted {
   const lines = brief.paste.split(/\n|;/).map((l) => l.trim()).filter(Boolean);
-  const price = /([$€£₦]\s?\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?\s?(?:USD|EUR|GBP|NGN|GHS))/i;
+  const amount = String.raw`\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?`;
+  const price = new RegExp(`((?:[$€£₦]|GH₵)\\s?(?:${amount})|(?:${amount})\\s?(?:USD|EUR|GBP|NGN|GHS|KES))`, 'i');
   const hour = /\b(mon|tue|wed|thu|fri|sat|sun)\w*\b.*\d/i;
   const out: Extracted = { tagline: '', hours: [], items: [], facts: [] };
   for (const l of lines) {
     const p = price.exec(l);
-    if (p) out.items.push({ name: l.replace(p[0], '').replace(/[-–—:·]+\s*$/, '').trim().slice(0, 80), description: '', price: p[0], category: '' });
+    if (p) {
+      const rest = l.replace(p[0], ' ');
+      const category = /\(([^)]{1,40})\)/.exec(rest)?.[1] ?? '';
+      const name = rest.replace(/\([^)]*\)/, ' ').replace(/\s+/g, ' ').replace(/^[\s\-–—:·]+|[\s\-–—:·]+$/g, '').slice(0, 80);
+      out.items.push({ name, description: '', price: p[0], category });
+    }
     else if (hour.test(l)) {
       const m = /^(.*?)(\d.*)$/.exec(l);
       out.hours.push({ days: (m?.[1] ?? l).trim().slice(0, 40), time: (m?.[2] ?? '').trim().slice(0, 40) });

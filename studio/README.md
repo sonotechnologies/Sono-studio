@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 7 done
+## Status: Phases 1 to 7 done, Phase 8 part 1 (stores with WhatsApp ordering) done
 
 ### Phase 1, Foundation
 
@@ -145,7 +145,22 @@ Notes:
 Notes:
 - Supabase needs `supabase/migrations/0008_site_copies.sql`.
 
-Not yet built (later phases): stores, bookings and the admin panel, custom sections.
+### Phase 8.1, Online stores with WhatsApp ordering
+
+| Built | Notes |
+| --- | --- |
+| Catalogue | A site can have a store (`config.store`): currency, the WhatsApp number orders go to, and up to 300 products with price, old price, category, description, photos (up to 7), up to two option groups (size, colour…) and sold out |
+| Sections | Product grid (cards, minimal, list; category filter; limit), Product spotlight (split, centered) and Product page (gallery, compact). Every product gets its own page at `/product/<id>`, built from the list, never laid out by hand |
+| Cart | Kept in the visitor's browser, one per site. A floating "Cart" button opens a drawer with quantities, total, name and delivery note; "Order on WhatsApp" opens a pre-filled message listing each item, option, quantity and the total |
+| Wizard | "Shop" is a page option (preselected for streetwear, fashion and gadget stores), with a currency choice or "read from their prices". Products come only from the price list or imported site; with none, the shop starts with three samples marked to replace. The plan always puts a grid on the Shop page and a few products on home |
+| Workspace | A Products tab: shop settings, the product list, an editor per product (photos from the media library, options, sold out, reorder, duplicate, remove) and Preview. Clicking a product in the preview opens it. "Add a shop" turns an existing site into a store with a Shop page and menu link |
+| Pitch, preview, export | The cart and product pages work on pitch links and in the preview; exports prerender every product page |
+| Checklist | Sample products, products without a price or photo, and a missing WhatsApp number for orders |
+
+Notes:
+- No migration needed: the store lives in the site config.
+
+Not yet built (later phases): card payments (Paystack, Stripe) and order records, bookings and the admin panel, custom sections.
 
 ## Run it locally
 
@@ -192,7 +207,8 @@ src/
   components/              shell, theme, logo, UI primitives, site thumbnail
   site/                    site config schema, theme, renderer, section library, samples, starter
   ai/                      provider adapters, router, demo provider
-  generate/                brief, plan, copy, photos, assembly, pipeline
+  generate/                brief, plan, copy, photos, products, assembly, pipeline
+  workspace/               pure edit functions for the workspace (sections, products, shop)
   lib/
     auth.ts                session + picks the data store
     data/                  Repo interface, Supabase and dev-store implementations

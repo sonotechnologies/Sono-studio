@@ -23,7 +23,7 @@ export function ProductDetail({ section, ctx }: Props) {
   }
   const photos = [product.image, ...(product.images ?? [])];
   return (
-    <section className="s-section">
+    <section className="s-section" data-product-id={product.id}>
       <Container className="grid gap-10 @3xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] @3xl:gap-16">
         <div className={section.variant === 'gallery' ? 'grid grid-cols-2 gap-3' : 'flex flex-col gap-3'}>
           {photos.map((img, i) => (

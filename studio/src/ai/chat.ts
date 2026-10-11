@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { contentSchemaFor } from '@/generate/fill';
-import { PLANNABLE_TYPES } from '@/generate/plan';
+import { PLANNABLE_TYPES, STORE_TYPES } from '@/generate/plan';
 import { SECTIONS } from '@/site/registry';
 import { sectionSchema, siteConfigSchema, themeSchema, type Section, type SectionType, type SiteConfig } from '@/site/schema';
 import { readableOn } from '@/site/theme';
@@ -46,7 +46,7 @@ export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string
   const page = scope.kind === 'page' ? config.pages.find((p) => p.id === scope.pageId) : null;
   const target = scope.kind === 'section' ? findSection(config, scope.sectionId) : null;
   const inScope: Section[] = target ? [target.section] : page ? page.sections : config.pages.flatMap((p) => p.sections);
-  const types = [...new Set([...inScope.map((s) => s.type), ...(scope.kind === 'section' ? [] : PLANNABLE_TYPES)])];
+  const types = [...new Set([...inScope.map((s) => s.type), ...(scope.kind === 'section' ? [] : PLANNABLE_TYPES.filter((t) => config.store || !STORE_TYPES.includes(t)))])];
   const outline = config.pages.map((p) => `- page "${p.id}" (${p.path}, "${p.title}"): ${p.sections.map((s) => `${s.id} [${s.type}/${s.variant}]`).join(', ')}`).join('\n');
 
   return {
@@ -128,6 +128,7 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         if (!page) throw new Error(`no page "${op.page}"`);
         if (scope.kind === 'page' && scope.pageId !== page.id) throw new Error('that page is outside the scope');
         if (!PLANNABLE_TYPES.includes(op.type as SectionType)) throw new Error(`"${op.type}" cannot be added`);
+        if (STORE_TYPES.includes(op.type as SectionType) && !out.store) throw new Error('product sections need a shop: add one in the Products tab');
         const type = op.type as SectionType;
         const variants = SECTIONS[type].variants.map((v) => v.id as string);
         const content = { ...op.content };

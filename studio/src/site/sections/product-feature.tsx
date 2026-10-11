@@ -21,7 +21,7 @@ export function ProductFeature({ section, ctx }: Props) {
   }
   const centered = section.variant === 'centered';
   return (
-    <section className="s-section">
+    <section className="s-section" data-product-id={product.id}>
       <Container className={centered ? 'flex flex-col items-center gap-8 text-center' : 'grid items-center gap-10 @3xl:grid-cols-2 @3xl:gap-16'}>
         <SiteA ctx={ctx} href={`/product/${product.id}`} className={centered ? 'block w-full max-w-[560px]' : 'block'}>
           <SiteImg ctx={ctx} image={product.image} path="" className="s-outline aspect-[4/5] w-full" />

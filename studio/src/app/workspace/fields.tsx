@@ -52,7 +52,7 @@ const LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp', phone: 'Phone', email: 'Email', address: 'Address', hours: 'Opening hours', days: 'Days', time: 'Time',
   mapQuery: 'Map location', title: 'Title', text: 'Text', price: 'Price', quote: 'Quote', name: 'Name', detail: 'Detail',
   rating: 'Rating (0 to 5)', ratingCount: 'Rating note', value: 'Number', label: 'Label', question: 'Question', answer: 'Answer',
-  signature: 'Signature', sticky: 'Stay at the top when scrolling', number: 'WhatsApp number', message: 'Pre-filled message', alt: 'Description (alt text)',
+  signature: 'Signature', filter: 'Category buttons above the products', limit: 'Product limit', sticky: 'Stay at the top when scrolling', number: 'WhatsApp number', message: 'Pre-filled message', alt: 'Description (alt text)',
 };
 const MULTILINE = new Set(['subheading', 'intro', 'text', 'answer', 'quote', 'tagline', 'message', 'body']);
 
@@ -66,6 +66,9 @@ export interface FieldCtx {
   pages: { path: string; title: string }[];
   /** Field to scroll to and focus, e.g. after clicking text that can't be edited in place. */
   focusPath: string | null;
+  /** The shop's products and categories, for product sections. */
+  products?: { id: string; name: string }[];
+  categories?: string[];
 }
 
 const fieldInput = `${inputClass} rounded-[10px] bg-bg px-[11px] text-[14px]`;
@@ -350,6 +353,36 @@ export function FieldFor({
             </button>
           )}
         </span>
+      </label>
+    );
+  }
+  if (name === 'productId' && ctx.products) {
+    return (
+      <label className="flex flex-col gap-1.5 text-[13px] font-medium" data-field={path}>
+        Product
+        <select value={String(value ?? '')} onChange={(e) => ctx.set(path, e.target.value)} className={`${fieldInput} h-[38px] cursor-pointer`}>
+          {!ctx.products.some((p) => p.id === value) && <option value={String(value ?? '')}>The first product</option>}
+          {ctx.products.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+  if (name === 'category' && ctx.categories) {
+    return (
+      <label className="flex flex-col gap-1.5 text-[13px] font-medium" data-field={path}>
+        Only this category
+        <select value={String(value ?? '')} onChange={(e) => ctx.set(path, e.target.value)} className={`${fieldInput} h-[38px] cursor-pointer`}>
+          <option value="">Every product</option>
+          {[...new Set([...ctx.categories, ...(value ? [String(value)] : [])])].map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
       </label>
     );
   }

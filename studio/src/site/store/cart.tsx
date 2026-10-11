@@ -186,7 +186,7 @@ export function CartDrawer({ site, business, currency, whatsapp }: { site: strin
         </div>
       )}
       {open && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={() => setOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex justify-end bg-black/40" onClick={() => setOpen(false)}>
           <aside
             role="dialog"
             aria-modal="true"

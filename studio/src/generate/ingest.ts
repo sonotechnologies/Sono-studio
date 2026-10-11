@@ -10,7 +10,7 @@ export function parsePrompt(brief: Brief) {
 Extract:
 - tagline: one line in their own words that describes the business, or "".
 - hours: opening hours as [{"days": "Tue to Sat", "time": "17:00 to 22:00"}].
-- items: every menu or price-list item as {"name", "description", "price", "category"}; keep prices exactly as written, "" if none.
+- items: every menu, price-list or product item as {"name", "description", "price", "category"}; keep prices exactly as written (with the currency), "" if none.
 - facts: short statements of fact worth putting on the site (founding year, specialities, awards, parking, delivery). Only what the notes say.
 
 Reply with JSON in exactly this shape:
