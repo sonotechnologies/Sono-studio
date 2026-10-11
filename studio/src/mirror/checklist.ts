@@ -4,7 +4,10 @@ import type { MirrorMeta } from './copy';
 /** What to sort out before a copied site replaces the original. */
 export function copyChecklist(meta: MirrorMeta): ChecklistItem[] {
   return [
-    ...meta.notes.map((n, i) => ({ key: `note-${i}`, title: n.split(/[:.]/)[0], detail: n, done: false, important: true })),
+    ...meta.notes.map((n, i) =>
+      // Copies made before notes had titles stored plain sentences.
+      typeof n === 'string' ? { key: `note-${i}`, title: 'Note', detail: n, done: false, important: true } : { key: `note-${i}`, title: n.title, detail: n.detail, done: false, important: true },
+    ),
     {
       key: 'check',
       title: 'Click through it',

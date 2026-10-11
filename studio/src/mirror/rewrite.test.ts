@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assetPath, cssRefs, htmlRefs, pagePath, relative, rewriteCss, rewriteHtml, shouldCopy } from './rewrite';
+import { assetPath, bestInSrcset, cssRefs, htmlRefs, pagePath, relative, rewriteCss, rewriteHtml, shouldCopy } from './rewrite';
 
 const origin = new URL('https://www.casaolivia.it/');
 
@@ -42,7 +42,9 @@ describe('copying a site: references', () => {
     expect(by('style')).toEqual(['/css/site.css']);
     expect(by('script')).toEqual(['/gtag/js', '/js/app.js']);
     expect(by('page')).toEqual(['/menu/', '/']);
-    expect(by('image')).toEqual(expect.arrayContaining(['/favicon.ico', '/img/a.jpg', '/img/a-400.jpg', '/img/a-800.jpg', '/img/p.jpg', '/img/hero.jpg', '/img/bg.png']));
+    expect(by('image')).toEqual(expect.arrayContaining(['/favicon.ico', '/img/a.jpg', '/img/a-800.jpg', '/img/p.jpg', '/img/hero.jpg', '/img/bg.png']));
+    // One size per srcset, not every size.
+    expect(by('image')).not.toContain('/img/a-400.jpg');
     expect(by('media')).toEqual(['/v/intro.mp4']);
     expect(refs.some((r) => r.url.endsWith('/files/menu.pdf') && r.kind !== 'page')).toBe(true);
   });
@@ -52,7 +54,7 @@ describe('copying a site: references', () => {
       'https://www.casaolivia.it/css/site.css': 'css/site.css',
       'https://www.casaolivia.it/menu/': 'menu.html',
       'https://www.casaolivia.it/img/a.jpg': 'img/a.jpg',
-      'https://www.casaolivia.it/img/a-400.jpg': 'img/a-400.jpg',
+      'https://www.casaolivia.it/img/a-800.jpg': 'img/a-800.jpg',
       'https://www.casaolivia.it/img/hero.jpg': 'img/hero.jpg',
       'https://www.casaolivia.it/img/bg.png': 'img/bg.png',
     };
@@ -63,7 +65,8 @@ describe('copying a site: references', () => {
     expect(out).toContain('href="menu.html"');
     expect(out).toContain('href="#top"');
     expect(out).toContain('href="mailto:a@b.c"');
-    expect(out).toContain('srcset="img/a-400.jpg 400w, https://www.casaolivia.it/img/a-800.jpg 800w"');
+    // Only the copied size is kept, so nothing loads from the old site.
+    expect(out).toContain('srcset="img/a-800.jpg 800w"');
     expect(out).toContain("url('img/hero.jpg')");
     expect(out).toContain('url(img/bg.png)');
     expect(out).toContain('src="https://www.googletagmanager.com/gtag/js?id=G-1"');
@@ -77,5 +80,22 @@ describe('copying a site: references', () => {
     expect(out).toContain('url(../img/x.png)');
     expect(out).toContain('url(data:image/png;base64,AA)');
     expect(out).toContain("url('https://casaolivia.it/f/a.woff2')");
+  });
+});
+
+describe('copying a site: choices', () => {
+  it('picks one sensible size from a srcset', () => {
+    expect(bestInSrcset('a.jpg 400w, b.jpg 1600w, c.jpg 3200w')).toBe('b.jpg');
+    expect(bestInSrcset('a.jpg 1x, b.jpg 2x, c.jpg 3x')).toBe('b.jpg');
+    expect(bestInSrcset('huge.jpg 4000w')).toBe('huge.jpg');
+  });
+
+  it('knows which language a page is in', async () => {
+    const { langOf } = await import('./copy');
+    expect(langOf('/de/zimmer')).toBe('de');
+    expect(langOf('/en-gb/rooms')).toBe('en');
+    expect(langOf('/de')).toBe('de');
+    expect(langOf('/design/studio')).toBeNull();
+    expect(langOf('/zz/x')).toBeNull();
   });
 });

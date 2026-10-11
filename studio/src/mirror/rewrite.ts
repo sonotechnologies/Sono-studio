@@ -128,6 +128,25 @@ function tagKind(tag: string, attr: string): RefKind {
 
 const splitSrcset = (v: string) => v.split(/,\s+(?=\S)/).map((part) => part.trim().split(/\s+/)[0]);
 
+/**
+ * One image from a srcset: the largest up to about 2400px wide (or 2x), which
+ * looks right on any screen. Copying every size of every photo fills a copy
+ * many times over for no visible gain.
+ */
+export function bestInSrcset(value: string): string | null {
+  const candidates = value
+    .split(/,\s+(?=\S)/)
+    .map((part) => {
+      const [url, d = '1x'] = part.trim().split(/\s+/);
+      const n = parseFloat(d);
+      return { url, w: d.endsWith('w') ? n : n * 1200 };
+    })
+    .filter((c) => c.url);
+  if (!candidates.length) return null;
+  const fit = candidates.filter((c) => c.w <= 2400).sort((a, b) => b.w - a.w)[0];
+  return (fit ?? candidates.sort((a, b) => a.w - b.w)[0]).url;
+}
+
 /** Every URL a page refers to, with what kind of file it is. */
 export function htmlRefs(html: string, base: URL): Ref[] {
   const refs: Ref[] = [];
@@ -140,7 +159,8 @@ export function htmlRefs(html: string, base: URL): Ref[] {
       if (!v) continue;
       const value = v[1] ?? v[2] ?? '';
       const kind = tagKind(tag, attr);
-      for (const raw of /srcset/.test(attr) ? splitSrcset(value) : [value]) {
+      const best = /srcset/.test(attr) ? bestInSrcset(value) : value;
+      for (const raw of best ? [best] : []) {
         const u = resolve(raw, base);
         // A link to a PDF or image is a file, not a page.
         if (u) refs.push({ url: u.toString(), kind: kind === 'page' ? (isPageUrl(u) ? 'page' : kindOf(u)) : kindOf(u, kind) });
@@ -178,13 +198,14 @@ function rewriteValue(value: string, base: URL, map: Mapper, srcset: boolean): s
     return mapped !== null ? mapped + (mapped.startsWith('http') ? '' : hash) : u.toString();
   };
   if (!srcset) return one(value);
-  return value
-    .split(/,\s+(?=\S)/)
-    .map((part) => {
-      const [raw, ...rest] = part.trim().split(/\s+/);
-      return [one(raw), ...rest].join(' ');
-    })
-    .join(', ');
+  const parts = value.split(/,\s+(?=\S)/).map((part) => {
+    const [raw, ...rest] = part.trim().split(/\s+/);
+    const out = one(raw);
+    return { text: [out, ...rest].join(' '), local: !/^https?:/i.test(out) && out !== raw.trim() };
+  });
+  // When one size was copied, use only that: the others would load from the old site.
+  const local = parts.filter((p) => p.local);
+  return (local.length ? local : parts).map((p) => p.text).join(', ');
 }
 
 export function rewriteCss(css: string, base: URL, map: Mapper): string {
