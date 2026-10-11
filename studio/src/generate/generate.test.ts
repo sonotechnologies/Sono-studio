@@ -64,14 +64,36 @@ describe('router', () => {
     const r = await runJson([a, b], req, schema, { onCooldown: (p) => void cooled.push(p), onRequest: () => void used++, now: () => 1000 });
     expect(r.provider).toBe('groq');
     expect(cooled).toEqual(['gemini']);
-    expect(used).toBe(2);
+    // Both Gemini models were tried (quotas are per model), then Groq.
+    expect(used).toBe(3);
+  });
+
+  it('retries a server error, then tries the provider’s other model before giving up', async () => {
+    const waits: number[] = [];
+    const cooled: string[] = [];
+    const overloaded = new ProviderError('Gemini 503: The model is overloaded', 'server');
+    const a = fake('gemini', [overloaded, overloaded, '{"ok":true}']);
+    const r = await runJson([a], { ...req, task: 'plan' }, schema, { sleep: async (ms) => void waits.push(ms), onCooldown: (p) => void cooled.push(p), now: () => 1000 });
+    expect(r.data).toEqual({ ok: true });
+    expect(a.calls).toBe(3);
+    expect(waits.length).toBe(1);
+    expect(cooled).toEqual([]);
+
+    const down = fake('gemini', [overloaded]);
+    const err = await runJson([down], { ...req, task: 'plan' }, schema, { sleep: async () => {}, onCooldown: (p) => void cooled.push(p), now: () => 1000 }).catch((e) => e);
+    expect(err).toBeInstanceOf(AllProvidersFailed);
+    expect(down.calls).toBe(4);
+    expect(String(err.message)).toContain('The model is overloaded');
+    expect(cooled).toEqual(['gemini']);
   });
 
   it('moves on after two invalid replies and reports every attempt when all fail', async () => {
     const a = fake('gemini', ['{"ok":false}']);
     const b = fake('groq', [new ProviderError('bad key', 'auth')]);
     await expect(runJson([a, b], req, schema)).rejects.toBeInstanceOf(AllProvidersFailed);
-    expect(a.calls).toBe(2);
+    // Two tries on each Gemini model; Groq's bad key ends Groq at once.
+    expect(a.calls).toBe(4);
+    expect(b.calls).toBe(1);
     await expect(runJson([], req, schema)).rejects.toThrow(/No AI provider is set up/);
   });
 });

@@ -39,6 +39,8 @@ export interface RouterHooks {
   /** A provider hit its limit or is failing; skip it until `until`. */
   onCooldown?(provider: ProviderId, until: Date): void | Promise<void>;
   now?(): number;
+  /** Waits before retrying a server error (replaced in tests). */
+  sleep?(ms: number): Promise<void>;
 }
 
 const OUTCOME_TEXT: Record<Attempt['outcome'], string> = {
@@ -54,11 +56,16 @@ const OUTCOME_TEXT: Record<Attempt['outcome'], string> = {
 /** One line per provider, saying what went wrong in plain words. */
 export function describeAttempts(attempts: Attempt[]): string {
   const last = new Map<string, Attempt>();
-  for (const a of attempts) last.set(a.provider, a);
+  for (const a of attempts) last.set(`${a.provider}:${a.model}`, a);
   return [...last.values()]
     .map((a) => {
       const name = a.provider === 'gemini' ? 'Gemini' : a.provider === 'groq' ? 'Groq' : a.provider === 'openrouter' ? 'OpenRouter' : a.provider;
-      const detail = a.outcome === 'bad_request' && a.detail ? `: ${a.detail.replace(/^\w+ \d+: /, '').slice(0, 220)}` : a.outcome === 'invalid' && a.detail ? ` (${a.detail.split('\n')[0].slice(0, 160)})` : '';
+      const detail =
+        a.outcome === 'bad_request' && a.detail
+          ? `: ${a.detail.replace(/^\w+ \d+: /, '').slice(0, 220)}`
+          : (a.outcome === 'invalid' || a.outcome === 'server') && a.detail
+            ? ` (${a.detail.split('\n')[0].slice(0, 160)})`
+            : '';
       return `${name} (${a.model}) ${OUTCOME_TEXT[a.outcome]}${detail}`;
     })
     .join('. ');
@@ -84,6 +91,11 @@ export interface RouterResult<T> {
 }
 
 const DEFAULT_COOLDOWN_MS = 60_000;
+/** A server error is usually momentary overload, not a quota: rest only briefly. */
+const SERVER_COOLDOWN_MS = 15_000;
+const RETRY_WAIT_MS = 2_500;
+/** Past this, no more retries: the request has to finish inside one server call. */
+const RETRY_BUDGET_MS = 35_000;
 
 /**
  * Sends a task to the first available provider for its tier and returns
@@ -101,38 +113,60 @@ export async function runJson<T>(
   const attempts: Attempt[] = [];
   const started = now();
 
+  const sleep = hooks.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+
   for (const client of providers) {
-    const model = client.models[tier];
-    if (!model) continue;
-    let prompt = req.prompt;
-    for (let round = 0; round < 2; round++) {
-      try {
-        await hooks.onRequest?.(client.id);
-        const reply = await client.chat({ ...req, prompt }, model);
-        let parsed: unknown;
+    // The provider's other model is a second chance: overload and free quotas are usually per model.
+    const other = tier === 'strong' ? client.models.light : client.models.strong;
+    const models = [client.models[tier], other].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
+    let lastError: ProviderError | null = null;
+
+    for (const model of models) {
+      let prompt = req.prompt;
+      let serverRetries = 0;
+      lastError = null;
+      for (let round = 0; round < 2; round++) {
         try {
-          parsed = extractJson(reply.text);
+          await hooks.onRequest?.(client.id);
+          const reply = await client.chat({ ...req, prompt }, model);
+          let parsed: unknown;
+          try {
+            parsed = extractJson(reply.text);
+          } catch (err) {
+            attempts.push({ provider: client.id, model, outcome: 'invalid', detail: (err as Error).message });
+            prompt = `${req.prompt}\n\nYour previous reply was not valid JSON. Reply again with only the JSON object.`;
+            continue;
+          }
+          const check = schema.safeParse(parsed);
+          if (check.success) {
+            attempts.push({ provider: client.id, model, outcome: 'ok' });
+            return { data: check.data, provider: client.id, model: reply.model, ms: now() - started, attempts };
+          }
+          const issues = describeIssues(check.error);
+          attempts.push({ provider: client.id, model, outcome: 'invalid', detail: issues });
+          prompt = `${req.prompt}\n\nYour previous reply did not match the required format:\n${issues}\n\nReply again with only the corrected JSON object.`;
         } catch (err) {
-          attempts.push({ provider: client.id, model, outcome: 'invalid', detail: (err as Error).message });
-          prompt = `${req.prompt}\n\nYour previous reply was not valid JSON. Reply again with only the JSON object.`;
-          continue;
+          if (!(err instanceof ProviderError)) throw err;
+          attempts.push({ provider: client.id, model, outcome: err.kind, detail: err.message });
+          lastError = err;
+          // A momentary server or network error: wait and ask the same model once more.
+          if ((err.kind === 'server' || err.kind === 'network') && serverRetries === 0 && now() - started < RETRY_BUDGET_MS) {
+            serverRetries++;
+            await sleep(RETRY_WAIT_MS);
+            round--;
+            continue;
+          }
+          break;
         }
-        const check = schema.safeParse(parsed);
-        if (check.success) {
-          attempts.push({ provider: client.id, model, outcome: 'ok' });
-          return { data: check.data, provider: client.id, model: reply.model, ms: now() - started, attempts };
-        }
-        const issues = describeIssues(check.error);
-        attempts.push({ provider: client.id, model, outcome: 'invalid', detail: issues });
-        prompt = `${req.prompt}\n\nYour previous reply did not match the required format:\n${issues}\n\nReply again with only the corrected JSON object.`;
-      } catch (err) {
-        if (!(err instanceof ProviderError)) throw err;
-        attempts.push({ provider: client.id, model, outcome: err.kind, detail: err.message });
-        if (err.kind === 'rate_limit' || err.kind === 'server' || err.kind === 'network') {
-          await hooks.onCooldown?.(client.id, new Date(now() + (err.retryAfterMs ?? DEFAULT_COOLDOWN_MS)));
-        }
-        break;
       }
+      // A bad key or a refused request won't go better on another model of the same provider.
+      if (lastError && (lastError.kind === 'auth' || lastError.kind === 'bad_request')) break;
+      if (now() - started >= RETRY_BUDGET_MS) break;
+    }
+
+    if (lastError && (lastError.kind === 'rate_limit' || lastError.kind === 'server' || lastError.kind === 'network')) {
+      const rest = lastError.kind === 'rate_limit' ? (lastError.retryAfterMs ?? DEFAULT_COOLDOWN_MS) : Math.min(lastError.retryAfterMs ?? SERVER_COOLDOWN_MS, SERVER_COOLDOWN_MS);
+      await hooks.onCooldown?.(client.id, new Date(now() + rest));
     }
   }
   throw new AllProvidersFailed(attempts);

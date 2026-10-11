@@ -5,7 +5,8 @@ import { getRepo, getUser } from '@/lib/auth';
 import { siteConfigSchema } from '@/site/schema';
 
 // One unit of work is one AI request (plus a possible repair), well inside this.
-export const maxDuration = 60;
+// A step can include a retry after a provider's server error.
+export const maxDuration = 120;
 
 /** Runs the next step of a generation job and returns the updated job. The browser calls this in a loop. */
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
