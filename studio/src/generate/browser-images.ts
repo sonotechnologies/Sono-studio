@@ -1,4 +1,4 @@
-import { paletteFromPixels } from './palette';
+import { paletteFromPixels, weightedPalette } from './palette';
 
 /* Browser-only helpers for the content step. */
 
@@ -40,4 +40,18 @@ export async function logoPalette(file: Blob): Promise<string[]> {
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   URL.revokeObjectURL(img.src);
   return paletteFromPixels(ctx.getImageData(0, 0, canvas.width, canvas.height).data);
+}
+
+/** Colours in a screenshot weighted by area, background included. */
+export async function screenshotColors(file: Blob): Promise<{ hex: string; weight: number }[]> {
+  const img = await loadImage(file);
+  const canvas = document.createElement('canvas');
+  const size = 200;
+  const scale = size / Math.max(img.naturalWidth || size, img.naturalHeight || size);
+  canvas.width = Math.max(1, Math.round((img.naturalWidth || size) * scale));
+  canvas.height = Math.max(1, Math.round((img.naturalHeight || size) * scale));
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  URL.revokeObjectURL(img.src);
+  return weightedPalette(ctx.getImageData(0, 0, canvas.width, canvas.height).data);
 }

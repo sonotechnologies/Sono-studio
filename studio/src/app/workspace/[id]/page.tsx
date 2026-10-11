@@ -30,13 +30,14 @@ export default async function WorkspacePage({ params }: Props) {
   const parsed = siteConfigSchema.safeParse(version.config);
   if (!parsed.success) redirect(`/preview/${id}`);
 
-  const [assets, messages, mode, stock, keys, latest] = await Promise.all([
+  const [assets, messages, mode, stock, keys, latest, styles] = await Promise.all([
     repo.listAssets(id),
     repo.listChatMessages(id),
     aiMode(repo),
     loadStock(repo),
     repo.listProviderKeys(),
     repo.getLatestDeployment(id),
+    repo.listStyles(),
   ]);
 
   return (
@@ -50,6 +51,7 @@ export default async function WorkspacePage({ params }: Props) {
         aiMode={mode}
         stockSearch={!!stock?.searchMany}
         pitchLink={pitchUrl(project.pitchSlug)}
+        styles={styles}
         deploy={{ hasVercel: keys.some((k) => k.provider === 'vercel'), hasGithub: keys.some((k) => k.provider === 'github'), latest }}
       />
     </ToastProvider>

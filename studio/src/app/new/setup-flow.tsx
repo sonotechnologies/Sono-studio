@@ -11,6 +11,7 @@ import { pagesFor, type Asset, type Brief, type GenerationJob, type Plan } from 
 import { logoPalette, prepareUpload } from '@/generate/browser-images';
 import { LivePreview, PipelineColumn, PlanReview } from './generation';
 import { approvePlanAction, reopenBriefAction, saveBriefAction, startGenerationAction, startWizardAction } from './actions';
+import type { CustomStyle } from '@/lib/data/repo';
 import { BusinessStep, ContentStep, ReviewStep, StyleStep, type UploadTile } from './wizard-steps';
 
 export type AiMode = 'real' | 'demo' | 'none';
@@ -39,11 +40,13 @@ export function SetupFlow({
   initialAssets,
   initialStep,
   aiMode,
+  styles,
 }: {
   initialJob: GenerationJob | null;
   initialAssets: Asset[];
   initialStep: number;
   aiMode: AiMode;
+  styles: CustomStyle[];
 }) {
   const router = useRouter();
   const [job, setJob] = useState(initialJob);
@@ -329,7 +332,7 @@ export function SetupFlow({
         {inWizard ? (
           <div key={step} className="mx-auto box-border w-full max-w-[1160px] animate-fade-up px-5 pt-10 pb-28 md:px-8 md:pt-14">
             {step === 0 && <BusinessStep brief={brief} set={setBrief} />}
-            {step === 1 && <StyleStep brief={brief} set={setBrief} />}
+            {step === 1 && <StyleStep brief={brief} set={setBrief} styles={styles} />}
             {step === 2 && <ContentStep brief={brief} set={setBrief} tiles={tiles} onFiles={onFiles} onRemove={onRemove} />}
             {step === 3 && (
               <ReviewStep

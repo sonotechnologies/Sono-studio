@@ -1,19 +1,54 @@
 import type { Metadata } from 'next';
 import { Page } from '@/components/shell';
-import { requireUser } from '@/lib/auth';
+import Link from 'next/link';
+import { Plus } from 'lucide-react';
+import { StyleThumb } from '@/components/style-thumb';
+import { getRepo, requireUser } from '@/lib/auth';
 import { PRESETS, PRESET_THUMBS } from '@/lib/presets';
 import { PRESET_IDS } from '@/lib/types';
 
 export const metadata: Metadata = { title: 'Style presets' };
 
+const card = 'flex flex-col overflow-hidden rounded-dialog border border-border bg-surface';
+
 export default async function PresetsPage() {
   await requireUser();
+  const styles = await (await getRepo()).listStyles();
   return (
     <Page title="Style presets">
-      <p className="m-0 -mb-2 max-w-[640px] text-[16px] leading-normal text-muted">
-        Each preset sets colours, fonts, corners, spacing, image treatment and preferred section variants. Brand colours
-        replace the preset colours; everything else stays.
-      </p>
+      <div className="-mb-2 flex flex-wrap items-end gap-4">
+        <p className="m-0 max-w-[640px] flex-1 text-[16px] leading-normal text-muted">
+          Each preset sets colours, fonts, corners, spacing, image treatment and preferred section variants. Make your own styles from a preset or from a
+          reference: a screenshot, a link or a logo.
+        </p>
+        <Link href="/presets/new" className="inline-flex h-11 flex-none items-center justify-center gap-1.5 rounded-full bg-terracotta px-5 text-[15px] font-semibold whitespace-nowrap text-white transition-[background-color,transform] duration-[90ms] hover:bg-terracotta-hover active:scale-[0.97]">
+          <Plus size={16} />
+          New style
+        </Link>
+      </div>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="m-0 text-[13px] font-medium tracking-[0.12em] text-muted uppercase">Your styles</h2>
+        {styles.length ? (
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,360px),1fr))] gap-[18px]">
+            {styles.map((st) => (
+              <Link key={st.id} href={`/presets/${st.id}`} className={`${card} transition-transform duration-150 hover:-translate-y-0.5`}>
+                <StyleThumb theme={st.theme} sample={st.name} className="h-[200px]" />
+                <div className="flex flex-col gap-1 px-[18px] pt-4 pb-[18px]">
+                  <span className="text-[16px] font-semibold">{st.name}</span>
+                  <span className="text-[13px] text-muted">{st.note || `Based on ${PRESETS[st.theme.preset].name}`}</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <p className="m-0 rounded-card border border-dashed border-border px-5 py-6 text-[14px] text-muted">
+            None yet. Start one from a preset below (“Customise”), from a reference with New style, or save a site’s theme from the workspace’s Theme panel.
+          </p>
+        )}
+      </section>
+
+      <h2 className="m-0 -mb-2 text-[13px] font-medium tracking-[0.12em] text-muted uppercase">Built-in presets</h2>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,360px),1fr))] gap-[18px]">
         {PRESET_IDS.map((id) => {
           const p = PRESETS[id];
@@ -78,9 +113,12 @@ export default async function PresetsPage() {
                       />
                     ))}
                   </div>
-                  <span className="pl-1.5 text-[13px] text-muted">
+                  <span className="flex-1 pl-1.5 text-[13px] text-muted">
                     {p.fonts.heading} / {p.fonts.body}
                   </span>
+                  <Link href={`/presets/new?base=${id}`} className="text-[13px] font-medium text-accent-text hover:underline">
+                    Customise
+                  </Link>
                 </div>
               </div>
             </article>

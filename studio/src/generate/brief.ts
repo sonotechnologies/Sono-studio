@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PRESET_IDS, type PresetId } from '@/lib/types';
 import { SECTION_TYPES } from '@/site/registry';
-import type { Section, SectionType } from '@/site/schema';
+import { themeSchema, type Section, type SectionType } from '@/site/schema';
 
 /* ---------- What the wizard collects ---------- */
 
@@ -47,6 +47,12 @@ export const briefSchema = z.object({
   /** Colours pulled from the logo in the browser; applied only when `useBrand` is on. */
   brandColors: z.array(hex).max(5),
   useBrand: z.boolean(),
+  /**
+   * A style of your own, or one read from a reference, copied in when chosen so
+   * later edits to the saved style don't change a site being generated.
+   * `preset` is then its base preset (layouts and type scale).
+   */
+  style: z.object({ id: z.string().max(64), name: z.string().max(60), theme: themeSchema }).nullable().optional(),
 });
 export type Brief = z.infer<typeof briefSchema>;
 

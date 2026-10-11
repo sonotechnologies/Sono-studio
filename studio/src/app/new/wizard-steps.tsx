@@ -7,6 +7,9 @@ import { Switch, inputClass } from '@/components/ui';
 import { BUSINESS_KINDS, PAGE_OPTIONS, type Asset, type Brief, type PageKey } from '@/generate/brief';
 import { PRESETS, PRESET_THUMBS } from '@/lib/presets';
 import { PRESET_IDS } from '@/lib/types';
+import type { CustomStyle } from '@/lib/data/repo';
+import { ReferencePicker } from '@/components/reference-picker';
+import { StyleThumb } from '@/components/style-thumb';
 
 export function StepTitle({ title, sub }: { title: string; sub?: string }) {
   return (
@@ -130,23 +133,65 @@ export function BusinessStep({ brief, set }: { brief: Brief; set: (b: Brief) => 
 
 /* ---------- Step 2: Style ---------- */
 
-export function StyleStep({ brief, set }: { brief: Brief; set: (b: Brief) => void }) {
+export function StyleStep({ brief, set, styles }: { brief: Brief; set: (b: Brief) => void; styles: CustomStyle[] }) {
   const suggested = BUSINESS_KINDS.find((k) => k.name === brief.businessType)?.preset;
+  // A style read from a reference is kept as its own card until another is picked.
+  const [fromReference, setFromReference] = useState(brief.style?.id === 'reference' ? brief.style : null);
+  const ownCards = [...(fromReference ? [{ ...fromReference, note: 'Read from your reference' }] : []), ...styles.map((st) => ({ id: st.id, name: st.name, theme: st.theme, note: st.note || 'Your style' }))];
   return (
     <div className="flex flex-col gap-9">
-      <StepTitle title="Pick a style" sub="Colours from the logo replace the preset's colours later. Fonts, shapes and layouts stay." />
+      <StepTitle title="Pick a style" sub="A preset, one of your own styles, or one read from a reference. Colours from the logo can replace its colours later." />
+      <ReferencePicker
+        onPick={(r) => {
+          const style = { id: 'reference', name: `From ${r.label.replace(/\.[a-z]+$/i, '').slice(0, 50)}`, theme: r.style.theme };
+          setFromReference(style);
+          set({ ...brief, style, preset: style.theme.preset });
+        }}
+      />
+      {ownCards.length > 0 && (
+        <div role="radiogroup" aria-label="Your styles" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-[18px]">
+          {ownCards.map((st) => {
+            const on = brief.style?.id === st.id;
+            return (
+              <button
+                key={st.id}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => set({ ...brief, style: { id: st.id, name: st.name, theme: st.theme }, preset: st.theme.preset })}
+                className={`relative flex cursor-pointer flex-col overflow-hidden rounded-dialog border-2 bg-surface text-left transition-transform duration-150 hover:-translate-y-0.5 ${
+                  on ? 'border-terracotta' : 'border-border'
+                }`}
+              >
+                <StyleThumb theme={st.theme} sample={brief.businessName || st.name} />
+                <div className="flex flex-col gap-1 px-[18px] py-4">
+                  <span className="text-[16px] font-semibold">{st.name}</span>
+                  <span className="text-[13px] text-muted">
+                    {st.note} · {PRESETS[st.theme.preset].name} layouts
+                  </span>
+                </div>
+                {on && (
+                  <span className="absolute top-3 right-3">
+                    <Tick size={24} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div role="radiogroup" aria-label="Style preset" className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,320px),1fr))] gap-[18px]">
         {PRESET_IDS.map((id) => {
           const p = PRESETS[id];
           const t = PRESET_THUMBS[id];
-          const on = brief.preset === id;
+          const on = !brief.style && brief.preset === id;
           return (
             <button
               key={id}
               type="button"
               role="radio"
               aria-checked={on}
-              onClick={() => set({ ...brief, preset: id })}
+              onClick={() => set({ ...brief, preset: id, style: null })}
               className={`relative flex cursor-pointer flex-col overflow-hidden rounded-dialog border-2 bg-surface text-left transition-transform duration-150 hover:-translate-y-0.5 ${
                 on ? 'border-terracotta' : 'border-border'
               }`}
@@ -318,7 +363,7 @@ export function ContentStep({
         <div className="flex flex-wrap items-center gap-4 rounded-card border border-border bg-surface px-[18px] py-4">
           <div className="flex min-w-[200px] flex-1 flex-col gap-0.5">
             <span className="text-[14px] font-semibold">Colours found in {logo.name}</span>
-            <span className="text-[13px] text-muted">Applied to {PRESETS[brief.preset].name} only if you keep this on.</span>
+            <span className="text-[13px] text-muted">Applied to {brief.style?.name ?? PRESETS[brief.preset].name} only if you keep this on.</span>
           </div>
           <div className="flex gap-1.5">
             {brief.brandColors.map((c) => (

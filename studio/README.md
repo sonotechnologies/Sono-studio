@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 6 done
+## Status: Phases 1 to 7 done
 
 ### Phase 1, Foundation
 
@@ -105,7 +105,21 @@ Notes:
 - Supabase needs `supabase/migrations/0006_deploy.sql`.
 - Vercel's free Hobby plan is for non-commercial use: fine for your own demos; a paying client's live site belongs on their own Vercel account or a paid plan (the checklist says so).
 
-Not yet built (later phases): style presets from references, stores, bookings and the admin panel, custom sections.
+### Phase 7, Presets and reference
+
+| Built | Notes |
+| --- | --- |
+| Your styles | Saved styles (`style_presets`): a built-in preset as the base (layouts, type scale, heading style) with its colours, fonts and corners replaced. Created on the Presets page (New style, or Customise on a built-in preset), edited with a live preview, or saved from a site with "Save as a style to reuse" in the workspace Theme panel |
+| References, no AI | A screenshot (colours by area, read in the browser), a link (the page's CSS, theme colour and Google Fonts, read by the server) or a logo (brand colours). One function (`src/style/reference.ts`) gives the colours roles, keeps text and buttons readable, matches fonts to ones sites can load, and suggests the closest preset with its reasons |
+| Wizard | The style step offers your styles and "Start from a reference" next to the presets. The chosen style is copied into the brief, so editing it later doesn't change a site being generated; logo colours can still go on top |
+| Workspace | Your styles appear in the Theme panel's style list |
+| Safety | Links are fetched only from public web addresses (private and local network addresses are refused, redirects re-checked), with time and size limits |
+
+Notes:
+- Supabase needs `supabase/migrations/0007_styles.sql`.
+- Fonts a reference uses are matched to the ten fonts sites load (a site in Lato gets Inter, Montserrat gets Sora, and so on).
+
+Not yet built (later phases): stores, bookings and the admin panel, custom sections.
 
 ## Run it locally
 

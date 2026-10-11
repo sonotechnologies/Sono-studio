@@ -32,7 +32,8 @@ import { StatusPill, useToast } from '@/components/ui';
 import type { ChatScope } from '@/ai/chat';
 import type { Asset } from '@/generate/brief';
 import { PLANNABLE_TYPES } from '@/generate/plan';
-import type { ChatMessage, Deployment } from '@/lib/data/repo';
+import type { ChatMessage, CustomStyle, Deployment } from '@/lib/data/repo';
+import { saveStyleAction } from '@/app/(app)/presets/actions';
 import { handoverChecklist } from '@/export/checklist';
 import { DeployDialog, fetchDeployment } from '@/components/deploy-dialog';
 import { PRESETS } from '@/lib/presets';
@@ -87,6 +88,7 @@ export function Workspace({
   stockSearch,
   pitchLink,
   deploy,
+  styles: initialStyles,
 }: {
   project: Project;
   initialConfig: SiteConfig;
@@ -97,11 +99,13 @@ export function Workspace({
   stockSearch: boolean;
   pitchLink: string;
   deploy: { hasVercel: boolean; hasGithub: boolean; latest: Deployment | null };
+  styles: CustomStyle[];
 }) {
   const toast = useToast();
   const projectId = project.id;
   const [deployOpen, setDeployOpen] = useState(false);
   const [deployment, setDeployment] = useState(deploy.latest);
+  const [styles, setStyles] = useState(initialStyles);
 
   /* ----- The config, with undo and redo ----- */
   const [config, setConfig] = useState(initialConfig);
@@ -722,7 +726,19 @@ export function Workspace({
             onAsk={askAboutSelection}
           />
         )}
-        {tab === 'theme' && <ThemePanel theme={config.theme} onChange={(theme: SiteTheme, summary) => commit({ ...configRef.current, theme }, summary, { coalesce: `theme:${summary}` })} />}
+        {tab === 'theme' && (
+          <ThemePanel
+            theme={config.theme}
+            onChange={(theme: SiteTheme, summary) => commit({ ...configRef.current, theme }, summary, { coalesce: `theme:${summary}` })}
+            styles={styles}
+            onSaveAsStyle={async (name) => {
+              const r = await saveStyleAction({ name, note: `From ${project.name}`, theme: configRef.current.theme });
+              if (r.error) return r.error;
+              setStyles((list) => [r.style!, ...list]);
+              toast(`Saved as ${r.style!.name}`, { label: 'View styles', href: '/presets' });
+            }}
+          />
+        )}
       </aside>
 
       {media && (

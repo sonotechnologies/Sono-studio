@@ -5,7 +5,7 @@ import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type Deployment, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 /**
  * Local development store: one JSON file under .data/. Seeded with the sample
@@ -22,6 +22,7 @@ interface DevDb {
   chat: (ChatMessage & { projectId: string })[];
   pitchEvents: (PitchEvent & { projectId: string })[];
   deployments: Deployment[];
+  styles: CustomStyle[];
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -43,11 +44,12 @@ async function load(): Promise<DevDb> {
     db.chat ??= [];
     db.pitchEvents ??= [];
     db.deployments ??= [];
+    db.styles ??= [];
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [] };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [] };
     await save(db);
     return db;
   }
@@ -235,6 +237,35 @@ export const devRepo: Repo = {
     return mutate((db) => {
       const d = db.deployments.find((x) => x.id === id);
       if (d) Object.assign(d, patch, { updatedAt: new Date().toISOString() });
+    });
+  },
+
+  async listStyles() {
+    return [...(await load()).styles].reverse();
+  },
+
+  async getStyle(id) {
+    return (await load()).styles.find((x) => x.id === id) ?? null;
+  },
+
+  saveStyle(input) {
+    return mutate((db) => {
+      const now = new Date().toISOString();
+      const existing = input.id ? db.styles.find((x) => x.id === input.id) : undefined;
+      if (input.id && !existing) throw new Error('Style not found');
+      if (existing) {
+        Object.assign(existing, { name: input.name, note: input.note, theme: input.theme, updatedAt: now });
+        return existing;
+      }
+      const style: CustomStyle = { id: randomUUID(), name: input.name, note: input.note, theme: input.theme, createdAt: now, updatedAt: now };
+      db.styles.push(style);
+      return style;
+    });
+  },
+
+  deleteStyle(id) {
+    return mutate((db) => {
+      db.styles = db.styles.filter((x) => x.id !== id);
     });
   },
 

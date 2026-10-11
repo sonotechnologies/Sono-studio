@@ -1,6 +1,6 @@
 import type { ProviderId, StockProviderId, Tier } from '@/ai/types';
 import type { Asset, Brief, GenerationJob } from '@/generate/brief';
-import type { SiteConfig } from '@/site/schema';
+import type { SiteConfig, SiteTheme } from '@/site/schema';
 import type {
   ClientPatch,
   DeployProviderId,
@@ -54,6 +54,11 @@ export interface Repo {
   getLatestDeployment(projectId: string): Promise<Deployment | null>;
   createDeployment(projectId: string, init: Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>): Promise<Deployment>;
   updateDeployment(id: string, patch: Partial<Omit<Deployment, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>>): Promise<void>;
+  /** Your own styles, newest first. */
+  listStyles(): Promise<CustomStyle[]>;
+  getStyle(id: string): Promise<CustomStyle | null>;
+  saveStyle(input: { id?: string; name: string; note: string; theme: SiteTheme }): Promise<CustomStyle>;
+  deleteStyle(id: string): Promise<void>;
   /** Records where the site lives once a deploy is ready. */
   setProjectLinks(projectId: string, links: { liveUrl?: string; repoUrl?: string }): Promise<void>;
   updateSettings(settings: StudioSettings): Promise<void>;
@@ -138,6 +143,16 @@ export function pitchExpiresAt(p: Pick<Project, 'pitchExpiryDays' | 'pitchSentAt
   if (p.pitchExpiryDays === null) return null;
   const start = new Date(p.pitchSentAt ?? p.createdAt).getTime();
   return new Date(start + p.pitchExpiryDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** A style of your own: a built-in preset (theme.preset) with its colours, fonts and corners replaced. */
+export interface CustomStyle {
+  id: string;
+  name: string;
+  note: string;
+  theme: SiteTheme;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Deployment {

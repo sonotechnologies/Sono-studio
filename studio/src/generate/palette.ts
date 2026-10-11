@@ -39,3 +39,31 @@ export function paletteFromPixels(rgba: ArrayLike<number>, max = 4): string[] {
     .slice(0, max)
     .map((k) => `#${hex(k.r)}${hex(k.g)}${hex(k.b)}`.toUpperCase());
 }
+
+/**
+ * Every colour in an image with its share of the pixels, background included:
+ * for screenshots, where the large flat areas matter as much as the accents.
+ */
+export function weightedPalette(rgba: ArrayLike<number>, max = 12): { hex: string; weight: number }[] {
+  const buckets = new Map<number, { n: number; r: number; g: number; b: number }>();
+  let total = 0;
+  for (let i = 0; i + 3 < rgba.length; i += 4) {
+    if (rgba[i + 3] < 200) continue;
+    const [r, g, b] = [rgba[i], rgba[i + 1], rgba[i + 2]];
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+    const cell = buckets.get(key) ?? { n: 0, r: 0, g: 0, b: 0 };
+    cell.n++;
+    cell.r += r;
+    cell.g += g;
+    cell.b += b;
+    buckets.set(key, cell);
+    total++;
+  }
+  const hex = (v: number) => Math.round(v).toString(16).padStart(2, '0');
+  return [...buckets.values()]
+    .sort((x, y) => y.n - x.n)
+    .slice(0, 64)
+    .map((c) => ({ hex: `#${hex(c.r / c.n)}${hex(c.g / c.n)}${hex(c.b / c.n)}`.toUpperCase(), weight: c.n / (total || 1) }))
+    .filter((c) => c.weight >= 0.002)
+    .slice(0, max * 4);
+}

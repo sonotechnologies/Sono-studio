@@ -7,7 +7,9 @@ import { PRESETS } from '@/lib/presets';
 import { PRESET_IDS, type PresetId } from '@/lib/types';
 import { SECTIONS } from '@/site/registry';
 import type { Section, SiteTheme } from '@/site/schema';
-import { contrast, FONT_VARS, readableOn, themeFromPreset } from '@/site/theme';
+import { FONT_VARS, readableOn, themeFromPreset } from '@/site/theme';
+import { themeWarnings } from '@/style/reference';
+import type { CustomStyle } from '@/lib/data/repo';
 import { sectionLabel } from '@/workspace/model';
 import { FieldFor, type FieldCtx } from './fields';
 
@@ -137,18 +139,27 @@ const COLOR_ROLES = [
   ['accent', 'Accent'],
 ] as const;
 
-function warnings(t: SiteTheme): string[] {
-  const c = t.colors;
-  const out: string[] = [];
-  if (contrast(c.text, c.background) < 4.5) out.push('Text is hard to read on the background.');
-  if (contrast(c.text, c.surface) < 4.5) out.push('Text is hard to read on the surface colour.');
-  if (contrast(c.muted, c.background) < 3) out.push('Muted text is too faint on the background.');
-  if (contrast(c.onPrimary, c.primary) < 4.5) out.push('Button text is hard to read on the primary colour.');
-  return out;
-}
 
-export function ThemePanel({ theme, onChange }: { theme: SiteTheme; onChange: (theme: SiteTheme, summary: string) => void }) {
+export function ThemePanel({
+  theme,
+  onChange,
+  styles = [],
+  onSaveAsStyle,
+  baseLabel = false,
+}: {
+  theme: SiteTheme;
+  onChange: (theme: SiteTheme, summary: string) => void;
+  /** Your saved styles, offered next to the built-in presets. */
+  styles?: CustomStyle[];
+  /** Shows "Save as a style" when given; resolves to an error message or nothing. */
+  onSaveAsStyle?: (name: string) => Promise<string | void>;
+  /** In the style editor the preset is the style's base. */
+  baseLabel?: boolean;
+}) {
   const [choosing, setChoosing] = useState(false);
+  const [naming, setNaming] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
   const preset = PRESETS[theme.preset];
   const corner = (Object.keys(CORNERS) as Corner[]).find((k) => JSON.stringify(CORNERS[k].radius) === JSON.stringify(theme.radius));
   const modes = (['light', 'dark'] as const).filter((m) => preset.colors[m]);
@@ -160,7 +171,7 @@ export function ThemePanel({ theme, onChange }: { theme: SiteTheme; onChange: (t
   };
   const fresh = (id: PresetId, mode = theme.mode) => themeFromPreset(id, { mode });
   const isDefault = JSON.stringify(fresh(theme.preset)) === JSON.stringify(theme);
-  const warn = warnings(theme);
+  const warn = themeWarnings(theme);
 
   return (
     <div className="flex flex-1 flex-col gap-[22px] overflow-auto p-5">
@@ -168,10 +179,10 @@ export function ThemePanel({ theme, onChange }: { theme: SiteTheme; onChange: (t
         <div className="flex items-baseline gap-2">
           <div className="flex-1 text-[16px] font-semibold">{preset.name}</div>
           <button type="button" onClick={() => setChoosing((v) => !v)} className="cursor-pointer text-[13px] font-medium text-accent-text hover:underline">
-            {choosing ? 'Done' : 'Change'}
+            {choosing ? 'Done' : baseLabel ? 'Change base' : 'Change'}
           </button>
         </div>
-        <div className="text-[13px] text-muted">{preset.feel}</div>
+        <div className="text-[13px] text-muted">{baseLabel ? `Base preset: layouts, type scale and heading style. ${preset.feel}.` : preset.feel}</div>
         <div className="flex items-center gap-3.5 rounded-[10px] p-3.5" style={{ background: theme.colors.background, color: theme.colors.text }}>
           <div className="text-[34px] leading-none font-medium" style={{ fontFamily: font(theme.fonts.heading) }}>
             Aa
@@ -195,7 +206,7 @@ export function ThemePanel({ theme, onChange }: { theme: SiteTheme; onChange: (t
                 key={id}
                 type="button"
                 onClick={() => {
-                  if (id !== theme.preset) onChange(fresh(id), `Style: ${PRESETS[id].name}`);
+                  if (id !== theme.preset) onChange(baseLabel ? { ...theme, preset: id } : fresh(id), `Style: ${PRESETS[id].name}`);
                   setChoosing(false);
                 }}
                 className={`flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2 text-left hover:bg-hover ${id === theme.preset ? 'bg-sel' : ''}`}
@@ -211,7 +222,35 @@ export function ThemePanel({ theme, onChange }: { theme: SiteTheme; onChange: (t
                 </span>
               </button>
             ))}
-            <p className="m-0 text-[12px] text-muted">Changing the style resets colours, fonts and corners. Undo brings them back.</p>
+            {styles.length > 0 && (
+              <>
+                <span className="pt-2 text-[12px] font-medium tracking-[0.08em] text-muted uppercase">Your styles</span>
+                {styles.map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => {
+                      onChange(structuredClone(st.theme), `Style: ${st.name}`);
+                      setChoosing(false);
+                    }}
+                    className="flex cursor-pointer items-center gap-3 rounded-[10px] px-2.5 py-2 text-left hover:bg-hover"
+                  >
+                    <span className="flex flex-none">
+                      {(['background', 'primary', 'accent'] as const).map((k) => (
+                        <span key={k} className="-mr-1.5 size-5 rounded-full border border-border" style={{ background: st.theme.colors[k] }} />
+                      ))}
+                    </span>
+                    <span className="flex min-w-0 flex-col pl-1.5">
+                      <span className="text-[13px] font-medium">{st.name}</span>
+                      <span className="truncate text-[12px] text-muted">{st.note || `Based on ${PRESETS[st.theme.preset].name}`}</span>
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+            <p className="m-0 text-[12px] text-muted">
+              {baseLabel ? 'The base sets layouts, type sizes and heading style; your colours, fonts and corners stay.' : 'Changing the style resets colours, fonts and corners. Undo brings them back.'}
+            </p>
           </div>
         )}
       </div>
@@ -276,6 +315,37 @@ export function ThemePanel({ theme, onChange }: { theme: SiteTheme; onChange: (t
           onPick={(k) => onChange({ ...theme, radius: { ...CORNERS[k].radius } }, 'Corners')}
         />
       </div>
+
+      {onSaveAsStyle &&
+        (naming === null ? (
+          <button type="button" onClick={() => setNaming('')} className="cursor-pointer self-start text-[13px] font-medium text-accent-text hover:underline">
+            Save as a style to reuse
+          </button>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSaving(true);
+              const err = await onSaveAsStyle(naming);
+              setSaving(false);
+              if (err) setSaveError(err);
+              else setNaming(null);
+            }}
+            className="flex flex-col gap-1.5"
+          >
+            <span className="text-[13px] font-medium">Name for this style</span>
+            <div className="flex gap-2">
+              <input autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} maxLength={60} placeholder="e.g. Kora warm" className="h-9 min-w-0 flex-1 rounded-[10px] border border-border bg-bg px-2.5 text-[14px] text-text outline-none focus:border-terracotta" />
+              <button type="submit" disabled={saving || !naming.trim()} className="h-9 cursor-pointer rounded-full bg-terracotta px-3.5 text-[13px] font-semibold text-white disabled:opacity-45">
+                Save
+              </button>
+              <button type="button" onClick={() => setNaming(null)} className="h-9 cursor-pointer rounded-full px-2.5 text-[13px] text-muted hover:bg-hover">
+                Cancel
+              </button>
+            </div>
+            {saveError && <span className="text-[12px] text-danger">{saveError}</span>}
+          </form>
+        ))}
 
       {!isDefault && (
         <button type="button" onClick={() => onChange(fresh(theme.preset), 'Reset style')} className="cursor-pointer self-start text-[13px] font-medium text-muted hover:text-text hover:underline">

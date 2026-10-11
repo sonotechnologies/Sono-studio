@@ -7,5 +7,6 @@ export const metadata: Metadata = { title: 'New site' };
 
 export default async function NewSitePage() {
   await requireUser();
-  return <SetupFlow initialJob={null} initialAssets={[]} initialStep={0} aiMode={await aiMode(await getRepo())} />;
+  const repo = await getRepo();
+  return <SetupFlow initialJob={null} initialAssets={[]} initialStep={0} aiMode={await aiMode(repo)} styles={await repo.listStyles()} />;
 }

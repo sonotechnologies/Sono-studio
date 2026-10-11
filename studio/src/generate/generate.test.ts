@@ -5,7 +5,8 @@ import { AllProvidersFailed, extractJson, runJson } from '@/ai/router';
 import { ProviderError, type ProviderClient } from '@/ai/types';
 import { siteConfigSchema } from '@/site/schema';
 import { z } from 'zod';
-import { brandOverrides } from './assemble';
+import { brandOverrides, presetLabel, siteTheme } from './assemble';
+import { themeFromPreset } from '@/site/theme';
 import { EMPTY_EXTRACTED, type Brief, type GenerationJob } from './brief';
 import { applyKnownFacts } from './fill';
 import { placeImages } from './images';
@@ -150,6 +151,17 @@ describe('guard rails', () => {
   it('only uses logo colours that stay readable as the primary', () => {
     expect(brandOverrides({ ...brief, useBrand: true, brandColors: ['#F6EEDF', '#3E4A2A'] })).toEqual({ primary: '#3E4A2A', accent: '#F6EEDF' });
     expect(brandOverrides({ ...brief, useBrand: false, brandColors: ['#3E4A2A'] })).toEqual({});
+  });
+
+  it('uses a chosen style, with logo colours on top only when switched on', () => {
+    const theme = { ...themeFromPreset('luxe-minimal'), fonts: { heading: 'Sora', body: 'Inter' } };
+    const styled = { ...brief, preset: 'luxe-minimal' as const, style: { id: 's1', name: 'Coastal', theme } };
+    expect(siteTheme(styled)).toEqual(theme);
+    expect(presetLabel(styled)).toBe('Coastal');
+    const branded = siteTheme({ ...styled, useBrand: true, brandColors: ['#1E3A8A'] });
+    expect(branded.colors.primary).toBe('#1E3A8A');
+    expect(branded.fonts.heading).toBe('Sora');
+    expect(siteTheme({ ...brief, style: null })).toEqual(themeFromPreset(brief.preset, { brand: {} }));
   });
 
   it('places client photos before stock and caps stock requests', async () => {

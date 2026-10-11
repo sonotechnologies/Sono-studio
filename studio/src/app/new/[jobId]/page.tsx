@@ -24,6 +24,7 @@ export default async function SetupPage({ params, searchParams }: { params: Prom
       initialAssets={await repo.listAssets(job.projectId)}
       initialStep={Number.isInteger(n) && n >= 0 && n <= 3 ? n : 1}
       aiMode={await aiMode(repo)}
+      styles={await repo.listStyles()}
     />
   );
 }

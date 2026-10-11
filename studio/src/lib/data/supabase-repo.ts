@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ChatMessage, type Deployment, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 
 interface ClientRow {
   owner_name: string;
@@ -124,6 +124,19 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
 }
 
 /** Row-level security scopes every query to the signed-in owner. */
+interface StyleRow {
+  id: string;
+  name: string;
+  note: string;
+  theme: CustomStyle['theme'];
+  created_at: string;
+  updated_at: string;
+}
+
+function toStyle(r: StyleRow): CustomStyle {
+  return { id: r.id, name: r.name, note: r.note, theme: r.theme, createdAt: r.created_at, updatedAt: r.updated_at };
+}
+
 interface DeploymentRow {
   id: string;
   project_id: string;
@@ -327,6 +340,30 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async updateDeployment(id, patch) {
       check(await db.from('deployments').update(deploymentRow(patch)).eq('id', id));
+    },
+
+    async listStyles() {
+      const rows = check(await db.from('style_presets').select('*').order('created_at', { ascending: false })) as StyleRow[];
+      return rows.map(toStyle);
+    },
+
+    async getStyle(id) {
+      const row = check(await db.from('style_presets').select('*').eq('id', id).maybeSingle()) as StyleRow | null;
+      return row ? toStyle(row) : null;
+    },
+
+    async saveStyle(input) {
+      const fields = { name: input.name, note: input.note, theme: input.theme };
+      const row = (
+        input.id
+          ? check(await db.from('style_presets').update(fields).eq('id', input.id).select('*').single())
+          : check(await db.from('style_presets').insert(fields).select('*').single())
+      ) as StyleRow;
+      return toStyle(row);
+    },
+
+    async deleteStyle(id) {
+      check(await db.from('style_presets').delete().eq('id', id));
     },
 
     async setProjectLinks(projectId, links) {

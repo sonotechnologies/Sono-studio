@@ -1,6 +1,6 @@
 import { PRESETS } from '@/lib/presets';
-import { siteConfigSchema, type Section, type SiteConfig } from '@/site/schema';
-import { contrast, themeFromPreset } from '@/site/theme';
+import { siteConfigSchema, type Section, type SiteConfig, type SiteTheme } from '@/site/schema';
+import { contrast, readableOn, themeFromPreset } from '@/site/theme';
 import type { Asset, Brief, Extracted, Plan } from './brief';
 
 /**
@@ -10,7 +10,7 @@ import type { Asset, Brief, Extracted, Plan } from './brief';
  */
 export function brandOverrides(brief: Brief): { primary?: string; accent?: string } {
   if (!brief.useBrand || !brief.brandColors.length) return {};
-  const base = themeFromPreset(brief.preset).colors;
+  const base = brief.style?.theme.colors ?? themeFromPreset(brief.preset).colors;
   const readable = brief.brandColors.filter((c) => contrast(c, base.background) >= 3);
   const primary = readable[0];
   const accent = brief.brandColors.find((c) => c !== primary);
@@ -108,7 +108,7 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
       description: summaryLine(brief, extracted, filled).slice(0, 300),
       language: 'en',
     },
-    theme: themeFromPreset(brief.preset, { brand: brandOverrides(brief) }),
+    theme: siteTheme(brief),
     modules: { 'contact-form': true },
     pages: plan.pages.map((p) => {
       const { navbar, footer, float } = fixed(p.id);
@@ -119,5 +119,15 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
 }
 
 export function presetLabel(brief: Brief): string {
-  return PRESETS[brief.preset].name + (brief.useBrand && brief.brandColors.length ? ' with logo colours' : '');
+  return (brief.style?.name ?? PRESETS[brief.preset].name) + (brief.useBrand && brief.brandColors.length ? ' with logo colours' : '');
+}
+
+/** The site's theme: the chosen style (or preset), with logo colours on top when switched on. */
+export function siteTheme(brief: Brief): SiteTheme {
+  const brand = brandOverrides(brief);
+  if (!brief.style) return themeFromPreset(brief.preset, { brand });
+  const theme = structuredClone(brief.style.theme);
+  Object.assign(theme.colors, brand);
+  if (brand.primary) theme.colors.onPrimary = readableOn(theme.colors.primary, theme.colors.background, theme.colors.text);
+  return theme;
 }
