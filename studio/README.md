@@ -122,6 +122,15 @@ Notes:
 - Supabase needs `supabase/migrations/0007_styles.sql`.
 - Fonts a reference uses are matched to the ten fonts sites load (a site in Lato gets Inter, Montserrat gets Sora, and so on).
 
+### Rebuild a client's current site
+
+| Built | Notes |
+| --- | --- |
+| Import | The wizard's content step takes the address of the client's current site (with a tick-box confirming it's theirs). The home page and up to five pages from its menu are read: text in reading order, prices and lists, phone, WhatsApp, email, Instagram and address, the logo and the larger photos. No AI is used to read |
+| Into the brief | The text goes into the content box as one "## Page" block per page; contact fields and pages are filled in; photos and the logo are copied into the project (logo colours offered as usual). The pipeline's parsing step turns the text into facts, menu items and hours, and each page's copy is written from its own block first |
+| Their look | The current site's colours, fonts, motion, corners and layouts are read too; "Keep their current look" makes them the style, or the site is rebuilt in the style you picked |
+| Limits | Public addresses only, about 25 seconds of reading, up to 10 photos (5 MB each). Sites that build their pages with JavaScript give little text: paste it instead |
+
 Not yet built (later phases): stores, bookings and the admin panel, custom sections.
 
 ## Run it locally

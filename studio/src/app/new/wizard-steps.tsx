@@ -8,6 +8,7 @@ import { BUSINESS_KINDS, PAGE_OPTIONS, type Asset, type Brief, type PageKey } fr
 import { PRESETS, PRESET_THUMBS } from '@/lib/presets';
 import { PRESET_IDS } from '@/lib/types';
 import type { CustomStyle } from '@/lib/data/repo';
+import type { SiteImport } from '@/style/site-import';
 import { ReferencePicker } from '@/components/reference-picker';
 import { StyleThumb } from '@/components/style-thumb';
 
@@ -248,18 +249,102 @@ export interface UploadTile {
   error?: string;
 }
 
+export type ImportOutcome =
+  | { error: string }
+  | { site: Omit<SiteImport, 'photos' | 'logo'>; photos: number; logo: boolean; skipped: number; error?: undefined };
+
+/** "Rebuild from their current website": imports text, contact details, pages, photos and logo. */
+function ImportBox({ brief, set, onImport }: { brief: Brief; set: (b: Brief) => void; onImport: (url: string, confirmed: boolean) => Promise<ImportOutcome> }) {
+  const [url, setUrl] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ImportOutcome | null>(null);
+  const done = result && 'site' in result ? result : null;
+  const lookOn = done?.site.look && brief.style?.id === 'reference' && brief.style.name.startsWith('Current look');
+
+  return (
+    <div className="flex flex-col gap-3 rounded-card border border-border bg-surface px-[18px] py-4">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[14px] font-semibold">Rebuild from their current website</span>
+        <span className="text-[13px] text-muted">Imports the text of its main pages, contact details, photos and logo. The new site is written from it.</span>
+      </div>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setBusy(true);
+          setResult(await onImport(url, confirmed));
+          setBusy(false);
+        }}
+        className="flex flex-col gap-2.5"
+      >
+        <div className="flex gap-2">
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="theirbusiness.com" aria-label="Client's current website" inputMode="url" className={`${inputClass} h-10 text-[14px]`} />
+          <button type="submit" disabled={busy || !url.trim() || !confirmed} className="flex h-10 flex-none cursor-pointer items-center gap-1.5 rounded-full border border-border px-4 text-[14px] font-medium hover:bg-hover disabled:cursor-default disabled:opacity-45">
+            {busy && <Loader2 size={15} className="animate-spin" />}
+            {busy ? 'Importing…' : 'Import'}
+          </button>
+        </div>
+        <label className="flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug">
+          <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 size-4 flex-none accent-[#B4502E]" />
+          <span>This is my client’s own site, and they’re happy for its text and photos to be reused in their new one.</span>
+        </label>
+      </form>
+      {busy && <p className="m-0 text-[13px] text-muted">Reading up to six pages and copying photos. This takes about half a minute.</p>}
+      {result?.error && (
+        <p role="alert" className="m-0 text-[13px] text-danger">
+          {result.error}
+        </p>
+      )}
+      {done && (
+        <div className="flex flex-col gap-2.5 border-t border-border pt-3 text-[13px]" aria-live="polite">
+          <span>
+            Imported {done.site.summary.pages.length} page{done.site.summary.pages.length === 1 ? '' : 's'} ({done.site.summary.pages.join(', ')}), about {done.site.summary.words.toLocaleString()} words, {done.photos} photo{done.photos === 1 ? '' : 's'}
+            {done.logo ? ' and the logo' : ''}.{done.skipped > 0 ? ` ${done.skipped} image${done.skipped === 1 ? '' : 's'} couldn’t be copied.` : ''} The text is in “Paste anything else” below; trim anything out of date.
+          </span>
+          {done.site.look && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="flex">
+                {[done.site.look.theme.colors.background, done.site.look.theme.colors.primary, done.site.look.theme.colors.accent].map((c, i) => (
+                  <span key={i} style={{ background: c }} className="-mr-1.5 size-5 rounded-full border-2 border-surface" />
+                ))}
+              </span>
+              <span className="min-w-[180px] flex-1 pl-1 text-muted">
+                Their current look is closest to {PRESETS[done.site.look.suggested].name}
+                {done.site.look.look.length ? ` (${done.site.look.look.join(', ')})` : ''}.
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  lookOn
+                    ? set({ ...brief, style: null })
+                    : set({ ...brief, preset: done.site.look!.theme.preset, style: { id: 'reference', name: `Current look of ${brief.businessName || done.site.businessName}`.slice(0, 60), theme: done.site.look!.theme } })
+                }
+                className="cursor-pointer font-medium text-accent-text hover:underline"
+              >
+                {lookOn ? 'Use the style I picked instead' : 'Keep their current look'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ContentStep({
   brief,
   set,
   tiles,
   onFiles,
   onRemove,
+  onImport,
 }: {
   brief: Brief;
   set: (b: Brief) => void;
   tiles: UploadTile[];
   onFiles: (files: File[], forceLogo?: boolean) => void;
   onRemove: (tile: UploadTile) => void;
+  onImport: (url: string, confirmed: boolean) => Promise<ImportOutcome>;
 }) {
   const [drag, setDrag] = useState(false);
   const photosInput = useRef<HTMLInputElement>(null);
@@ -271,6 +356,7 @@ export function ContentStep({
   return (
     <div className="flex flex-col gap-8">
       <StepTitle title="What do you have from them?" sub="Photos, a logo, a menu or price list. Anything missing is filled with stock photos and drafted copy." />
+      <ImportBox brief={brief} set={set} onImport={onImport} />
       <div
         role="button"
         tabIndex={0}
@@ -383,7 +469,7 @@ export function ContentStep({
           rows={5}
           value={brief.paste}
           onChange={(e) => set({ ...brief, paste: e.target.value })}
-          maxLength={6000}
+          maxLength={12000}
           placeholder="Opening hours, a menu or price list, an Instagram bio, a WhatsApp message from the owner…"
           className={`${inputClass} resize-y px-4 py-3.5 text-[16px] leading-normal`}
         />

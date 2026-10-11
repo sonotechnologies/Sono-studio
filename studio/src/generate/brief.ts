@@ -37,7 +37,8 @@ export const briefSchema = z.object({
   businessType: z.string().trim().min(1).max(60),
   preset: z.enum(PRESET_IDS),
   pages: z.array(z.enum(PAGE_KEYS)).min(1).max(PAGE_OPTIONS.length),
-  paste: z.string().max(6000),
+  /** Pasted text, or the content imported from the client's current site (pages marked with "## Page" headings). */
+  paste: z.string().max(12000),
   client: z.object({
     ownerName: z.string().max(80),
     whatsapp: z.string().max(32),

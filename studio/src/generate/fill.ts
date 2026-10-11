@@ -23,6 +23,30 @@ export function thin(brief: Brief, extracted: Extracted | null): boolean {
   return known < 2 && brief.paste.trim().length < 80;
 }
 
+/**
+ * The part of the owner's material that matters for one page. Imported sites
+ * come as "## Page title" blocks: the page's own block goes first, then home,
+ * then the rest while there is room.
+ */
+export function pasteFor(paste: string, page: Pick<PlanPage, 'title' | 'path'>, max = 3500): string {
+  const text = paste.trim();
+  if (!/^## /m.test(text)) return text.slice(0, max);
+  const blocks = text.split(/^(?=## )/m).map((b) => b.trim()).filter(Boolean);
+  const name = (b: string) => b.split('\n')[0].replace(/^## /, '').toLowerCase();
+  const key = page.path === '/' ? 'home' : page.path.slice(1).replace(/-/g, ' ');
+  const score = (b: string) => (name(b).includes(page.title.toLowerCase()) || name(b).includes(key) ? 2 : name(b).includes('home') ? 1 : 0);
+  const ordered = blocks.map((b, i) => ({ b, i, s: score(b) })).sort((x, y) => y.s - x.s || x.i - y.i).map((x) => x.b);
+  let out = '';
+  for (const b of ordered) {
+    if (out.length + b.length + 2 > max) {
+      if (!out) out = b.slice(0, max);
+      break;
+    }
+    out += (out ? '\n\n' : '') + b;
+  }
+  return out;
+}
+
 export function fillPrompt(brief: Brief, extracted: Extracted | null, page: PlanPage, photoCount: number) {
   const items = extracted?.items ?? [];
   return {
@@ -36,7 +60,7 @@ export function fillPrompt(brief: Brief, extracted: Extracted | null, page: Plan
     prompt: `Write the content for the "${page.title}" page (${page.path}).
 
 ${briefSummary(brief, extracted)}
-${brief.paste.trim() ? `\nWhat the owner sent (use it first):\n"""${brief.paste.trim().slice(0, 3000)}"""\n` : ''}${
+${brief.paste.trim() ? `\nWhat the owner sent (use it first):\n"""${pasteFor(brief.paste, page)}"""\n` : ''}${
       items.length
         ? `\nMenu or price-list items (use these exactly, grouped by category where it helps):\n${items
             .map((i) => `- ${i.category ? `[${i.category}] ` : ''}${i.name}${i.price ? ` — ${i.price}` : ''}${i.description ? `: ${i.description}` : ''}`)

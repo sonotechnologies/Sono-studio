@@ -5,7 +5,7 @@ export function parsePrompt(brief: Brief) {
     system: 'You turn notes from small-business owners into structured data. You reply with a single JSON object and nothing else. Never invent anything that is not in the notes.',
     prompt: `These notes came from the owner of ${brief.businessName} (${brief.businessType}). They may contain opening hours, a menu or price list, an Instagram bio or a WhatsApp message.
 
-"""${brief.paste.trim().slice(0, 6000)}"""
+"""${brief.paste.trim().slice(0, 12000)}"""
 
 Extract:
 - tagline: one line in their own words that describes the business, or "".

@@ -10,9 +10,9 @@ import { presetLabel } from '@/generate/assemble';
 import { pagesFor, type Asset, type Brief, type GenerationJob, type Plan } from '@/generate/brief';
 import { logoPalette, prepareUpload } from '@/generate/browser-images';
 import { LivePreview, PipelineColumn, PlanReview } from './generation';
-import { approvePlanAction, reopenBriefAction, saveBriefAction, startGenerationAction, startWizardAction } from './actions';
+import { approvePlanAction, importSiteAction, reopenBriefAction, saveBriefAction, startGenerationAction, startWizardAction } from './actions';
 import type { CustomStyle } from '@/lib/data/repo';
-import { BusinessStep, ContentStep, ReviewStep, StyleStep, type UploadTile } from './wizard-steps';
+import { BusinessStep, ContentStep, ReviewStep, StyleStep, type ImportOutcome, type UploadTile } from './wizard-steps';
 
 export type AiMode = 'real' | 'demo' | 'none';
 
@@ -175,6 +175,37 @@ export function SetupFlow({
     }
   };
 
+  /* ----- Rebuilding the client's current site ----- */
+  const onImport = async (url: string, confirmed: boolean): Promise<ImportOutcome> => {
+    if (!job) return { error: 'Finish the first step first.' };
+    const r = await importSiteAction(job.id, url, confirmed);
+    if (r.error || !r.site) return { error: r.error ?? 'That site couldn’t be read.' };
+    const site = r.site;
+    const assets = r.assets ?? [];
+    const logoAsset = assets.find((a) => a.kind === 'logo');
+    setTiles((t) => [
+      ...(logoAsset ? t.filter((x) => x.kind !== 'logo') : t),
+      ...assets.map((a) => ({ key: a.id, name: a.alt || (a.kind === 'logo' ? 'logo' : 'photo'), kind: a.kind, state: 'done' as const, asset: a })),
+    ]);
+    // The logo's colours, read in the browser as for an upload.
+    let colors: string[] = [];
+    if (logoAsset) colors = await fetch(logoAsset.url).then((res) => res.blob()).then(logoPalette).catch(() => []);
+    setBrief((b) => ({
+      ...b,
+      businessName: b.businessName || site.businessName || b.businessName,
+      pages: [...new Set([...b.pages, ...site.pages])],
+      paste: [site.paste, b.paste.trim() ? `## Notes\n${b.paste.trim()}` : ''].filter(Boolean).join('\n\n').slice(0, 12000),
+      client: {
+        ...b.client,
+        whatsapp: b.client.whatsapp || site.client.whatsapp,
+        instagram: b.client.instagram || site.client.instagram,
+        address: b.client.address || site.client.address,
+      },
+      ...(colors.length ? { brandColors: colors.slice(0, 4), useBrand: b.useBrand || !b.style } : {}),
+    }));
+    return { site, photos: assets.filter((a) => a.kind === 'photo').length, logo: !!logoAsset, skipped: r.skippedPhotos ?? 0 };
+  };
+
   const onRemove = async (tile: UploadTile) => {
     setTiles((t) => t.filter((x) => x.key !== tile.key));
     if (tile.kind === 'logo') setBrief((b) => ({ ...b, brandColors: [], useBrand: false }));
@@ -333,7 +364,7 @@ export function SetupFlow({
           <div key={step} className="mx-auto box-border w-full max-w-[1160px] animate-fade-up px-5 pt-10 pb-28 md:px-8 md:pt-14">
             {step === 0 && <BusinessStep brief={brief} set={setBrief} />}
             {step === 1 && <StyleStep brief={brief} set={setBrief} styles={styles} />}
-            {step === 2 && <ContentStep brief={brief} set={setBrief} tiles={tiles} onFiles={onFiles} onRemove={onRemove} />}
+            {step === 2 && <ContentStep brief={brief} set={setBrief} tiles={tiles} onFiles={onFiles} onRemove={onRemove} onImport={onImport} />}
             {step === 3 && (
               <ReviewStep
                 rows={reviewRows}

@@ -2,7 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { BUSINESS_KINDS, briefSchema, type Brief, type GenerationJob, type Plan } from '@/generate/brief';
+import { BUSINESS_KINDS, briefSchema, type Asset, type Brief, type GenerationJob, type Plan } from '@/generate/brief';
+import { fetchImage, LinkError } from '@/style/link';
+import { importSite, type SiteImport } from '@/style/site-import';
 import { cleanEditedPlan } from '@/generate/plan';
 import { getRepo, requireUser } from '@/lib/auth';
 import { pitchSlug } from '@/lib/format';
@@ -113,4 +115,49 @@ export async function approvePlanAction(jobId: string, edited: z.infer<typeof ed
     pages: job.plan.pages.map((p) => ({ ...p, sections: input.pages.find((e) => e.id === p.id)?.sections ?? p.sections })),
   };
   await (await getRepo()).saveJob({ ...job, plan: cleanEditedPlan(merged, job.brief), status: 'running', error: null });
+}
+
+export interface ImportResult {
+  error?: string;
+  site?: Omit<SiteImport, 'photos' | 'logo'>;
+  /** Photos and logo copied into the project, ready to place. */
+  assets?: Asset[];
+  skippedPhotos?: number;
+}
+
+/**
+ * Imports the client's current website into this setup: its text, contact
+ * details, pages, photos and logo. Only for sites the client owns.
+ */
+export async function importSiteAction(jobId: string, url: string, confirmed: boolean): Promise<ImportResult> {
+  await requireUser();
+  if (!confirmed) return { error: 'Tick the box to confirm the site belongs to your client.' };
+  const job = await jobFor(jobId);
+  let site: SiteImport;
+  try {
+    site = await importSite(url.trim().slice(0, 500));
+  } catch (err) {
+    if (!(err instanceof LinkError)) console.error('site import failed', err);
+    return { error: err instanceof LinkError ? err.message : 'That site couldn’t be read. Check the address, or paste its text instead.' };
+  }
+  const repo = await getRepo();
+  const assets: Asset[] = [];
+  let skipped = 0;
+  const wanted = [...(site.logo ? [{ ...site.logo, kind: 'logo' as const }] : []), ...site.photos.map((p) => ({ ...p, kind: 'photo' as const }))];
+  // A few at a time: fast enough, and polite to the client's server.
+  for (let i = 0; i < wanted.length; i += 4) {
+    const batch = await Promise.all(wanted.slice(i, i + 4).map(async (img) => ({ img, file: await fetchImage(img.src) })));
+    for (const { img, file } of batch) {
+      if (!file || (file.ext === 'svg' && img.kind !== 'logo')) {
+        skipped++;
+        continue;
+      }
+      if (img.kind === 'logo') for (const a of await repo.listAssets(job.projectId)) if (a.kind === 'logo') await repo.deleteAsset(job.projectId, a.id);
+      assets.push(
+        await repo.addAsset(job.projectId, { kind: img.kind, source: 'upload', alt: (img.alt || site.businessName).slice(0, 200), credit: '', width: null, height: null }, file),
+      );
+    }
+  }
+  const { photos: _p, logo: _l, ...rest } = site;
+  return { site: rest, assets, skippedPhotos: skipped };
 }

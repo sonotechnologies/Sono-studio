@@ -27,7 +27,7 @@ function privateAddress(ip: string): boolean {
 }
 
 /** Refuses anything that isn't a public web address. */
-async function checkUrl(raw: string): Promise<URL> {
+export async function checkUrl(raw: string): Promise<URL> {
   let url: URL;
   try {
     url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
@@ -46,7 +46,7 @@ async function checkUrl(raw: string): Promise<URL> {
 }
 
 /** Fetches with redirects followed by hand, so every hop is checked. */
-async function get(raw: string, limit: number, accept: string): Promise<{ url: URL; text: string; type: string }> {
+export async function get(raw: string, limit: number, accept: string): Promise<{ url: URL; text: string; type: string }> {
   let url = await checkUrl(raw);
   for (let hop = 0; hop < 4; hop++) {
     const res = await fetch(url, {
@@ -90,10 +90,20 @@ export interface LinkReference extends ReferenceInput {
   url: string;
 }
 
-export async function readLink(address: string): Promise<LinkReference> {
+/** Fetches one web page's HTML (public addresses only). */
+export async function fetchPage(address: string): Promise<{ url: URL; html: string }> {
   const page = await get(address, MAX_HTML, 'text/html,application/xhtml+xml');
   if (!/html/i.test(page.type) && !/<html/i.test(page.text.slice(0, 2000))) throw new LinkError('That address isn’t a web page.');
-  const html = page.text;
+  return { url: page.url, html: page.text };
+}
+
+export async function readLink(address: string): Promise<LinkReference> {
+  return lookOfPage(await fetchPage(address));
+}
+
+/** Colours, fonts and look of a page already fetched. */
+export async function lookOfPage(page: { url: URL; html: string }): Promise<LinkReference> {
+  const html = page.html;
   const colors = new Map<string, number>();
   const fonts = new Map<string, number>();
   const out: { background?: string; text?: string } = {};
@@ -144,4 +154,27 @@ export async function readLink(address: string): Promise<LinkReference> {
     title,
     url: page.url.toString(),
   };
+}
+
+const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+
+/** Downloads one image from a public address (no redirects to private ones), up to 5 MB. */
+export async function fetchImage(raw: string): Promise<{ bytes: Uint8Array; contentType: string; ext: string } | null> {
+  try {
+    let url = await checkUrl(raw);
+    for (let hop = 0; hop < 4; hop++) {
+      const res = await fetch(url, { redirect: 'manual', headers: { accept: 'image/*' }, signal: AbortSignal.timeout(10_000) });
+      if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+        url = await checkUrl(new URL(res.headers.get('location')!, url).toString());
+        continue;
+      }
+      const type = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+      if (!res.ok || !IMAGE_TYPES[type]) return null;
+      if (Number(res.headers.get('content-length') ?? 0) > 5 * 1024 * 1024) return null;
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.byteLength > 5 * 1024 * 1024 || bytes.byteLength < 2000) return null;
+      return { bytes, contentType: type, ext: IMAGE_TYPES[type] };
+    }
+  } catch {}
+  return null;
 }
