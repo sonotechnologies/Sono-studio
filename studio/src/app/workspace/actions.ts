@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { applyOps, chatPrompt, chatReplySchema, type ChatScope } from '@/ai/chat';
+import { applyOps, chatPrompt, chatReplySchema, chatReplyText, type ChatScope } from '@/ai/chat';
 import { AllProvidersFailed, runJson } from '@/ai/router';
 import { loadProviders, loadStock, routerHooks } from '@/ai/service';
 import type { Asset } from '@/generate/brief';
@@ -73,10 +73,9 @@ export async function chatAction(projectId: string, input: { message: string; sc
     const applied = applyOps(parsed.data, r.data.ops, input.scope);
     const changed = JSON.stringify(applied.config) !== JSON.stringify(parsed.data);
     const version = changed ? await repo.saveSiteVersion(projectId, applied.config, `Chat: ${applied.summary}`.slice(0, 300)) : undefined;
-    const note = applied.skipped.length ? ` (${applied.skipped.length} part${applied.skipped.length === 1 ? '' : 's'} couldn’t be applied)` : '';
     const aiMsg = await repo.addChatMessage(projectId, {
       role: 'assistant',
-      text: (r.data.reply || 'Done.') + note,
+      text: chatReplyText(r.data.reply, r.data.ops.length, changed, applied.skipped),
       scope: input.scope.kind,
       change: changed ? applied.summary : 'No change',
       version: version ?? null,
@@ -115,3 +114,4 @@ export async function addStockAssetAction(projectId: string, photo: StockPhoto):
     height: photo.height,
   });
 }
+

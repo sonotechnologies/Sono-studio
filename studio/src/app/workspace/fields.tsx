@@ -4,7 +4,7 @@
 import { ArrowDown, ArrowUp, ChevronRight, ImagePlus, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { z } from 'zod';
-import { inputClass } from '@/components/ui';
+import { inputClass, Switch } from '@/components/ui';
 
 /*
  * The Edit panel's form, built from each section's content schema, so every
@@ -52,7 +52,7 @@ const LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp', phone: 'Phone', email: 'Email', address: 'Address', hours: 'Opening hours', days: 'Days', time: 'Time',
   mapQuery: 'Map location', title: 'Title', text: 'Text', price: 'Price', quote: 'Quote', name: 'Name', detail: 'Detail',
   rating: 'Rating (0 to 5)', ratingCount: 'Rating note', value: 'Number', label: 'Label', question: 'Question', answer: 'Answer',
-  signature: 'Signature', number: 'WhatsApp number', message: 'Pre-filled message', alt: 'Description (alt text)',
+  signature: 'Signature', sticky: 'Stay at the top when scrolling', number: 'WhatsApp number', message: 'Pre-filled message', alt: 'Description (alt text)',
 };
 const MULTILINE = new Set(['subheading', 'intro', 'text', 'answer', 'quote', 'tagline', 'message', 'body']);
 
@@ -297,6 +297,15 @@ export function FieldFor({
   const label = hideLabel ? '' : humanLabel(name);
   const remove = optional ? () => ctx.set(path, undefined) : undefined;
 
+  if (d.type === 'boolean') {
+    const on = value === true;
+    return (
+      <div className="flex items-center gap-3 text-[13px] font-medium" data-field={path}>
+        <span className="flex-1">{label}</span>
+        <Switch on={on} label={label} size="sm" onChange={(v) => ctx.set(path, v ? true : optional ? undefined : false)} />
+      </div>
+    );
+  }
   if (value === undefined) {
     return (
       <button

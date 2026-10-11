@@ -7,7 +7,7 @@ function Copy({ section, ctx, center = false, inverse = false }: Props & { cente
   const c = section.content;
   return (
     <div className={`flex flex-col gap-5 ${center ? 'items-center text-center' : ''}`}>
-      <Eyebrow ctx={ctx} text={c.eyebrow} className={inverse ? 'text-current opacity-85' : ''} />
+      <Eyebrow ctx={ctx} text={c.eyebrow} className={inverse ? '!text-current opacity-85' : ''} />
       <Heading ctx={ctx} text={c.heading} level={1} />
       {c.subheading && (
         <p {...edit(ctx, 'subheading')} className={`m-0 max-w-[36em] text-[1.1em] ${inverse ? 'opacity-90' : 'text-site-muted'}`}>
@@ -31,7 +31,11 @@ export function Hero({ section, ctx }: Props) {
       return (
         <section className="relative isolate flex min-h-[78cqi] items-end overflow-hidden text-white @3xl:min-h-[min(46cqi,720px)]">
           <SiteImg ctx={ctx} image={c.image} path="image" rounded={false} eager className="absolute inset-0 -z-20 h-full w-full" />
-          <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-t from-black/65 via-black/25 to-black/5" />
+          {/* Without a photo the striped placeholder is light, so white text needs a much darker wash. */}
+          <div
+            aria-hidden
+            className={`absolute inset-0 -z-10 ${c.image.src ? 'bg-gradient-to-t from-black/65 via-black/25 to-black/5' : 'bg-[color-mix(in_srgb,var(--s-text)_80%,transparent)]'}`}
+          />
           <Container className="s-section">
             <div className="max-w-[44em]">
               <Copy section={section} ctx={ctx} inverse />

@@ -540,7 +540,8 @@ export function Workspace({
       </aside>
 
       {/* Toolbar and stage */}
-      <div className="flex min-w-0 flex-1 flex-col max-md:pb-16">
+      {/* The toolbar sizes itself to its own width, so zoom and panel widths are taken into account. */}
+      <div className="@container flex min-w-0 flex-1 flex-col max-md:pb-16">
         <div className="flex h-14 flex-none items-center gap-1 border-b border-border bg-surface px-2 md:px-3 2xl:gap-2">
           <button type="button" title="Sections" aria-label="Sections" onClick={() => setDrawer(true)} className={`${iconBtn} xl:hidden`}>
             <PanelLeft size={16} />
@@ -567,8 +568,8 @@ export function Workspace({
               </div>
             )}
           </div>
-          <span className="hidden h-5 w-px bg-border xl:block" />
-          <div role="group" aria-label="Preview width" className="hidden gap-0.5 xl:flex">
+          <span className="hidden h-5 w-px bg-border @min-[820px]:block" />
+          <div role="group" aria-label="Preview width" className="hidden gap-0.5 @min-[820px]:flex">
             {(
               [
                 ['desktop', 'Desktop', Monitor],
@@ -585,24 +586,24 @@ export function Workspace({
           <button type="button" title="Undo (Ctrl+Z)" aria-label="Undo" disabled={!canUndo} onClick={undo} className={iconBtn}>
             <Undo2 size={16} />
           </button>
-          <button type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!canRedo} onClick={redo} className={`${iconBtn} max-lg:hidden`}>
+          <button type="button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled={!canRedo} onClick={redo} className={`${iconBtn} @max-[560px]:hidden`}>
             <Redo2 size={16} />
           </button>
-          <button type="button" title="Version history" aria-label="Version history" onClick={() => setHistoryOpen(true)} className={`${iconBtn} max-sm:hidden`}>
+          <button type="button" title="Version history" aria-label="Version history" onClick={() => setHistoryOpen(true)} className={`${iconBtn} @max-[460px]:hidden`}>
             <History size={16} />
           </button>
           <SaveStatus state={saveState} version={version} error={saveError} onRetry={() => void flush()} />
           <span className="min-w-2 flex-1" />
-          <span className="max-xl:hidden">
+          <span className="@max-[700px]:hidden">
             <ThemeToggle />
           </span>
           <button type="button" title="Copy pitch link" onClick={share} className="flex h-[34px] flex-none cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-[13px] font-medium hover:bg-hover active:scale-[0.97]">
             <Share2 size={16} />
-            <span className="max-2xl:hidden">Share</span>
+            <span className="@max-[940px]:hidden">Share</span>
           </button>
-          <button type="button" disabled title="Export arrives in phase 6" className="flex h-[34px] flex-none items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] font-medium opacity-45 max-xl:hidden">
+          <button type="button" disabled title="Export arrives in phase 6" className="flex h-[34px] flex-none items-center gap-1.5 rounded-full border border-border px-2.5 text-[13px] font-medium opacity-45 @max-[640px]:hidden">
             <Download size={16} />
-            <span className="max-2xl:hidden">Export</span>
+            <span className="@max-[940px]:hidden">Export</span>
           </button>
           <button type="button" disabled title="Deploy arrives in phase 6" className="flex h-[34px] flex-none items-center gap-1.5 rounded-full bg-terracotta px-3.5 text-[13px] font-semibold text-white opacity-45">
             Deploy
@@ -733,12 +734,12 @@ function SaveStatus({ state, version, error, onRetry }: { state: SaveState; vers
     return (
       <button type="button" onClick={onRetry} title={error} className="flex h-[34px] cursor-pointer items-center gap-1.5 rounded-full px-2 text-[12px] font-medium text-danger hover:bg-hover">
         <CloudOff size={14} />
-        <span className="whitespace-nowrap max-sm:hidden">Not saved · retry</span>
+        <span className="whitespace-nowrap @max-[520px]:hidden">Not saved · retry</span>
       </button>
     );
   }
   return (
-    <span className="flex items-center gap-1.5 px-1 text-[12px] whitespace-nowrap text-muted max-sm:hidden" aria-live="polite">
+    <span className="flex items-center gap-1.5 px-1 text-[12px] whitespace-nowrap text-muted @max-[520px]:hidden" aria-live="polite">
       {state === 'saving' ? <MiniSpin /> : state === 'saved' ? <Check size={13} /> : null}
       {state === 'saving' ? 'Saving…' : state === 'unsaved' ? 'Edited' : `Saved · v${version}`}
     </span>

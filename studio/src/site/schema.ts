@@ -37,6 +37,8 @@ export const navbarContent = z.object({
   logo: imageSchema.optional(),
   links: z.array(linkSchema).max(6),
   cta: linkSchema.optional(),
+  /** Stays at the top of the screen while scrolling. */
+  sticky: z.boolean().optional(),
 });
 
 export const heroContent = z.object({

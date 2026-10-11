@@ -55,6 +55,7 @@ export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string
       'Make only the change asked for, as a few small operations. Keep everything else exactly as it is.',
       'Never invent facts about the business (prices, amenities, hours, addresses, reviews, numbers). If the request needs facts you do not have, make the change with neutral wording and say in the reply what the owner should confirm.',
       'Image src values must stay as they are or be "" (empty). Never write image URLs.',
+      'Only use fields that exist in the content schemas below. If the request needs something the site cannot do, return no operations and say plainly in the reply that it is not possible yet. Never say you changed something unless an operation does it.',
     ].join(' '),
     prompt: `Business: ${config.meta.businessName} (${businessType || 'local business'}).
 Change requested: """${message.slice(0, 1500)}"""
@@ -111,6 +112,9 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         if (!at) throw new Error(`no section "${op.section}"`);
         if (!inScope(out, scope, op.section)) throw new Error(`"${op.section}" is outside the scope`);
         const prev = at.section;
+        const known = Object.keys((contentSchemaFor(prev.type) as z.ZodObject).shape);
+        const unknown = Object.keys(op.content ?? {}).filter((k) => !known.includes(k));
+        if (unknown.length) throw new Error(`${SECTIONS[prev.type].label} has no setting "${unknown[0]}"`);
         const content = { ...(prev.content as Record<string, unknown>), ...(op.content ?? {}) };
         restoreImages(prev.content, content);
         const next = sectionSchema.parse({ ...prev, variant: op.variant ?? prev.variant, content });
@@ -188,4 +192,16 @@ function restoreImages(prev: unknown, next: Record<string, unknown>): void {
     }
   };
   walk(prev, next);
+}
+
+/**
+ * The model's reply, unless it would claim a change that didn't happen. Then
+ * the owner is told plainly what was not applied.
+ */
+export function chatReplyText(reply: string, opCount: number, changed: boolean, skipped: string[]): string {
+  const why = skipped.length ? ` ${skipped.slice(0, 2).map((s) => s.replace(/^\w+: /, '')).join('; ')}.` : '';
+  if (!changed && opCount > 0) return `Nothing changed: that isn’t something the site can do yet.${why}`;
+  if (!changed) return reply || 'Nothing changed.';
+  const note = skipped.length ? ` Part of it couldn’t be applied:${why}` : '';
+  return (reply || 'Done.') + note;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps } from '@/ai/chat';
+import { applyOps, chatReplyText } from '@/ai/chat';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import {
@@ -136,5 +136,26 @@ describe('shared sections and merging', () => {
     const merged = revertChange(meanwhile, after, before);
     expect((heroOf(merged).content as { heading: string }).heading).toBe('From the AI');
     expect((findSection(merged, 'home-about')!.section.content as { heading: string }).heading).toBe('Typed by hand');
+  });
+});
+
+describe('honest chat replies', () => {
+  it('reports settings a section does not have instead of silently dropping them', () => {
+    const r = applyOps(site(), [{ op: 'update', section: 'home-hero', content: { glow: true } }], { kind: 'site' });
+    expect(r.skipped[0]).toMatch(/no setting "glow"/);
+    expect(r.config).toEqual(siteConfigSchema.parse(site()));
+  });
+
+  it('can make the navbar sticky on every page', () => {
+    const r = applyOps(site(), [{ op: 'update', section: 'home-nav', content: { sticky: true } }], { kind: 'section', sectionId: 'home-nav' });
+    expect(r.skipped).toEqual([]);
+    for (const p of r.config.pages) expect((p.sections[0].content as { sticky?: boolean }).sticky).toBe(true);
+  });
+
+  it('never lets the reply claim a change that did not happen', () => {
+    expect(chatReplyText('I made the header sticky.', 1, false, ['update: Hero has no setting "x"'])).toMatch(/^Nothing changed/);
+    expect(chatReplyText('That needs a booking module.', 0, false, [])).toBe('That needs a booking module.');
+    expect(chatReplyText('Done it.', 2, true, [])).toBe('Done it.');
+    expect(chatReplyText('Done it.', 2, true, ['remove: the navbar and footer stay'])).toMatch(/couldn’t be applied: the navbar and footer stay/);
   });
 });

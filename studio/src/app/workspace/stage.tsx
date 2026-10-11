@@ -96,7 +96,8 @@ export function Stage({
       onSubmitCapture={(e) => e.preventDefault()}
     >
       <style>{`${css}
-.ws-stage [data-section-id]{position:relative;cursor:pointer}
+.ws-stage [data-section-id]{cursor:pointer}
+.ws-stage [data-section-id]:not(.sticky){position:relative}
 .ws-stage [data-edit]:not([contenteditable]):hover{outline:1px dashed color-mix(in srgb,#B4502E 70%,transparent);outline-offset:3px}
 .ws-stage [contenteditable]{outline:2px solid #B4502E;outline-offset:3px;cursor:text;border-radius:2px}
 @keyframes ws-flash{0%{background:rgba(180,80,46,.22)}100%{background:transparent;border-color:transparent}}`}</style>
