@@ -573,6 +573,7 @@ function WebsiteCard({ p, info, now, onLive }: { p: Project; info: WebsiteInfo; 
           </span>
         )}
         {d?.status === 'error' && <span className="text-danger">The last deploy failed: {d.error}</span>}
+        {d?.status !== 'error' && d?.error && <span className="text-[13px] text-warn">{d.error}</span>}
         {(live ?? (p.liveUrl ? { url: p.liveUrl } : null))?.url && (
           <a href={(live?.url ?? p.liveUrl)!} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 self-start font-mono text-[13px] font-medium text-accent-text hover:underline">
             {(live?.url ?? p.liveUrl)!.replace(/^https:\/\//, '')}

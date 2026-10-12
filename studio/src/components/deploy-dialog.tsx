@@ -206,6 +206,7 @@ export function DeployDialog({
                   <ExternalLink size={12} />
                 </a>
               )}
+              {d.error && <span className="text-[13px] text-warn">{d.error}</span>}
             </div>
             <div className="flex flex-col gap-2.5 border-t border-border pt-4">
               <span className="text-[13px] font-semibold">Handover checklist</span>

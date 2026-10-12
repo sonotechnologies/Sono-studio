@@ -15,6 +15,8 @@ import { deployToVercel, deploymentState, projectUrl } from './vercel';
  */
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+/** Starts the note kept on a deploy that went live without its GitHub copy. */
+export const GITHUB_NOTE = 'Live, but the code wasn’t saved to GitHub';
 
 /** Loads a site photo: relative paths (dev uploads) from this server, others over https. */
 export function imageLoader(origin: string): ImageLoader {
@@ -88,22 +90,34 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string)
     error: null,
   });
   try {
+    // GitHub keeps a copy of the code; the site goes live on Vercel even when that step fails.
+    let note: string | null = null;
     if (github) {
-      const pushed = await pushToGitHub({
-        token: github,
-        existing: previous?.repoFullName ?? null,
-        name: `${site.name}-site`,
-        description: `Website for ${project.name}`,
-        files: site.files,
-        message: `Site version ${site.version}`,
-      });
-      await repo.updateDeployment(d.id, { repoFullName: pushed.fullName, repoUrl: pushed.url });
-      await repo.setProjectLinks(projectId, { repoUrl: pushed.url });
-      Object.assign(d, { repoFullName: pushed.fullName, repoUrl: pushed.url });
+      try {
+        const pushed = await pushToGitHub({
+          token: github,
+          existing: previous?.repoFullName ?? null,
+          name: `${site.name}-site`,
+          description: `Website for ${project.name}`,
+          files: site.files,
+          message: `Site version ${site.version}`,
+          onRepo: async (r) => {
+            await repo.updateDeployment(d.id, { repoFullName: r.fullName, repoUrl: r.url });
+            Object.assign(d, { repoFullName: r.fullName, repoUrl: r.url });
+          },
+        });
+        await repo.updateDeployment(d.id, { repoFullName: pushed.fullName, repoUrl: pushed.url });
+        await repo.setProjectLinks(projectId, { repoUrl: pushed.url });
+        Object.assign(d, { repoFullName: pushed.fullName, repoUrl: pushed.url });
+      } catch (err) {
+        if (!(err instanceof DeployError)) console.error('GitHub push failed', err);
+        const why = err instanceof DeployError ? err.message : (err as Error).message;
+        note = `${GITHUB_NOTE}: ${why} It will be saved on the next deploy.`;
+      }
     }
     const vd = await deployToVercel({ token: vercel, existing: previous?.vercelProject ?? null, name: site.name, files: site.files, framework: site.framework });
-    await repo.updateDeployment(d.id, { vercelProject: vd.project, vercelDeploymentId: vd.id });
-    return { ...d, vercelProject: vd.project, vercelDeploymentId: vd.id };
+    await repo.updateDeployment(d.id, { vercelProject: vd.project, vercelDeploymentId: vd.id, error: note });
+    return { ...d, vercelProject: vd.project, vercelDeploymentId: vd.id, error: note };
   } catch (err) {
     const error = err instanceof DeployError ? err.message : `Deploy failed: ${(err as Error).message}`;
     await repo.updateDeployment(d.id, { status: 'error', error: error.slice(0, 1000) });
@@ -132,11 +146,12 @@ export async function refreshDeploy(repo: Repo, projectId: string): Promise<Depl
       return { ...d, status: 'error', error: s.error ?? null };
     }
     const url = await projectUrl({ token: vercel, project: d.vercelProject });
-    await repo.updateDeployment(d.id, { status: 'ready', url, error: null });
+    const note = d.error?.startsWith(GITHUB_NOTE) ? d.error : null;
+    await repo.updateDeployment(d.id, { status: 'ready', url, error: note });
     await repo.setProjectLinks(projectId, { liveUrl: url });
     const project = await repo.getProject(projectId);
     if (project && project.status !== 'live') await repo.updateProject(projectId, { status: 'live' });
-    return { ...d, status: 'ready', url, error: null };
+    return { ...d, status: 'ready', url, error: note };
   } catch (err) {
     // Network trouble: try again on the next check.
     console.error('deploy status check failed', err);

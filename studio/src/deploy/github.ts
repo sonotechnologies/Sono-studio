@@ -1,22 +1,14 @@
 import type { ExportFile } from '@/export/generate';
+import { DeployError, reach } from './errors';
+import { pushFiles } from './gitpack';
+
+export { DeployError, reach };
 
 /*
- * Pushes an exported site to a private GitHub repository through the REST
- * API: one commit per deploy holding the whole site, so the repo always
- * matches what is live. No git binary is needed.
+ * Saves an exported site to a private GitHub repository: the REST API finds or
+ * creates the repository, then one git push carries the whole site as a single
+ * commit, so the repo always matches what is live. No git binary is needed.
  */
-
-export class DeployError extends Error {}
-
-/** Turns a network failure into a message that says which service couldn't be reached. */
-export async function reach(service: string, call: () => Promise<Response>): Promise<Response> {
-  try {
-    return await call();
-  } catch (err) {
-    const timeout = (err as Error).name === 'TimeoutError';
-    throw new DeployError(timeout ? `${service} took too long to answer. Try again in a moment.` : `Couldn’t reach ${service}. Check the connection and try again.`);
-  }
-}
 
 type Fetch = typeof fetch;
 
@@ -57,16 +49,6 @@ export async function githubAccount(token: string, f: Fetch = fetch): Promise<st
   return me!.login;
 }
 
-function b64(data: string | Uint8Array): string {
-  return Buffer.from(typeof data === 'string' ? new TextEncoder().encode(data) : data).toString('base64');
-}
-
-async function inBatches<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const out: R[] = [];
-  for (let i = 0; i < items.length; i += size) out.push(...(await Promise.all(items.slice(i, i + size).map(fn))));
-  return out;
-}
-
 export interface PushResult {
   fullName: string;
   url: string;
@@ -85,6 +67,8 @@ export async function pushToGitHub(opts: {
   description: string;
   files: ExportFile[];
   message: string;
+  /** Called as soon as the repository is known, so a push that fails still reuses it next time. */
+  onRepo?: (repo: { fullName: string; url: string }) => Promise<void> | void;
   fetch?: Fetch;
 }): Promise<PushResult> {
   const gh = client(opts.token, opts.fetch ?? fetch);
@@ -102,6 +86,8 @@ export async function pushToGitHub(opts: {
     if (!repo) throw new DeployError('Couldn’t find a free repository name.');
   }
 
+  await opts.onRepo?.({ fullName: repo.full_name, url: repo.html_url });
+
   // A new repository gets its first commit a moment after it is created.
   const branch = repo.default_branch || 'main';
   let head: string | null = null;
@@ -111,18 +97,7 @@ export async function pushToGitHub(opts: {
     if (!head) await new Promise((r) => setTimeout(r, 750));
   }
 
-  const blobs = await inBatches(opts.files, 6, async (file) => {
-    const blob = await gh<{ sha: string }>('POST', `/repos/${repo.full_name}/git/blobs`, { content: b64(file.data), encoding: 'base64' });
-    return { path: file.path, mode: '100644', type: 'blob', sha: blob!.sha };
-  });
-  // No base tree: files the site no longer has are removed from the repo.
-  const tree = await gh<{ sha: string }>('POST', `/repos/${repo.full_name}/git/trees`, { tree: blobs });
-  const commit = await gh<{ sha: string }>('POST', `/repos/${repo.full_name}/git/commits`, {
-    message: opts.message,
-    tree: tree!.sha,
-    parents: head ? [head] : [],
-  });
-  if (head) await gh('PATCH', `/repos/${repo.full_name}/git/refs/heads/${branch}`, { sha: commit!.sha, force: false });
-  else await gh('POST', `/repos/${repo.full_name}/git/refs`, { ref: `refs/heads/${branch}`, sha: commit!.sha });
-  return { fullName: repo.full_name, url: repo.html_url, commit: commit!.sha };
+  // Every file in one push: no base, so files the site no longer has are removed from the repo.
+  const { commit } = await pushFiles({ remote: `https://github.com/${repo.full_name}.git`, token: opts.token, branch, files: opts.files, message: opts.message, fetch: opts.fetch });
+  return { fullName: repo.full_name, url: repo.html_url, commit };
 }
