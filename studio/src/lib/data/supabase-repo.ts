@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type OrderRecord, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import type { Order } from '@/site/store/payments';
 
 interface ClientRow {
   owner_name: string;
@@ -184,6 +185,16 @@ function deploymentRow(d: Partial<Omit<Deployment, 'id' | 'projectId' | 'created
   };
   return Object.fromEntries(Object.entries(d).filter(([k, v]) => map[k] && v !== undefined).map(([k, v]) => [map[k], v]));
 }
+
+type OrderRow = {
+  id: string; reference: string; provider: OrderRecord['provider']; mode: OrderRecord['mode']; status: OrderRecord['status'];
+  currency: string; total: number | string; lines: Order['lines']; customer: Order['customer']; created_at: string; paid_at: string | null;
+};
+
+const toOrder = (r: OrderRow): OrderRecord => ({
+  id: r.id, reference: r.reference, provider: r.provider, mode: r.mode, status: r.status, currency: r.currency, total: Number(r.total),
+  lines: r.lines ?? [], customer: r.customer ?? { name: '', email: '', phone: '', note: '' }, createdAt: r.created_at, paidAt: r.paid_at,
+});
 
 export function supabaseRepo(db: SupabaseClient): Repo {
   return {
@@ -518,6 +529,61 @@ export function supabaseRepo(db: SupabaseClient): Repo {
         bannerWhatsapp: row.banner_whatsapp,
         bannerInstagram: row.banner_instagram,
       } satisfies StudioSettings;
+    },
+
+    async getPitchPaymentKey(slug, provider) {
+      return (check(await db.rpc('pitch_payment_key', { p_slug: slug, p_provider: provider })) as string | null) ?? null;
+    },
+
+    async createPitchOrder(slug, order, tokenHash) {
+      check(
+        await db.rpc('create_pitch_order', {
+          p_slug: slug, p_reference: order.reference, p_provider: order.provider, p_currency: order.currency, p_total: order.total,
+          p_lines: order.lines, p_customer: order.customer, p_token_hash: tokenHash,
+        }),
+      );
+    },
+
+    async createOrder(projectId, order, tokenHash) {
+      const { data } = await db.auth.getUser();
+      if (!data.user) throw new Error('Not signed in');
+      check(
+        await db.from('orders').insert({
+          owner_id: data.user.id, project_id: projectId, reference: order.reference, provider: order.provider, mode: 'test',
+          currency: order.currency, total: order.total, lines: order.lines, customer: order.customer, token_hash: tokenHash,
+        }),
+      );
+    },
+
+    async settleOrder(reference, token, status) {
+      return check(await db.rpc('settle_order', { p_reference: reference, p_token: token, p_status: status })) === true;
+    },
+
+    async orderPitchSlug(reference) {
+      return (check(await db.rpc('order_pitch_slug', { p_reference: reference })) as string | null) ?? null;
+    },
+
+    async reportSiteOrder(projectId, key, order, mode) {
+      const ok = check(
+        await db.rpc('report_site_order', {
+          p_project: projectId, p_key: key, p_reference: order.reference, p_provider: order.provider, p_mode: mode,
+          p_currency: order.currency, p_total: order.total, p_lines: order.lines, p_customer: order.customer,
+        }),
+      );
+      return ok === true;
+    },
+
+    async setOrdersKeyHash(projectId, hash) {
+      check(await db.from('projects').update({ orders_key_hash: hash }).eq('id', projectId));
+    },
+
+    async listOrders(projectId, limit = 100) {
+      const rows = check(await db.from('orders').select('id, reference, provider, mode, status, currency, total, lines, customer, created_at, paid_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(limit)) as OrderRow[];
+      return rows.map(toOrder);
+    },
+
+    async setOrderStatus(projectId, orderId, status) {
+      check(await db.from('orders').update({ status }).eq('id', orderId).eq('project_id', projectId));
     },
 
     async updateSettings(s) {

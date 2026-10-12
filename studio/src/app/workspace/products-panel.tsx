@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { inputClass, Switch } from '@/components/ui';
 import type { Product, SiteConfig } from '@/site/schema';
 import { formatPrice } from '@/site/store/format';
+import { PAYSTACK_CURRENCIES } from '@/site/store/payments-info';
 import { CURRENCIES, moveProduct, newProduct, productId, removeProduct, saveProduct } from '@/workspace/store';
 
 /*
@@ -26,6 +27,7 @@ export function ProductsPanel({
   onPickImage,
   onAddShop,
   onPreview,
+  testKeys,
 }: {
   config: SiteConfig;
   /** The product being edited, or null for the list. */
@@ -37,6 +39,7 @@ export function ProductsPanel({
   onPickImage: (productId: string, path: string) => void;
   onAddShop: (currency: string) => void;
   onPreview: (productId: string) => void;
+  testKeys: { paystack: boolean; stripe: boolean };
 }) {
   const store = config.store;
   const [currency, setCurrency] = useState('NGN');
@@ -134,6 +137,8 @@ export function ProductsPanel({
         {samples > 0 && <Warn>{samples === 1 ? 'One product is a sample' : `${samples} products are samples`}. Replace them with the client’s real products, or remove them.</Warn>}
       </div>
 
+      <Payments store={store} testKeys={testKeys} onChange={(payments) => setStore({ payments }, 'Payments')} />
+
       <div className="flex flex-col gap-2">
         <span className="text-[13px] font-medium">
           Products <span className="font-normal text-muted">· {store.products.length}</span>
@@ -174,6 +179,56 @@ export function ProductsPanel({
         )}
       </div>
       <p className="m-0 text-[12px] leading-normal text-muted">Each product gets its own page at /product/… with its photos, options and an Add to cart button. Click a product in the preview to edit it here.</p>
+    </div>
+  );
+}
+
+type Payments = NonNullable<NonNullable<SiteConfig['store']>['payments']>;
+
+function Payments({ store, testKeys, onChange }: { store: NonNullable<SiteConfig['store']>; testKeys: { paystack: boolean; stripe: boolean }; onChange: (p: Payments) => void }) {
+  const p: Payments = store.payments ?? { whatsapp: true, paystack: false, stripe: false };
+  const set = (k: keyof Payments, v: boolean) => {
+    const next = { ...p, [k]: v };
+    // At least one way to order.
+    if (!next.whatsapp && !next.paystack && !next.stripe) return;
+    onChange(next);
+  };
+  const paystackCurrency = PAYSTACK_CURRENCIES.includes(store.currency);
+  const rows: { k: keyof Payments; name: string; note: string; warn?: string }[] = [
+    { k: 'whatsapp', name: 'Order on WhatsApp', note: 'The cart is sent as a pre-filled message; payment is arranged in the chat.' },
+    {
+      k: 'paystack',
+      name: 'Paystack',
+      note: 'Card, bank transfer and mobile money. Paid into the business’s own Paystack account.',
+      warn: !paystackCurrency ? `Paystack doesn’t charge in ${store.currency}; it’s hidden until the currency is ${PAYSTACK_CURRENCIES.join(', ')}.` : p.paystack && !testKeys.paystack ? 'Add your Paystack test key in Settings → Test payments to try it on the pitch link.' : undefined,
+    },
+    {
+      k: 'stripe',
+      name: 'Stripe',
+      note: 'International cards, Apple Pay and Google Pay. Paid into the business’s own Stripe account.',
+      warn: p.stripe && !testKeys.stripe ? 'Add your Stripe test key in Settings → Test payments to try it on the pitch link.' : undefined,
+    },
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="text-[13px] font-medium">How customers pay</span>
+      {rows.map((r) => (
+        <div key={r.k} className="flex flex-col gap-1.5">
+          <div className="flex items-start gap-3">
+            <span className="flex flex-1 flex-col gap-0.5">
+              <span className="text-[13px] font-medium">{r.name}</span>
+              <span className="text-[12px] leading-snug text-muted">{r.note}</span>
+            </span>
+            <Switch on={p[r.k]} label={r.name} size="sm" onChange={(v) => set(r.k, v)} />
+          </div>
+          {r.warn && <span className="text-[12px] leading-snug text-warn">{r.warn}</span>}
+        </div>
+      ))}
+      {(p.paystack || p.stripe) && (
+        <p className="m-0 text-[12px] leading-snug text-muted">
+          On the pitch link and in the preview, card payments run in test mode with your own test keys. The client’s live keys go in when you deploy: the Deploy dialog asks for them.
+        </p>
+      )}
     </div>
   );
 }

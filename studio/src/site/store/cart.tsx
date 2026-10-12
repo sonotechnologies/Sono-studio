@@ -1,14 +1,15 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
-import { Minus, Plus, ShoppingBag, X } from 'lucide-react';
+import { CreditCard, Minus, Plus, ShoppingBag, X } from 'lucide-react';
 import { useEffect, useState, useSyncExternalStore } from 'react';
+import type { CheckoutCtx } from '../primitives';
 import { formatPrice, orderMessage } from './format';
 
 /*
  * The cart: kept in the visitor's browser (one per site), opened from a
- * floating button, and sent as a pre-filled WhatsApp order. Card checkout
- * joins it in a later step.
+ * floating button, and either paid by card (Paystack or Stripe, through the
+ * site's own server) or sent as a pre-filled WhatsApp order.
  */
 
 export interface CartLine {
@@ -81,6 +82,12 @@ export function clearCart(site: string) {
   write(site, []);
 }
 
+/** Empties the cart once an order is paid (on the order page). */
+export function ClearCart({ site }: { site: string }) {
+  useEffect(() => clearCart(site), [site]);
+  return null;
+}
+
 /* ---------- Add to cart ---------- */
 
 export function AddToCart({
@@ -143,11 +150,19 @@ export function AddToCart({
 
 /* ---------- Cart button and drawer ---------- */
 
-export function CartDrawer({ site, business, currency, whatsapp }: { site: string; business: string; currency: string; whatsapp: string }) {
+const PROVIDER_LABEL = { paystack: 'Pay with Paystack', stripe: 'Pay by card' } as const;
+const PROVIDER_NOTE = { paystack: 'Card, bank transfer or mobile money', stripe: 'Visa, Mastercard, Amex, Apple Pay, Google Pay' } as const;
+
+export function CartDrawer({ site, business, currency, whatsapp, checkout }: { site: string; business: string; currency: string; whatsapp: string; checkout?: CheckoutCtx }) {
   const lines = useCart(site);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [paying, setPaying] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const cards = checkout?.providers ?? [];
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const total = lines.reduce((s, l) => s + l.qty * l.price, 0);
 
@@ -167,6 +182,30 @@ export function CartDrawer({ site, business, currency, whatsapp }: { site: strin
   const order = () => {
     const text = orderMessage({ business, lines, currency, customer: name, note });
     window.open(`https://wa.me/${digits}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+  };
+  const pay = async (provider: 'paystack' | 'stripe') => {
+    setError('');
+    if (!name.trim()) return setError('Enter your name.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setError('Enter an email address for the receipt.');
+    setPaying(provider);
+    try {
+      const res = await fetch(checkout!.endpoint, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          provider,
+          lines: lines.map((l) => ({ productId: l.productId, options: l.options, qty: l.qty })),
+          customer: { name, email, phone, note },
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !body.url) throw new Error(body.error || 'The payment couldn’t start. Try again.');
+      // The provider's own payment page; it comes back to the order page.
+      window.location.href = body.url;
+    } catch (err) {
+      setError((err as Error).message);
+      setPaying(null);
+    }
   };
 
   return (
@@ -237,14 +276,50 @@ export function CartDrawer({ site, business, currency, whatsapp }: { site: strin
                     <span>Total</span>
                     <span>{formatPrice(total, currency)}</span>
                   </div>
-                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" aria-label="Your name" className="min-h-11 rounded-site-input border border-current/20 bg-transparent px-3" />
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" aria-label="Your name" autoComplete="name" className="min-h-11 rounded-site-input border border-current/20 bg-transparent px-3" />
+                  {cards.length > 0 && (
+                    <>
+                      <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email, for the receipt" aria-label="Email" autoComplete="email" className="min-h-11 rounded-site-input border border-current/20 bg-transparent px-3" />
+                      <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" placeholder="Phone (optional)" aria-label="Phone" autoComplete="tel" className="min-h-11 rounded-site-input border border-current/20 bg-transparent px-3" />
+                    </>
+                  )}
                   <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Delivery address or note" aria-label="Delivery address or note" className="rounded-site-input border border-current/20 bg-transparent px-3 py-2" />
+                  {error && (
+                    <p role="alert" className="m-0 text-[0.9em] text-[#C2410C]">
+                      {error}
+                    </p>
+                  )}
+                  {cards.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      disabled={!!paying}
+                      onClick={() => pay(p)}
+                      className="inline-flex min-h-12 cursor-pointer flex-col items-center justify-center rounded-site-button bg-site-primary px-5 py-1.5 font-semibold text-site-on-primary hover:brightness-110 disabled:cursor-default disabled:opacity-60"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <CreditCard size={17} aria-hidden />
+                        {paying === p ? 'Opening the payment page…' : `${PROVIDER_LABEL[p]} · ${formatPrice(total, currency)}`}
+                      </span>
+                      <span className="text-[0.75em] font-normal opacity-80">{PROVIDER_NOTE[p]}</span>
+                    </button>
+                  ))}
                   {digits ? (
-                    <button type="button" onClick={order} className="inline-flex min-h-12 cursor-pointer items-center justify-center rounded-site-button bg-[#25D366] px-5 font-semibold text-[#0B3B1F] hover:brightness-105">
-                      Order on WhatsApp
+                    <button
+                      type="button"
+                      onClick={order}
+                      className={`inline-flex min-h-12 cursor-pointer items-center justify-center rounded-site-button px-5 font-semibold ${cards.length ? 'border border-current/25 hover:bg-current/5' : 'bg-[#25D366] text-[#0B3B1F] hover:brightness-105'}`}
+                    >
+                      Order on WhatsApp{cards.length ? ' instead' : ''}
                     </button>
                   ) : (
-                    <p className="m-0 text-[0.9em] text-site-muted">Ordering opens soon.</p>
+                    !cards.length && <p className="m-0 text-[0.9em] text-site-muted">Ordering opens soon.</p>
+                  )}
+                  {checkout?.test && cards.length > 0 && (
+                    <p className="m-0 rounded-site-input bg-current/5 p-2.5 text-[0.8em] leading-snug text-site-muted">
+                      <strong>Test mode:</strong> no real money moves. {cards.includes('paystack') && 'Paystack test card 4084 0840 8408 4081, any future date, CVV 408, PIN 0000, OTP 123456. '}
+                      {cards.includes('stripe') && 'Stripe test card 4242 4242 4242 4242, any future date and CVC.'}
+                    </p>
                   )}
                   <button type="button" onClick={() => clearCart(site)} className="cursor-pointer self-center text-[0.85em] text-site-muted underline-offset-4 hover:underline">
                     Empty the cart

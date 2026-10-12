@@ -53,6 +53,7 @@ export default async function WorkspacePage({ params }: Props) {
         pitchLink={pitchUrl(project.pitchSlug)}
         styles={styles}
         deploy={{ hasVercel: keys.some((k) => k.provider === 'vercel'), hasGithub: keys.some((k) => k.provider === 'github'), latest }}
+        testKeys={{ paystack: keys.some((k) => k.provider === 'paystack'), stripe: keys.some((k) => k.provider === 'stripe') }}
       />
     </ToastProvider>
   );

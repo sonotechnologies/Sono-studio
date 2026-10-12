@@ -403,3 +403,109 @@ export function ConnectionsPanel({ rows, supabase }: { rows: KeyView[]; supabase
     </div>
   );
 }
+
+const PAYMENT_INFO = {
+  paystack: {
+    name: 'Paystack',
+    note: 'Card, bank transfer and mobile money in NGN, GHS, ZAR, KES and USD',
+    keyUrl: 'https://dashboard.paystack.com/#/settings/developers',
+    signup: 'https://dashboard.paystack.com/#/signup',
+    steps: [
+      'Create a free Paystack account. Test mode works straight away; business verification is only needed for live payments.',
+      'In the dashboard, keep the Test Mode switch on, then open Settings → API Keys & Webhooks.',
+      'Copy the Test Secret Key (it starts with sk_test_) and paste it below.',
+    ],
+    webhook: 'Optional: paste this address into Test Webhook URL on the same page, so an order is marked paid even if the customer closes the tab before coming back.',
+  },
+  stripe: {
+    name: 'Stripe',
+    note: 'International cards, Apple Pay and Google Pay',
+    keyUrl: 'https://dashboard.stripe.com/test/apikeys',
+    signup: 'https://dashboard.stripe.com/register',
+    steps: [
+      'Create a Stripe account, if Stripe accepts businesses from your country. Test mode works without activating the account.',
+      'Make sure the dashboard shows Test mode, then open Developers → API keys.',
+      'Reveal the Secret key (it starts with sk_test_) and paste it below.',
+    ],
+    webhook: 'Optional: in Developers → Webhooks, add an endpoint with this address and the event checkout.session.completed, then paste its Signing secret (whsec_…) below.',
+  },
+} as const;
+
+function CopyLine({ value }: { value: string }) {
+  const toast = useToast();
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <code className="rounded-md bg-sel px-2 py-1 font-mono text-[12px] break-all">{value}</code>
+      <button
+        type="button"
+        onClick={() => navigator.clipboard.writeText(value).then(() => toast('Copied'), () => toast(value))}
+        className="cursor-pointer text-[13px] font-medium text-accent-text hover:underline"
+      >
+        Copy
+      </button>
+    </span>
+  );
+}
+
+/** Your own TEST keys, for demo checkouts on pitch links and in the preview. */
+export function PaymentsPanel({ rows, siteUrl }: { rows: KeyView[]; siteUrl: string }) {
+  const toast = useToast();
+  const [pending, start] = useTransition();
+  const remove = (p: string, name: string) => start(async () => (await removeKeyAction(p), toast(`${name} removed`)));
+  return (
+    <div className="flex flex-col gap-4">
+      <p className="m-0 max-w-[640px] text-[14px] leading-normal text-muted">
+        Your own test keys let shops on pitch links and in the preview take test payments, so a client can try the whole checkout. No real money moves. A client’s live keys never go here: you add them when you deploy their site, and they go straight to their hosting.
+      </p>
+      <div className="flex flex-col border-t border-border">
+        {(['paystack', 'stripe'] as const).map((p) => {
+          const info = PAYMENT_INFO[p];
+          const row = rows.find((r) => r.provider === p);
+          const hook = rows.find((r) => r.provider === 'stripe_webhook');
+          return (
+            <ConnectionRow key={p} initial={info.name[0]} name={info.name} note={info.note} status={row ? `Test key ends ${row.hint}` : 'Not set up'} good={!!row}>
+              <div className="flex flex-col gap-3 pl-0 md:pl-[52px]">
+                {!row && (
+                  <ol className="m-0 flex flex-col gap-1 pl-5 text-[13px] leading-normal text-muted">
+                    {info.steps.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ol>
+                )}
+                <KeyForm provider={p} label={`${info.name} test secret key`} />
+                <div className="flex flex-col gap-1.5 text-[13px] leading-normal text-muted">
+                  <span>{info.webhook}</span>
+                  <CopyLine value={`${siteUrl}/api/pay/${p}`} />
+                </div>
+                {p === 'stripe' && (
+                  <div className="flex flex-col gap-1.5">
+                    <KeyForm provider="stripe_webhook" label="Stripe webhook signing secret (whsec_…)" />
+                    {hook && (
+                      <span className="flex gap-3 text-[13px] text-muted">
+                        Signing secret ends {hook.hint}
+                        <button type="button" disabled={pending} onClick={() => remove('stripe_webhook', 'Signing secret')} className="cursor-pointer font-medium text-danger hover:underline">
+                          Remove
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-wrap gap-4 text-[13px]">
+                  <a href={row ? info.keyUrl : info.signup} target="_blank" rel="noreferrer" className="flex items-center gap-1 font-medium text-accent-text hover:underline">
+                    {row ? 'Open API keys' : `Create a ${info.name} account`}
+                    <ExternalLink size={12} />
+                  </a>
+                  {row && (
+                    <button type="button" disabled={pending} onClick={() => remove(p, info.name)} className="cursor-pointer font-medium text-danger hover:underline">
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+            </ConnectionRow>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

@@ -93,6 +93,7 @@ export function Workspace({
   pitchLink,
   deploy,
   styles: initialStyles,
+  testKeys,
 }: {
   project: Project;
   initialConfig: SiteConfig;
@@ -104,6 +105,8 @@ export function Workspace({
   pitchLink: string;
   deploy: { hasVercel: boolean; hasGithub: boolean; latest: Deployment | null };
   styles: CustomStyle[];
+  /** Which of your test payment keys are set, for the Products tab. */
+  testKeys: { paystack: boolean; stripe: boolean };
 }) {
   const toast = useToast();
   const projectId = project.id;
@@ -774,6 +777,7 @@ export function Workspace({
               flash(r.config.pages.find((p) => p.id === r.pageId)?.sections.map((s) => s.id) ?? []);
               toast('Shop page added with three sample products');
             }}
+            testKeys={testKeys}
             onPreview={async (id) => {
               const w = window.open('about:blank', '_blank');
               await flush();

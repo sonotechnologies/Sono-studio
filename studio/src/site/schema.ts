@@ -172,8 +172,15 @@ export const storeSchema = z.object({
   /** Where WhatsApp orders go (digits, with country code). */
   whatsapp: text(32),
   products: z.array(productSchema).max(300),
+  /**
+   * How visitors pay. WhatsApp ordering is on unless switched off; card
+   * payments use the business's own Paystack or Stripe account. Missing means
+   * WhatsApp only.
+   */
+  payments: z.object({ whatsapp: z.boolean(), paystack: z.boolean(), stripe: z.boolean() }).optional(),
 });
 export type Store = z.infer<typeof storeSchema>;
+export type PaymentProvider = 'paystack' | 'stripe';
 
 export const productGridContent = z.object({
   eyebrow: text(60),

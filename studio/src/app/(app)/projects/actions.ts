@@ -45,3 +45,13 @@ export async function createStarterSiteAction(id: string): Promise<void> {
   revalidatePath(`/projects/${id}`);
   redirect(`/preview/${id}`);
 }
+
+const ORDER_STATUSES = ['pending', 'paid', 'failed', 'fulfilled', 'cancelled'] as const;
+
+/** Marks an order fulfilled (sent or collected) or cancelled, or back to paid. */
+export async function setOrderStatusAction(projectId: string, orderId: string, status: string): Promise<void> {
+  await requireUser();
+  if (!(ORDER_STATUSES as readonly string[]).includes(status)) throw new Error('Unknown status');
+  await (await getRepo()).setOrderStatus(projectId, orderId, status as (typeof ORDER_STATUSES)[number]);
+  revalidatePath(`/projects/${projectId}`);
+}

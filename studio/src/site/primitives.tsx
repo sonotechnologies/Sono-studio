@@ -13,6 +13,17 @@ export interface RenderCtx {
   store?: Store;
   /** Keeps each site's cart separate in the visitor's browser. */
   siteKey?: string;
+  /** Card checkout, where the page is served with a server that can take payments. */
+  checkout?: CheckoutCtx;
+}
+
+export interface CheckoutCtx {
+  /** Where the cart posts to start a payment. */
+  endpoint: string;
+  /** Card payments available here (keys set, currency supported). */
+  providers: ('paystack' | 'stripe')[];
+  /** Pitch links and the preview take test payments only. */
+  test: boolean;
 }
 
 /** Marks a text or image as editable; the path is relative to the section's content. */

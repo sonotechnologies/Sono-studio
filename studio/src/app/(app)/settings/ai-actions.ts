@@ -8,11 +8,11 @@ import { AI_PROVIDERS, PROVIDER_INFO, ProviderError, STOCK_PROVIDERS, type AiPro
 import { getRepo, requireUser } from '@/lib/auth';
 import { decryptSecret, encryptSecret, keyHint } from '@/lib/crypto';
 import type { KeyProvider } from '@/lib/data/repo';
-import { DEPLOY_PROVIDERS } from '@/lib/types';
+import { DEPLOY_PROVIDERS, PAYMENT_KEY_PROVIDERS } from '@/lib/types';
 import { DeployError, githubAccount } from '@/deploy/github';
 import { vercelAccount } from '@/deploy/vercel';
 
-const ALL: readonly string[] = [...AI_PROVIDERS, ...STOCK_PROVIDERS, ...DEPLOY_PROVIDERS];
+const ALL: readonly string[] = [...AI_PROVIDERS, ...STOCK_PROVIDERS, ...DEPLOY_PROVIDERS, ...PAYMENT_KEY_PROVIDERS];
 
 function provider(p: string): KeyProvider {
   if (!ALL.includes(p)) throw new Error('Unknown provider');
@@ -42,6 +42,23 @@ async function checkDeployToken(p: 'github' | 'vercel', token: string): Promise<
   }
 }
 
+/** Test keys only, checked with Paystack or Stripe; the webhook secret can only be checked by format. */
+async function checkPaymentKey(p: 'paystack' | 'stripe' | 'stripe_webhook', key: string): Promise<{ error?: string; warning?: string }> {
+  if (p === 'stripe_webhook') return key.startsWith('whsec_') ? {} : { error: 'A Stripe signing secret starts with whsec_. Copy it from the webhook’s page in Stripe.' };
+  if (/^(sk|rk)_live_/.test(key)) return { error: 'That’s a live key. Use the test secret key (sk_test_…): live keys belong to your client and go in when you deploy their site.' };
+  if (!key.startsWith('sk_test_')) return { error: 'Use the test secret key: it starts with sk_test_.' };
+  try {
+    const res =
+      p === 'paystack'
+        ? await fetch('https://api.paystack.co/balance', { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) })
+        : await fetch('https://api.stripe.com/v1/balance', { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) });
+    if (res.status === 401) return { error: `${p === 'paystack' ? 'Paystack' : 'Stripe'} rejected that key. Check you copied all of it.` };
+    return res.ok ? { warning: `${p === 'paystack' ? 'Paystack' : 'Stripe'} test key saved and working.` } : { warning: 'Saved, but the key couldn’t be checked right now.' };
+  } catch {
+    return { warning: 'Saved, but the key couldn’t be checked right now.' };
+  }
+}
+
 export interface SaveKeyResult {
   error?: string;
   warning?: string;
@@ -63,6 +80,10 @@ export async function saveKeyAction(p: string, rawKey: string): Promise<SaveKeyR
       if (err instanceof ProviderError && err.kind === 'auth') return { error: `${PROVIDER_INFO[id].name} rejected that key. Check you copied all of it.` };
       warning = 'Saved, but the key couldn’t be checked right now. Generation will tell you if it doesn’t work.';
     }
+  } else if (id === 'paystack' || id === 'stripe' || id === 'stripe_webhook') {
+    const check = await checkPaymentKey(id, key);
+    if (check.error) return { error: check.error };
+    warning = check.warning;
   } else if (id === 'github' || id === 'vercel') {
     const check = await checkDeployToken(id, key);
     if (check.rejected) return { error: `${check.rejected} Check you copied all of it.` };

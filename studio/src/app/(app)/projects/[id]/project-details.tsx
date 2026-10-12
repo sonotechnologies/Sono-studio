@@ -23,6 +23,8 @@ import {
   type ProjectPatch,
   type ProjectStatus,
 } from '@/lib/types';
+import type { OrderRecord } from '@/lib/data/repo';
+import { OrdersCard } from './orders-card';
 import { createStarterSiteAction, deleteProjectAction, updateClientAction, updateProjectAction } from '../actions';
 
 const card = 'flex flex-col rounded-dialog border border-border bg-surface p-[22px]';
@@ -43,6 +45,7 @@ export function ProjectDetails({
   events,
   website,
   copy,
+  orders,
 }: {
   project: Project;
   link: string;
@@ -53,6 +56,8 @@ export function ProjectDetails({
   website: WebsiteInfo | null;
   /** Set when the project is an exact copy of the client's own site. */
   copy: MirrorMeta | null;
+  /** The shop's orders, or null for a site without a shop. */
+  orders: OrderRecord[] | null;
   /** An unfinished generation for this project, if there is one. */
   setup: { jobId: string; status: JobStatus } | null;
 }) {
@@ -146,6 +151,7 @@ export function ProjectDetails({
         <div className="flex flex-col gap-5">
           {copy && <CopyCard p={p} copy={copy} now={now} />}
           {website && <WebsiteCard p={p} info={website} now={now} onLive={() => router.refresh()} />}
+          {orders && <OrdersCard projectId={p.id} orders={orders} now={now} />}
           <ActivityCard p={p} now={now} events={events} />
         </div>
       </div>

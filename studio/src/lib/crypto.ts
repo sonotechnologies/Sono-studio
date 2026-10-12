@@ -1,5 +1,5 @@
 import 'server-only';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
 
 /**
  * AES-256-GCM for provider keys at rest. SONO_ENCRYPTION_KEY is 32 random
@@ -37,4 +37,9 @@ export function decryptSecret(sealed: string): string {
 /** "Key saved · ends 7f2a", never more of the key than that. */
 export function keyHint(plain: string): string {
   return plain.slice(-4);
+}
+
+/** A secret for one purpose, derived from the encryption key, so it needs no storage of its own. */
+export function serverSecret(purpose: string): string {
+  return createHmac('sha256', key()).update(`sono:${purpose}`).digest('hex');
 }

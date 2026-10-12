@@ -5,12 +5,13 @@ import { demoAllowed } from '@/ai/demo';
 import { availability, isAiProvider } from '@/ai/service';
 import { usageToday } from '@/lib/data/repo';
 import { isDevStore } from '@/lib/env';
+import { siteUrl } from '@/lib/format';
 import type { KeyView } from './keys-panels';
 import { SettingsTabs, type SettingsTab } from './settings-tabs';
 
 export const metadata: Metadata = { title: 'Settings' };
 
-const TABS: SettingsTab[] = ['providers', 'connections', 'pitch', 'account'];
+const TABS: SettingsTab[] = ['providers', 'connections', 'payments', 'pitch', 'account'];
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const user = await requireUser();
@@ -32,7 +33,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const demo = !rows.some((r) => isAiProvider(r.provider)) && demoAllowed();
   return (
     <Page title="Settings" width={880}>
-      <SettingsTabs tab={active} settings={settings} email={user.email} keys={keys} demo={demo} supabase={!isDevStore()} />
+      <SettingsTabs tab={active} settings={settings} email={user.email} keys={keys} demo={demo} supabase={!isDevStore()} siteUrl={siteUrl()} />
     </Page>
   );
 }

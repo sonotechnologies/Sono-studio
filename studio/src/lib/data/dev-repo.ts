@@ -1,12 +1,13 @@
 import 'server-only';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type OrderRecord, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import type { Order } from '@/site/store/payments';
 
 /**
  * Local development store: one JSON file under .data/. Seeded with the sample
@@ -25,6 +26,9 @@ interface DevDb {
   deployments: Deployment[];
   styles: CustomStyle[];
   copies: Record<string, MirrorMeta>;
+  orders: (OrderRecord & { projectId: string; tokenHash: string | null })[];
+  /** Hash of each project's order key, for live sites reporting orders. */
+  ordersKeys: Record<string, string>;
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -49,11 +53,13 @@ async function load(): Promise<DevDb> {
     db.deployments ??= [];
     db.styles ??= [];
     db.copies ??= {};
+    db.orders ??= [];
+    db.ordersKeys ??= {};
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {} };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {}, orders: [], ordersKeys: {} };
     await save(db);
     return db;
   }
@@ -424,4 +430,90 @@ export const devRepo: Repo = {
       db.settings = { ...settings };
     });
   },
+
+  async getPitchPaymentKey(slug, provider) {
+    const db = await load();
+    const p = livePitch(db, slug);
+    return p ? (db.keys.find((k) => k.provider === provider)?.ciphertext ?? null) : null;
+  },
+
+  createPitchOrder(slug, order, tokenHash) {
+    return mutate((db) => {
+      const p = livePitch(db, slug);
+      if (!p) throw new Error('pitch not available');
+      db.orders.push(newOrder(p.id, order, tokenHash));
+    });
+  },
+
+  createOrder(projectId, order, tokenHash) {
+    return mutate((db) => {
+      db.orders.push(newOrder(projectId, order, tokenHash));
+    });
+  },
+
+  async settleOrder(reference, token, status) {
+    let ok = false;
+    await mutate((db) => {
+      const o = db.orders.find((x) => x.reference === reference);
+      if (!o || o.tokenHash !== sha256(token) || (o.status !== 'pending' && o.status !== 'failed')) return;
+      o.status = status;
+      if (status === 'paid') o.paidAt ??= new Date().toISOString();
+      ok = true;
+    });
+    return ok;
+  },
+
+  async orderPitchSlug(reference) {
+    const db = await load();
+    const o = db.orders.find((x) => x.reference === reference);
+    return o ? (db.projects.find((p) => p.id === o.projectId)?.pitchSlug ?? null) : null;
+  },
+
+  async reportSiteOrder(projectId, key, order, mode) {
+    let ok = false;
+    await mutate((db) => {
+      if (!db.ordersKeys[projectId] || db.ordersKeys[projectId] !== sha256(key)) return;
+      ok = true;
+      if (db.orders.some((o) => o.reference === order.reference)) return;
+      db.orders.push({ ...newOrder(projectId, order, null), mode, status: 'paid', paidAt: new Date().toISOString() });
+    });
+    return ok;
+  },
+
+  setOrdersKeyHash(projectId, hash) {
+    return mutate((db) => {
+      db.ordersKeys[projectId] = hash;
+    });
+  },
+
+  async listOrders(projectId, limit = 100) {
+    return (await load()).orders
+      .filter((o) => o.projectId === projectId)
+      .reverse()
+      .slice(0, limit)
+      .map(({ projectId: _p, tokenHash: _t, ...o }) => o);
+  },
+
+  setOrderStatus(projectId, orderId, status) {
+    return mutate((db) => {
+      const o = db.orders.find((x) => x.id === orderId && x.projectId === projectId);
+      if (o) o.status = status;
+    });
+  },
 };
+
+const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
+
+function livePitch(db: DevDb, slug: string): Project | null {
+  const p = db.projects.find((x) => x.pitchSlug === slug);
+  if (!p || p.pitchPaused) return null;
+  const expiresAt = pitchExpiresAt(p);
+  return expiresAt && expiresAt <= new Date().toISOString() ? null : p;
+}
+
+function newOrder(projectId: string, order: Order, tokenHash: string | null): DevDb['orders'][number] {
+  return {
+    id: randomUUID(), projectId, tokenHash, reference: order.reference, provider: order.provider, mode: 'test', status: 'pending',
+    currency: order.currency, total: order.total, lines: order.lines, customer: order.customer, createdAt: new Date().toISOString(), paidAt: null,
+  };
+}

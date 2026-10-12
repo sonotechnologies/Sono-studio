@@ -39,6 +39,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // Everything except static files, logos and the public pitch pages with their open logging and images.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo/|p/|api/pitch/|api/uploads/).*)'],
+  // Everything except static files, logos, the public pitch pages (with their open logging, images and checkout),
+  // payment webhooks and orders reported by live sites.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|logo/|p/|api/pitch/|api/uploads/|api/pay/|api/sites/).*)'],
 };

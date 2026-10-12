@@ -5,11 +5,13 @@ import { getRepo } from '@/lib/auth';
 import { shortDate, siteUrl } from '@/lib/format';
 import { validSlug } from '@/lib/pitch';
 import { whatsappHref } from '@/site/primitives';
-import { findPage, SitePageView } from '@/site/render';
+import { checkoutCtx, confirmOrder } from '@/lib/checkout';
+import { findPage, orderPage, siteKey, SitePageView } from '@/site/render';
+import { OrderView } from '@/site/store/order-view';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import { PitchShell } from '../pitch-shell';
 
-type Props = { params: Promise<{ slug: string; path?: string[] }> };
+type Props = { params: Promise<{ slug: string; path?: string[] }>; searchParams: Promise<{ session_id?: string }> };
 
 /** One read per request, shared by the metadata and the page. */
 const load = cache(async (slug: string) => {
@@ -41,7 +43,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function PitchPage({ params }: Props) {
+export default async function PitchPage({ params, searchParams }: Props) {
   const { slug, path } = await params;
   const data = await load(slug);
   if (!data) notFound();
@@ -62,17 +64,38 @@ export default async function PitchPage({ params }: Props) {
   }
 
   const sitePath = `/${(path ?? []).join('/')}`;
-  const page = findPage(config, sitePath);
-  if (!page) notFound();
   const base = `/p/${slug}`;
   const link = (href: string) => {
     const [p, hash] = href.split('#');
     return `${base}${p === '/' ? '' : p}${hash ? `#${hash}` : ''}`;
   };
+  const repo = await getRepo();
+  const scope = { kind: 'pitch' as const, slug };
+  const ctx = { link, editable: false, checkout: config.store ? await checkoutCtx(repo, scope, config) : undefined };
+  const banner = pitch.banner ? { whatsapp: pitch.whatsapp, instagram: pitch.instagram, businessName: config.meta.businessName } : null;
 
+  // Back from a payment page: the order, checked with the payment provider.
+  const orderRef = path?.[0] === 'order' && path.length === 2 && /^[a-z0-9-]{6,80}$/.test(path[1]) ? path[1] : null;
+  if (orderRef && config.store) {
+    const result = await confirmOrder(repo, scope, orderRef, await searchParams);
+    return (
+      <PitchShell slug={slug} path="/order" banner={banner}>
+        <SitePageView
+          config={config}
+          page={orderPage(config)}
+          ctx={ctx}
+          className="min-h-dvh"
+          insert={<OrderView config={config} reference={orderRef} verified={result.verified} error={result.error} ctx={ctx} siteKey={siteKey(config)} test />}
+        />
+      </PitchShell>
+    );
+  }
+
+  const page = findPage(config, sitePath);
+  if (!page) notFound();
   return (
-    <PitchShell slug={slug} path={sitePath} banner={pitch.banner ? { whatsapp: pitch.whatsapp, instagram: pitch.instagram, businessName: config.meta.businessName } : null}>
-      <SitePageView config={config} page={page} ctx={{ link, editable: false }} className="min-h-dvh" />
+    <PitchShell slug={slug} path={sitePath} banner={banner}>
+      <SitePageView config={config} page={page} ctx={ctx} className="min-h-dvh" />
     </PitchShell>
   );
 }

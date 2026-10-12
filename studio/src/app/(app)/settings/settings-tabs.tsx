@@ -6,13 +6,14 @@ import { Switch, btn, inputClass, useToast } from '@/components/ui';
 import type { StudioSettings } from '@/lib/types';
 import { signOutAction } from '../../login/actions';
 import { saveSettingsAction } from './actions';
-import { ConnectionsPanel, ProvidersPanel, type KeyView } from './keys-panels';
+import { ConnectionsPanel, PaymentsPanel, ProvidersPanel, type KeyView } from './keys-panels';
 
-export type SettingsTab = 'providers' | 'connections' | 'pitch' | 'account';
+export type SettingsTab = 'providers' | 'connections' | 'payments' | 'pitch' | 'account';
 
 const TAB_NAMES: Record<SettingsTab, string> = {
   providers: 'AI providers',
   connections: 'Connections',
+  payments: 'Test payments',
   pitch: 'Pitch defaults',
   account: 'Account',
 };
@@ -24,6 +25,7 @@ export function SettingsTabs({
   keys,
   demo,
   supabase,
+  siteUrl,
 }: {
   tab: SettingsTab;
   settings: StudioSettings;
@@ -31,6 +33,8 @@ export function SettingsTabs({
   keys: KeyView[];
   demo: boolean;
   supabase: boolean;
+  /** The studio's public address, for the webhook URLs. */
+  siteUrl: string;
 }) {
   return (
     <>
@@ -51,6 +55,7 @@ export function SettingsTabs({
       </nav>
       {tab === 'providers' && <ProvidersPanel rows={keys} demo={demo} />}
       {tab === 'connections' && <ConnectionsPanel rows={keys} supabase={supabase} />}
+      {tab === 'payments' && <PaymentsPanel rows={keys} siteUrl={siteUrl} />}
       {tab === 'pitch' && <PitchDefaults initial={settings} />}
       {tab === 'account' && (
         <div className="flex flex-wrap items-center gap-4 rounded-card border border-border bg-surface p-[18px]">

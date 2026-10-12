@@ -30,6 +30,12 @@ export function productPage(config: SiteConfig, productId: string): SitePage {
   };
 }
 
+/** The page an order confirmation sits in: the home page's navbar, footer and WhatsApp button. */
+export function orderPage(config: SiteConfig): SitePage {
+  const home = config.pages.find((p) => p.path === '/') ?? config.pages[0];
+  return { id: 'order', path: '/order', title: 'Your order', sections: home.sections.filter((s) => s.type === 'navbar' || s.type === 'footer' || s.type === 'whatsapp-float') };
+}
+
 /** A short, stable key for the site's cart in the visitor's browser. */
 export function siteKey(config: SiteConfig): string {
   return config.meta.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || 'site';
@@ -44,11 +50,14 @@ export function SitePageView({
   page,
   ctx,
   className = '',
+  insert,
 }: {
   config: SiteConfig;
   page: SitePage;
   ctx: RenderCtx;
   className?: string;
+  /** Shown after the navbar, e.g. an order confirmation. */
+  insert?: React.ReactNode;
 }) {
   const store = config.store;
   const key = siteKey(config);
@@ -58,7 +67,7 @@ export function SitePageView({
       <div className="s-root" lang={config.meta.language}>
         {page.sections
           .filter((s) => !s.hidden)
-          .map((s) => (
+          .map((s, i, list) => [
             <div
               key={s.id}
               // Section ids double as anchors (/#offer). The floating WhatsApp button must not get its own box,
@@ -70,9 +79,18 @@ export function SitePageView({
               {...(ctx.editable ? { 'data-section-id': s.id, 'data-section-type': s.type } : {})}
             >
               {renderSection(s, sectionCtx)}
-            </div>
-          ))}
-        {store && store.products.length > 0 && !ctx.editable && <CartDrawer site={key} business={config.meta.businessName} currency={store.currency} whatsapp={store.whatsapp} />}
+            </div>,
+            insert && (s.type === 'navbar' ? !list.slice(0, i).some((x) => x.type === 'navbar') : i === 0 && !list.some((x) => x.type === 'navbar')) ? <main key="insert">{insert}</main> : null,
+          ])}
+        {store && store.products.length > 0 && !ctx.editable && (
+          <CartDrawer
+            site={key}
+            business={config.meta.businessName}
+            currency={store.currency}
+            whatsapp={!store.payments || store.payments.whatsapp ? store.whatsapp : ''}
+            checkout={ctx.checkout?.providers.length ? ctx.checkout : undefined}
+          />
+        )}
       </div>
     </div>
   );

@@ -4,12 +4,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Logo } from '@/components/logo';
 import { getRepo, requireUser } from '@/lib/auth';
-import { findPage, SitePageView } from '@/site/render';
+import { checkoutCtx, confirmOrder } from '@/lib/checkout';
+import { findPage, orderPage, siteKey, SitePageView } from '@/site/render';
+import { OrderView } from '@/site/store/order-view';
 import { siteConfigSchema } from '@/site/schema';
 
 type Props = {
   params: Promise<{ id: string; slug?: string[] }>;
-  searchParams: Promise<{ w?: string }>;
+  searchParams: Promise<{ w?: string; session_id?: string }>;
 };
 
 const WIDTHS = {
@@ -36,7 +38,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function PreviewPage({ params, searchParams }: Props) {
   await requireUser();
   const { id, slug } = await params;
-  const { w } = await searchParams;
+  const query = await searchParams;
+  const { w } = query;
   const data = await load(id);
   if (!data) notFound();
   const { project, version } = data;
@@ -61,8 +64,14 @@ export default async function PreviewPage({ params, searchParams }: Props) {
     );
   }
   const config = parsed.data;
-  const page = findPage(config, path);
+  // Back from a test payment: the order page, checked with the provider.
+  const orderRef = slug?.[0] === 'order' && slug.length === 2 && /^[a-z0-9-]{6,80}$/.test(slug[1]) ? slug[1] : null;
+  const page = orderRef && config.store ? orderPage(config) : findPage(config, path);
   if (!page) notFound();
+  const repo = await getRepo();
+  const scope = { kind: 'preview' as const, projectId: id };
+  const checkout = config.store ? await checkoutCtx(repo, scope, config) : undefined;
+  const result = orderRef && config.store ? await confirmOrder(repo, scope, orderRef, query) : null;
 
   /** Site paths ("/menu", "/#offer") become preview URLs that keep the chosen width. */
   const link = (href: string) => {
@@ -137,7 +146,12 @@ export default async function PreviewPage({ params, searchParams }: Props) {
           style={{ maxWidth: WIDTHS[width].max }}
           className={`mx-auto ${width === 'desktop' ? '' : 'overflow-clip rounded-[18px] shadow-[0_20px_60px_rgba(22,20,15,.25)]'}`}
         >
-          <SitePageView config={config} page={page} ctx={{ link, editable: false }} />
+          <SitePageView
+            config={config}
+            page={page}
+            ctx={{ link, editable: false, checkout }}
+            insert={result && orderRef ? <OrderView config={config} reference={orderRef} verified={result.verified} error={result.error} ctx={{ link, editable: false }} siteKey={siteKey(config)} test /> : undefined}
+          />
         </div>
       </main>
     </div>

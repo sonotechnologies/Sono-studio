@@ -1,11 +1,13 @@
 import type { ProviderId, StockProviderId, Tier } from '@/ai/types';
 import type { Asset, Brief, GenerationJob } from '@/generate/brief';
-import type { SiteConfig, SiteTheme } from '@/site/schema';
+import type { PaymentProvider, SiteConfig, SiteTheme } from '@/site/schema';
+import type { Order } from '@/site/store/payments';
 import type { MirrorMeta } from '@/mirror/copy';
 import type {
   ClientPatch,
   DeployProviderId,
   NewProjectInput,
+  PaymentKeyProvider,
   Project,
   ProjectPatch,
   ProjectStatus,
@@ -67,9 +69,44 @@ export interface Repo {
   /** Records where the site lives once a deploy is ready. */
   setProjectLinks(projectId: string, links: { liveUrl?: string; repoUrl?: string }): Promise<void>;
   updateSettings(settings: StudioSettings): Promise<void>;
+
+  /* Orders. The pitch and report methods work without a signed-in user. */
+  /** The encrypted test key for a live pitch link's demo checkout, or null. */
+  getPitchPaymentKey(slug: string, provider: PaymentKeyProvider): Promise<string | null>;
+  /** A test checkout from a pitch link, pending until paid. `tokenHash` is the sha256 of its settle token. */
+  createPitchOrder(slug: string, order: Order, tokenHash: string): Promise<void>;
+  /** A test checkout from the studio preview (signed in). */
+  createOrder(projectId: string, order: Order, tokenHash: string): Promise<void>;
+  /** Marks an order paid or failed once the provider confirmed it; needs the order's token. */
+  settleOrder(reference: string, token: string, status: 'paid' | 'failed'): Promise<boolean>;
+  /** The pitch slug an order came from, for webhooks. */
+  orderPitchSlug(reference: string): Promise<string | null>;
+  /** A paid order reported by a live site with its project's order key. */
+  reportSiteOrder(projectId: string, key: string, order: Order, mode: 'test' | 'live'): Promise<boolean>;
+  /** Sets the hash of the key a deployed site reports orders with. */
+  setOrdersKeyHash(projectId: string, hash: string): Promise<void>;
+  /** Newest first. */
+  listOrders(projectId: string, limit?: number): Promise<OrderRecord[]>;
+  setOrderStatus(projectId: string, orderId: string, status: OrderStatus): Promise<void>;
 }
 
-export type KeyProvider = Exclude<ProviderId, 'demo'> | StockProviderId | DeployProviderId;
+export type OrderStatus = 'pending' | 'paid' | 'failed' | 'fulfilled' | 'cancelled';
+
+export interface OrderRecord {
+  id: string;
+  reference: string;
+  provider: PaymentProvider;
+  mode: 'test' | 'live';
+  status: OrderStatus;
+  currency: string;
+  total: number;
+  lines: Order['lines'];
+  customer: Order['customer'];
+  createdAt: string;
+  paidAt: string | null;
+}
+
+export type KeyProvider = Exclude<ProviderId, 'demo'> | StockProviderId | DeployProviderId | PaymentKeyProvider;
 
 export interface ProviderKeyRow {
   provider: KeyProvider;

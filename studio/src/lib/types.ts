@@ -34,6 +34,10 @@ export type PresetId = (typeof PRESET_IDS)[number];
 export const DEPLOY_PROVIDERS = ['github', 'vercel'] as const;
 export type DeployProviderId = (typeof DEPLOY_PROVIDERS)[number];
 
+/** Your own test keys for demo checkouts on pitch links. Clients' live keys are never stored. */
+export const PAYMENT_KEY_PROVIDERS = ['paystack', 'stripe', 'stripe_webhook'] as const;
+export type PaymentKeyProvider = (typeof PAYMENT_KEY_PROVIDERS)[number];
+
 export const PITCH_EXPIRY_OPTIONS = [7, 30, 90, null] as const;
 export type PitchExpiryDays = (typeof PITCH_EXPIRY_OPTIONS)[number];
 

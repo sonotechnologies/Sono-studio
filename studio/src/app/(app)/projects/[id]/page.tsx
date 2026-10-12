@@ -34,6 +34,8 @@ export default async function ProjectPage({ params }: Props) {
     repo.listProviderKeys(),
     repo.getLatestDeployment(project.id),
   ]);
+  const shop = !!(version && (version.config as { store?: unknown }).store);
+  const orders = shop ? await repo.listOrders(project.id, 100) : null;
   const copy = version ? null : await repo.getSiteCopyMeta(project.id);
   const parsed = version ? siteConfigSchema.safeParse(version.config) : null;
   const website = parsed?.success
@@ -56,7 +58,7 @@ export default async function ProjectPage({ params }: Props) {
   const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} />
+      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} />
     </Page>
   );
 }
