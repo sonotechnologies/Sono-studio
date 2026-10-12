@@ -88,6 +88,63 @@ export interface Repo {
   /** Newest first. */
   listOrders(projectId: string, limit?: number): Promise<OrderRecord[]>;
   setOrderStatus(projectId: string, orderId: string, status: OrderStatus): Promise<void>;
+
+  /* Bookings. The pitch, site and settle methods work without a signed-in user. */
+  /** Taken times (never who took them) on a live pitch link, a deployed site, or your own project. */
+  pitchBusy(slug: string, from: string, to: string): Promise<Busy[]>;
+  siteBusy(projectId: string, from: string, to: string): Promise<Busy[]>;
+  projectBusy(projectId: string, from: string, to: string): Promise<Busy[]>;
+  /** Holds a time for 30 minutes while a test deposit is paid. Throws "time taken" if it's gone. */
+  createPitchBooking(slug: string, hold: BookingHold, tokenHash: string): Promise<void>;
+  createPreviewBooking(projectId: string, hold: BookingHold, tokenHash: string): Promise<void>;
+  /** A deployed site's booking, with its project's order key. False if the key is wrong. */
+  holdSiteBooking(projectId: string, key: string, hold: BookingHold, mode: 'test' | 'live'): Promise<boolean>;
+  settleBooking(reference: string, token: string): Promise<boolean>;
+  confirmSiteBooking(projectId: string, key: string, reference: string): Promise<boolean>;
+  bookingPitchSlug(reference: string): Promise<string | null>;
+  /** Soonest first, from `since` on. */
+  listBookings(projectId: string, since: string, limit?: number): Promise<BookingRecord[]>;
+  setBookingStatus(projectId: string, bookingId: string, status: BookingStatus): Promise<void>;
+}
+
+export interface Busy {
+  start: string;
+  end: string;
+}
+
+export interface BookingHold {
+  reference: string;
+  serviceId: string;
+  serviceName: string;
+  start: string;
+  end: string;
+  capacity: number;
+  provider: PaymentProvider | null;
+  currency: string;
+  deposit: number;
+  price: number;
+  customer: Order['customer'];
+}
+
+export type BookingStatus = 'held' | 'confirmed' | 'cancelled' | 'done' | 'no_show';
+
+export interface BookingRecord {
+  id: string;
+  reference: string;
+  serviceId: string;
+  serviceName: string;
+  start: string;
+  end: string;
+  status: BookingStatus;
+  /** Until when a held booking keeps its time. */
+  holdUntil: string | null;
+  provider: PaymentProvider | null;
+  mode: 'test' | 'live';
+  currency: string;
+  deposit: number;
+  price: number;
+  customer: Order['customer'];
+  createdAt: string;
 }
 
 export type OrderStatus = 'pending' | 'paid' | 'failed' | 'fulfilled' | 'cancelled';

@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Logo } from '@/components/logo';
 import { getRepo, requireUser } from '@/lib/auth';
-import { checkoutCtx, confirmOrder } from '@/lib/checkout';
+import { bookingCtx, checkoutCtx, confirmOrder } from '@/lib/checkout';
 import { findPage, orderPage, siteKey, SitePageView } from '@/site/render';
 import { OrderView } from '@/site/store/order-view';
+import { BookingView } from '@/site/store/booking-view';
 import { siteConfigSchema } from '@/site/schema';
 
 type Props = {
@@ -66,12 +67,15 @@ export default async function PreviewPage({ params, searchParams }: Props) {
   const config = parsed.data;
   // Back from a test payment: the order page, checked with the provider.
   const orderRef = slug?.[0] === 'order' && slug.length === 2 && /^[a-z0-9-]{6,80}$/.test(slug[1]) ? slug[1] : null;
-  const page = orderRef && config.store ? orderPage(config) : findPage(config, path);
+  const bookingRef = slug?.[0] === 'booking' && slug.length === 2 && /^[a-z0-9-]{6,80}$/.test(slug[1]) ? slug[1] : null;
+  const page = (orderRef && config.store) || (bookingRef && config.bookings) ? orderPage(config) : findPage(config, path);
   if (!page) notFound();
   const repo = await getRepo();
   const scope = { kind: 'preview' as const, projectId: id };
   const checkout = config.store ? await checkoutCtx(repo, scope, config) : undefined;
+  const booking = await bookingCtx(repo, scope, config);
   const result = orderRef && config.store ? await confirmOrder(repo, scope, orderRef, query) : null;
+  const bookingResult = bookingRef && config.bookings ? await confirmOrder(repo, scope, bookingRef, query) : null;
 
   /** Site paths ("/menu", "/#offer") become preview URLs that keep the chosen width. */
   const link = (href: string) => {
@@ -149,8 +153,14 @@ export default async function PreviewPage({ params, searchParams }: Props) {
           <SitePageView
             config={config}
             page={page}
-            ctx={{ link, editable: false, checkout }}
-            insert={result && orderRef ? <OrderView config={config} reference={orderRef} verified={result.verified} error={result.error} ctx={{ link, editable: false }} siteKey={siteKey(config)} test /> : undefined}
+            ctx={{ link, editable: false, checkout, booking }}
+            insert={
+              result && orderRef ? (
+                <OrderView config={config} reference={orderRef} verified={result.verified} error={result.error} ctx={{ link, editable: false }} siteKey={siteKey(config)} test />
+              ) : bookingResult && bookingRef ? (
+                <BookingView config={config} reference={bookingRef} verified={bookingResult.verified} error={bookingResult.error} ctx={{ link, editable: false }} test />
+              ) : undefined
+            }
           />
         </div>
       </main>

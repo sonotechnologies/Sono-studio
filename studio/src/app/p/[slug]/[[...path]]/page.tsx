@@ -5,9 +5,10 @@ import { getRepo } from '@/lib/auth';
 import { shortDate, siteUrl } from '@/lib/format';
 import { validSlug } from '@/lib/pitch';
 import { whatsappHref } from '@/site/primitives';
-import { checkoutCtx, confirmOrder } from '@/lib/checkout';
+import { bookingCtx, checkoutCtx, confirmOrder } from '@/lib/checkout';
 import { findPage, orderPage, siteKey, SitePageView } from '@/site/render';
 import { OrderView } from '@/site/store/order-view';
+import { BookingView } from '@/site/store/booking-view';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import { PitchShell } from '../pitch-shell';
 
@@ -71,7 +72,7 @@ export default async function PitchPage({ params, searchParams }: Props) {
   };
   const repo = await getRepo();
   const scope = { kind: 'pitch' as const, slug };
-  const ctx = { link, editable: false, checkout: config.store ? await checkoutCtx(repo, scope, config) : undefined };
+  const ctx = { link, editable: false, checkout: config.store ? await checkoutCtx(repo, scope, config) : undefined, booking: await bookingCtx(repo, scope, config) };
   const banner = pitch.banner ? { whatsapp: pitch.whatsapp, instagram: pitch.instagram, businessName: config.meta.businessName } : null;
 
   // Back from a payment page: the order, checked with the payment provider.
@@ -87,6 +88,17 @@ export default async function PitchPage({ params, searchParams }: Props) {
           className="min-h-dvh"
           insert={<OrderView config={config} reference={orderRef} verified={result.verified} error={result.error} ctx={ctx} siteKey={siteKey(config)} test />}
         />
+      </PitchShell>
+    );
+  }
+
+  // Back from paying a booking deposit.
+  const bookingRef = path?.[0] === 'booking' && path.length === 2 && /^[a-z0-9-]{6,80}$/.test(path[1]) ? path[1] : null;
+  if (bookingRef && config.bookings) {
+    const result = await confirmOrder(repo, scope, bookingRef, await searchParams);
+    return (
+      <PitchShell slug={slug} path="/booking" banner={banner}>
+        <SitePageView config={config} page={orderPage(config)} ctx={ctx} className="min-h-dvh" insert={<BookingView config={config} reference={bookingRef} verified={result.verified} error={result.error} ctx={ctx} test />} />
       </PitchShell>
     );
   }

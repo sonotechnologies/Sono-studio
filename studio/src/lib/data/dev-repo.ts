@@ -6,7 +6,7 @@ import type { Asset, GenerationJob } from '@/generate/brief';
 import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type OrderRecord, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type BookingHold, type BookingRecord, type Busy, type OrderRecord, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 import type { Order } from '@/site/store/payments';
 
 /**
@@ -29,6 +29,7 @@ interface DevDb {
   orders: (OrderRecord & { projectId: string; tokenHash: string | null })[];
   /** Hash of each project's order key, for live sites reporting orders. */
   ordersKeys: Record<string, string>;
+  bookings: (BookingRecord & { projectId: string; tokenHash: string | null })[];
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -55,11 +56,12 @@ async function load(): Promise<DevDb> {
     db.copies ??= {};
     db.orders ??= [];
     db.ordersKeys ??= {};
+    db.bookings ??= [];
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {}, orders: [], ordersKeys: {} };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {}, orders: [], ordersKeys: {}, bookings: [] };
     await save(db);
     return db;
   }
@@ -500,9 +502,108 @@ export const devRepo: Repo = {
       if (o) o.status = status;
     });
   },
+
+  async pitchBusy(slug, from, to) {
+    const db = await load();
+    const p = livePitch(db, slug);
+    return p ? busyIn(db, p.id, from, to) : [];
+  },
+
+  async siteBusy(projectId, from, to) {
+    const db = await load();
+    return db.ordersKeys[projectId] ? busyIn(db, projectId, from, to) : [];
+  },
+
+  async projectBusy(projectId, from, to) {
+    return busyIn(await load(), projectId, from, to);
+  },
+
+  createPitchBooking(slug, hold, tokenHash) {
+    return mutate((db) => {
+      const p = livePitch(db, slug);
+      if (!p) throw new Error('pitch not available');
+      holdIn(db, p.id, hold, 'test', tokenHash);
+    });
+  },
+
+  createPreviewBooking(projectId, hold, tokenHash) {
+    return mutate((db) => holdIn(db, projectId, hold, 'test', tokenHash));
+  },
+
+  async holdSiteBooking(projectId, key, hold, mode) {
+    let ok = false;
+    await mutate((db) => {
+      if (!db.ordersKeys[projectId] || db.ordersKeys[projectId] !== sha256(key)) return;
+      holdIn(db, projectId, hold, mode, null);
+      ok = true;
+    });
+    return ok;
+  },
+
+  async settleBooking(reference, token) {
+    let ok = false;
+    await mutate((db) => {
+      const b = db.bookings.find((x) => x.reference === reference);
+      if (!b || b.status !== 'held' || b.tokenHash !== sha256(token)) return;
+      b.status = 'confirmed';
+      ok = true;
+    });
+    return ok;
+  },
+
+  async confirmSiteBooking(projectId, key, reference) {
+    let ok = false;
+    await mutate((db) => {
+      if (db.ordersKeys[projectId] !== sha256(key)) return;
+      ok = true;
+      const b = db.bookings.find((x) => x.projectId === projectId && x.reference === reference);
+      if (b?.status === 'held') b.status = 'confirmed';
+    });
+    return ok;
+  },
+
+  async bookingPitchSlug(reference) {
+    const db = await load();
+    const b = db.bookings.find((x) => x.reference === reference);
+    return b ? (db.projects.find((p) => p.id === b.projectId)?.pitchSlug ?? null) : null;
+  },
+
+  async listBookings(projectId, since, limit = 200) {
+    return (await load()).bookings
+      .filter((b) => b.projectId === projectId && b.end >= since)
+      .sort((a, b) => a.start.localeCompare(b.start))
+      .slice(0, limit)
+      .map(({ projectId: _p, tokenHash: _t, ...b }) => b);
+  },
+
+  setBookingStatus(projectId, bookingId, status) {
+    return mutate((db) => {
+      const b = db.bookings.find((x) => x.id === bookingId && x.projectId === projectId);
+      if (b) b.status = status;
+    });
+  },
 };
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
+
+const activeBooking = (b: BookingRecord) => b.status === 'confirmed' || (b.status === 'held' && !!b.holdUntil && Date.parse(b.holdUntil) > Date.now());
+
+function busyIn(db: DevDb, projectId: string, from: string, to: string): Busy[] {
+  if (Date.parse(to) <= Date.parse(from) || Date.parse(to) - Date.parse(from) > 15 * 86_400_000) return [];
+  return db.bookings
+    .filter((b) => b.projectId === projectId && activeBooking(b) && Date.parse(b.start) < Date.parse(to) && Date.parse(b.end) > Date.parse(from))
+    .map((b) => ({ start: b.start, end: b.end }));
+}
+
+function holdIn(db: DevDb, projectId: string, h: BookingHold, mode: 'test' | 'live', tokenHash: string | null) {
+  const overlapping = db.bookings.filter((b) => b.projectId === projectId && activeBooking(b) && Date.parse(b.start) < Date.parse(h.end) && Date.parse(b.end) > Date.parse(h.start)).length;
+  if (overlapping >= Math.max(1, Math.min(h.capacity, 20))) throw new Error('time taken');
+  db.bookings.push({
+    id: randomUUID(), projectId, tokenHash, reference: h.reference, serviceId: h.serviceId, serviceName: h.serviceName, start: h.start, end: h.end,
+    status: 'held', holdUntil: new Date(Date.now() + 30 * 60_000).toISOString(), provider: h.provider, mode, currency: h.currency, deposit: h.deposit,
+    price: h.price, customer: h.customer, createdAt: new Date().toISOString(),
+  });
+}
 
 function livePitch(db: DevDb, slug: string): Project | null {
   const p = db.projects.find((x) => x.pitchSlug === slug);

@@ -2,13 +2,15 @@ import 'server-only';
 import { decryptSecret, serverSecret } from '@/lib/crypto';
 import type { Repo } from '@/lib/data/repo';
 import { siteUrl } from '@/lib/format';
-import type { CheckoutCtx } from '@/site/primitives';
+import type { BookingCtx, CheckoutCtx } from '@/site/primitives';
 import { siteKey } from '@/site/render';
 import { siteConfigSchema, type PaymentProvider, type SiteConfig } from '@/site/schema';
 import {
   cardProviders,
   checkPaystack,
+  depositProviders,
   newReference,
+  priceBooking,
   orderToken,
   PaymentError,
   priceCart,
@@ -76,9 +78,56 @@ export async function startCheckout(repo: Repo, scope: Scope, body: unknown, ori
   return startPayment({ secret, order, returnUrl: `${site}/order/${order.reference}`, cancelUrl: `${site}${config.pages.find((p) => p.sections.some((s) => s.type === 'product-grid'))?.path.replace(/^\/$/, '') ?? ''}` });
 }
 
+/* ---------- Bookings ---------- */
+
+/** What the booking widget can do here: live free times, and deposits with the providers that have a test key. */
+export async function bookingCtx(repo: Repo, scope: Scope, config: SiteConfig): Promise<BookingCtx | undefined> {
+  if (!config.bookings) return undefined;
+  const providers: PaymentProvider[] = [];
+  for (const p of depositProviders(config.bookings)) if (await keyFor(repo, scope, p).catch(() => null)) providers.push(p);
+  const api = scope.kind === 'pitch' ? `/api/pitch/${scope.slug}` : `/api/projects/${scope.projectId}`;
+  return { busyEndpoint: `${api}/busy`, bookEndpoint: `${api}/book`, providers, test: true };
+}
+
+/** Taken times between two moments (at most 15 days apart). */
+export function busyFor(repo: Repo, scope: Scope, from: string, to: string) {
+  return scope.kind === 'pitch' ? repo.pitchBusy(scope.slug, from, to) : repo.projectBusy(scope.projectId, from, to);
+}
+
+/** Checks the time is free, holds it, and returns the deposit's payment page. */
+export async function startBooking(repo: Repo, scope: Scope, body: unknown, origin: string = siteUrl()): Promise<string> {
+  const config = await configFor(repo, scope);
+  const b = config?.bookings;
+  if (!config || !b) throw new PaymentError('Booking isn’t available here.');
+  const start = Date.parse(String((body as { start?: unknown } | null)?.start ?? ''));
+  if (Number.isNaN(start)) throw new PaymentError('Choose a time.');
+  const busy = await busyFor(repo, scope, new Date(start - 86_400_000).toISOString(), new Date(start + 2 * 86_400_000).toISOString());
+  const { order: priced, slot } = priceBooking(b, body, busy);
+  const secret = await keyFor(repo, scope, priced.provider);
+  if (!secret) throw new PaymentError('Deposits aren’t set up for this demo yet.');
+  const order = { ...priced, reference: newReference(siteKey(config)) };
+  const token = tokenFor(order.reference);
+  const hold = {
+    reference: order.reference, serviceId: priced.booking!.serviceId, serviceName: priced.booking!.serviceName, start: slot.start, end: slot.end,
+    capacity: b.capacity, provider: priced.provider, currency: b.currency, deposit: priced.total,
+    price: b.services.find((s) => s.id === priced.booking!.serviceId)!.price, customer: priced.customer,
+  };
+  try {
+    if (scope.kind === 'pitch') await repo.createPitchBooking(scope.slug, hold, sha256(token));
+    else await repo.createPreviewBooking(scope.projectId, hold, sha256(token));
+  } catch (err) {
+    if (/time taken/.test((err as Error).message)) throw new PaymentError('Someone has just booked that time. Choose another.');
+    throw err;
+  }
+  const site = `${origin}${base(scope)}`;
+  const bookPath = config.pages.find((p) => p.sections.some((s) => s.type === 'booking'))?.path ?? '/';
+  return startPayment({ secret, order, returnUrl: `${site}/booking/${order.reference}`, cancelUrl: `${site}${bookPath === '/' ? '' : bookPath}` });
+}
+
 /**
- * Checks an order with the provider when the customer comes back to the order
- * page, and marks it paid. Stripe sends a session id back; Paystack the reference.
+ * Checks a payment with the provider when the customer comes back, and marks
+ * the order paid or the booking confirmed. Stripe sends a session id back;
+ * Paystack the reference.
  */
 export async function confirmOrder(repo: Repo, scope: Scope, reference: string, query: { session_id?: string }): Promise<{ verified: Verified | null; error?: string }> {
   try {
@@ -87,13 +136,24 @@ export async function confirmOrder(repo: Repo, scope: Scope, reference: string, 
     if (!secret) return { verified: null, error: 'Card payments aren’t set up for this demo.' };
     const verified = provider === 'stripe' ? await verifyStripe({ secret, sessionId: query.session_id! }) : await verifyPaystack({ secret, reference });
     if (verified.order?.reference !== reference) return { verified: null, error: 'This order wasn’t found.' };
-    if (verified.paid) await repo.settleOrder(reference, tokenFor(reference), 'paid');
+    if (verified.paid) await settle(repo, verified);
     return { verified };
   } catch (err) {
     if (err instanceof PaymentError) return { verified: null, error: err.message };
     console.error('order check failed', err);
     return { verified: null, error: 'The payment couldn’t be checked right now.' };
   }
+}
+
+/** Marks a verified payment's order paid, or its booking confirmed. */
+function settle(repo: Repo, verified: Verified): Promise<boolean> {
+  const ref = verified.order!.reference;
+  return verified.order!.booking ? repo.settleBooking(ref, tokenFor(ref)) : repo.settleOrder(ref, tokenFor(ref), 'paid');
+}
+
+/** Which pitch an order or booking came from. */
+async function slugOf(repo: Repo, reference: string): Promise<string | null> {
+  return (await repo.orderPitchSlug(reference)) ?? (await repo.bookingPitchSlug(reference));
 }
 
 /** A paid order reported by Paystack's webhook (the customer may have closed the tab). */
@@ -106,11 +166,12 @@ export async function paystackWebhook(repo: Repo, raw: string, signature: string
   }
   const reference = event.data?.reference;
   if (!reference) return 200;
-  const slug = await repo.orderPitchSlug(reference);
+  const slug = await slugOf(repo, reference);
   if (!slug) return 200;
   const secret = await keyFor(repo, { kind: 'pitch', slug }, 'paystack');
   if (!secret || !check(raw, signature, secret)) return 401;
-  if (event.event === 'charge.success' && checkPaystack(event.data!).paid) await repo.settleOrder(reference, tokenFor(reference), 'paid');
+  const verified = event.event === 'charge.success' ? checkPaystack(event.data!) : null;
+  if (verified?.paid && verified.order?.reference === reference) await settle(repo, verified);
   return 200;
 }
 
@@ -125,7 +186,7 @@ export async function stripeWebhook(repo: Repo, raw: string, signature: string |
   const session = event.data?.object;
   const reference = session?.client_reference_id;
   if (!reference || !session?.id) return 200;
-  const slug = await repo.orderPitchSlug(reference);
+  const slug = await slugOf(repo, reference);
   if (!slug) return 200;
   const scope: Scope = { kind: 'pitch', slug };
   const signing = await keyFor(repo, scope, 'stripe_webhook');
@@ -135,8 +196,17 @@ export async function stripeWebhook(repo: Repo, raw: string, signature: string |
   if (!secret) return 200;
   // The event is only a nudge: the session is read back from Stripe before the order counts as paid.
   const verified = await verifyStripe({ secret, sessionId: session.id });
-  if (verified.paid && verified.order?.reference === reference) await repo.settleOrder(reference, tokenFor(reference), 'paid');
+  if (verified.paid && verified.order?.reference === reference) await settle(repo, verified);
   return 200;
 }
 
 export { PaymentError };
+
+/** Reads ?from=&to= (ISO, at most 15 days apart) for a busy-times request. */
+export function busyRange(url: string): { from: string; to: string } | null {
+  const q = new URL(url).searchParams;
+  const from = Date.parse(q.get('from') ?? '');
+  const to = Date.parse(q.get('to') ?? '');
+  if (Number.isNaN(from) || Number.isNaN(to) || to <= from || to - from > 15 * 86_400_000) return null;
+  return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+}

@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type OrderRecord, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type BookingHold, type BookingRecord, type Busy, type OrderRecord, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 import type { Order } from '@/site/store/payments';
 
 interface ClientRow {
@@ -195,6 +195,31 @@ const toOrder = (r: OrderRow): OrderRecord => ({
   id: r.id, reference: r.reference, provider: r.provider, mode: r.mode, status: r.status, currency: r.currency, total: Number(r.total),
   lines: r.lines ?? [], customer: r.customer ?? { name: '', email: '', phone: '', note: '' }, createdAt: r.created_at, paidAt: r.paid_at,
 });
+
+type BookingRow = {
+  id: string; reference: string; service_id: string; service_name: string; start_at: string; end_at: string; status: BookingRecord['status'];
+  hold_until: string | null; provider: BookingRecord['provider']; mode: BookingRecord['mode']; currency: string; deposit: number | string;
+  price: number | string; customer: BookingRecord['customer']; created_at: string;
+};
+
+const toBooking = (r: BookingRow): BookingRecord => ({
+  id: r.id, reference: r.reference, serviceId: r.service_id, serviceName: r.service_name, start: r.start_at, end: r.end_at, status: r.status,
+  holdUntil: r.hold_until, provider: r.provider, mode: r.mode, currency: r.currency, deposit: Number(r.deposit), price: Number(r.price),
+  customer: r.customer ?? { name: '', email: '', phone: '', note: '' }, createdAt: r.created_at,
+});
+
+const toBusy = (rows: { start_at: string; end_at: string }[] | null): Busy[] => (rows ?? []).map((r) => ({ start: new Date(r.start_at).toISOString(), end: new Date(r.end_at).toISOString() }));
+
+const holdArgs = (h: BookingHold) => ({
+  p_reference: h.reference, p_service_id: h.serviceId, p_service_name: h.serviceName, p_start: h.start, p_end: h.end, p_capacity: h.capacity,
+  p_provider: h.provider, p_currency: h.currency, p_deposit: h.deposit, p_price: h.price, p_customer: h.customer,
+});
+
+/** "time taken" from the database becomes a plain error the caller can show. */
+function holdError(err: unknown): never {
+  const msg = (err as Error).message ?? '';
+  throw new Error(/time taken/.test(msg) ? 'time taken' : msg);
+}
 
 export function supabaseRepo(db: SupabaseClient): Repo {
   return {
@@ -584,6 +609,66 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async setOrderStatus(projectId, orderId, status) {
       check(await db.from('orders').update({ status }).eq('id', orderId).eq('project_id', projectId));
+    },
+
+    async pitchBusy(slug, from, to) {
+      return toBusy(check(await db.rpc('pitch_busy', { p_slug: slug, p_from: from, p_to: to })) as { start_at: string; end_at: string }[]);
+    },
+
+    async siteBusy(projectId, from, to) {
+      return toBusy(check(await db.rpc('site_busy', { p_project: projectId, p_from: from, p_to: to })) as { start_at: string; end_at: string }[]);
+    },
+
+    async projectBusy(projectId, from, to) {
+      const rows = check(
+        await db.from('bookings').select('start_at, end_at, status, hold_until').eq('project_id', projectId).lt('start_at', to).gt('end_at', from).in('status', ['held', 'confirmed']),
+      ) as { start_at: string; end_at: string; status: string; hold_until: string | null }[];
+      return toBusy(rows.filter((r) => r.status === 'confirmed' || (r.hold_until && Date.parse(r.hold_until) > Date.now())));
+    },
+
+    async createPitchBooking(slug, hold, tokenHash) {
+      try {
+        check(await db.rpc('create_pitch_booking', { p_slug: slug, ...holdArgs(hold), p_token_hash: tokenHash }));
+      } catch (err) {
+        holdError(err);
+      }
+    },
+
+    async createPreviewBooking(projectId, hold, tokenHash) {
+      try {
+        check(await db.rpc('create_preview_booking', { p_project: projectId, ...holdArgs(hold), p_token_hash: tokenHash }));
+      } catch (err) {
+        holdError(err);
+      }
+    },
+
+    async holdSiteBooking(projectId, key, hold, mode) {
+      try {
+        return check(await db.rpc('hold_site_booking', { p_project: projectId, p_key: key, p_mode: mode, ...holdArgs(hold) })) === true;
+      } catch (err) {
+        holdError(err);
+      }
+    },
+
+    async settleBooking(reference, token) {
+      return check(await db.rpc('settle_booking', { p_reference: reference, p_token: token })) === true;
+    },
+
+    async confirmSiteBooking(projectId, key, reference) {
+      return check(await db.rpc('confirm_site_booking', { p_project: projectId, p_key: key, p_reference: reference })) === true;
+    },
+
+    async bookingPitchSlug(reference) {
+      return (check(await db.rpc('booking_pitch_slug', { p_reference: reference })) as string | null) ?? null;
+    },
+
+    async listBookings(projectId, since, limit = 200) {
+      const rows = check(await db.from('bookings').select('*').eq('project_id', projectId).gte('end_at', since).order('start_at', { ascending: true }).limit(limit)) as BookingRow[];
+      return rows.map(toBooking);
+    },
+
+    async setBookingStatus(projectId, bookingId, status) {
+      check(await db.from('bookings').update({ status }).eq('id', bookingId).eq('project_id', projectId));
     },
 
     async updateSettings(s) {

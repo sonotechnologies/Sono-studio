@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { PaymentProvider, Store } from '../schema';
-import { cardProviders, fromMinor, minorUnits } from './payments-info';
+import type { Bookings, PaymentProvider, Service, Store } from '../schema';
+import { depositFor, slotFree, whenLabel, type Busy, type Slot } from './booking-slots';
+import { cardProviders, fromMinor, minorUnits, PAYSTACK_CURRENCIES } from './payments-info';
 
 /*
  * Card checkout with Paystack or Stripe, on the server only. The same code
@@ -27,6 +28,8 @@ export interface Order {
   total: number;
   lines: { productId: string; name: string; options: Record<string, string>; qty: number; price: number }[];
   customer: { name: string; email: string; phone: string; note: string };
+  /** Set when the payment is a booking's deposit. */
+  booking?: { serviceId: string; serviceName: string; start: string; end: string };
 }
 
 export interface Verified {
@@ -78,6 +81,47 @@ export function priceCart(store: Store, body: unknown): Omit<Order, 'reference'>
   if (!customer.name) throw new PaymentError('Enter your name.');
   const total = Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
   return { provider: req.provider, currency: store.currency, total, lines, customer };
+}
+
+/** Card payments switched on for deposits and possible in the bookings currency. */
+export function depositProviders(b: Bookings | undefined): PaymentProvider[] {
+  if (!b || b.depositPercent <= 0) return [];
+  const out: PaymentProvider[] = [];
+  if (b.payments.paystack && PAYSTACK_CURRENCIES.includes(b.currency)) out.push('paystack');
+  if (b.payments.stripe) out.push('stripe');
+  return out;
+}
+
+/**
+ * Checks a booking request against the services and free times, and works out
+ * the deposit. `busy` is what's already taken around that time.
+ */
+export function priceBooking(b: Bookings, body: unknown, busy: Busy[], now: Date = new Date()): { order: Omit<Order, 'reference'>; service: Service; slot: Slot } {
+  const req = (body ?? {}) as { provider?: string; serviceId?: string; start?: string; customer?: CheckoutRequest['customer'] };
+  if (req.provider !== 'paystack' && req.provider !== 'stripe') throw new PaymentError('Choose a way to pay.');
+  if (!depositProviders(b).includes(req.provider)) throw new PaymentError('That way to pay isn’t available here.');
+  const service = b.services.find((s) => s.id === req.serviceId);
+  if (!service || service.sample) throw new PaymentError('That service isn’t offered any more. Choose another.');
+  const deposit = depositFor(b, service);
+  if (deposit <= 0) throw new PaymentError('This service doesn’t take a deposit. Book it on WhatsApp instead.');
+  const slot = typeof req.start === 'string' ? slotFree(b, service, req.start, busy, now) : null;
+  if (!slot) throw new PaymentError('That time isn’t free any more. Choose another.');
+  const c = req.customer ?? {};
+  const customer = { name: clip(c.name, 80), email: clip(c.email, 120), phone: clip(c.phone, 32), note: clip(c.note, 400) };
+  if (!customer.name) throw new PaymentError('Enter your name.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) throw new PaymentError('Enter an email address for the confirmation.');
+  return {
+    service,
+    slot,
+    order: {
+      provider: req.provider,
+      currency: b.currency,
+      total: deposit,
+      lines: [{ productId: service.id, name: `Deposit: ${service.name}, ${whenLabel(slot.start, b.timezone)}`, options: {}, qty: 1, price: deposit }],
+      customer,
+      booking: { serviceId: service.id, serviceName: service.name, start: slot.start, end: slot.end },
+    },
+  };
 }
 
 /** A reference both providers accept and nobody can guess. */
@@ -200,6 +244,7 @@ export async function startStripe(opts: { secret: string; order: Order; returnUr
       currency: order.currency,
       customer: JSON.stringify(order.customer).slice(0, 500),
       lines: JSON.stringify(order.lines.map((l) => [l.productId, l.qty, l.price, l.options])).slice(0, 500),
+      ...(order.booking ? { booking: JSON.stringify(order.booking).slice(0, 500) } : {}),
     },
   });
   return session.url;
@@ -238,7 +283,11 @@ export function checkStripe(s: StripeSession): Verified {
     price: fromMinor(it.amount_total, currency) / Math.max(1, it.quantity),
   }));
   const total = Number(m.total);
-  const order: Order = { reference: m.reference, provider: 'stripe', currency, total, lines, customer };
+  let booking: Order['booking'];
+  try {
+    booking = m.booking ? (JSON.parse(m.booking) as Order['booking']) : undefined;
+  } catch {}
+  const order: Order = { reference: m.reference, provider: 'stripe', currency, total, lines, customer, ...(booking ? { booking } : {}) };
   const paid = s.payment_status === 'paid' && s.currency.toUpperCase() === currency && s.amount_total === minorUnits(total, currency);
   return { paid, reason: paid ? undefined : s.status === 'expired' ? 'The payment page expired' : s.payment_status, order };
 }
