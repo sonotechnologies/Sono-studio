@@ -4,7 +4,7 @@ import { decryptSecret } from '@/lib/crypto';
 import type { Deployment, Repo } from '@/lib/data/repo';
 import { exportSite, packageName, type ExportResult, type ImageLoader } from '@/export/generate';
 import { siteConfigSchema, type PaymentProvider } from '@/site/schema';
-import { cardProviders } from '@/site/store/payments-info';
+import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { sha256 } from '@/site/store/payments';
 import { unzipSync } from 'fflate';
 import { copyChecklist } from '@/mirror/checklist';
@@ -102,7 +102,7 @@ export async function exportProject(repo: Repo, projectId: string, origin: strin
   }
   const config = siteConfigSchema.parse(version.config);
   const result = await exportSite({ config, projectName: project.name, version: version.version, loadImage: imageLoader(origin) });
-  return { ...result, name: packageName(project.name), version: version.version, framework: 'nextjs', payments: cardProviders(config.store) };
+  return { ...result, name: packageName(project.name), version: version.version, framework: 'nextjs', payments: [...new Set([...cardProviders(config.store), ...depositProviders(config.bookings)])] };
 }
 
 export async function startDeploy(repo: Repo, projectId: string, origin: string, opts: { paymentKeys?: PaymentKeys } = {}): Promise<Deployment> {
@@ -116,7 +116,13 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string,
   if (site.payments.length) {
     const ordersKey = randomBytes(32).toString('hex');
     await repo.setOrdersKeyHash(projectId, sha256(ordersKey));
-    env = { ...paymentEnv(opts.paymentKeys), SONO_ORDERS_URL: `${origin}/api/sites/${projectId}/orders`, SONO_ORDERS_KEY: ordersKey };
+    env = {
+      ...paymentEnv(opts.paymentKeys),
+      SONO_ORDERS_URL: `${origin}/api/sites/${projectId}/orders`,
+      SONO_ORDERS_KEY: ordersKey,
+      // The studio keeps the booking calendar for sites taking deposits.
+      SONO_SITE_API: `${origin}/api/sites/${projectId}`,
+    };
   }
 
   const d = await repo.createDeployment(projectId, {

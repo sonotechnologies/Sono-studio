@@ -1,4 +1,4 @@
-import type { PaymentProvider, Store } from '../schema';
+import type { Bookings, PaymentProvider, Store } from '../schema';
 
 /* Which card payments a store can take, safe to use in the browser. */
 
@@ -25,3 +25,13 @@ export function cardProviders(store: Store | undefined): PaymentProvider[] {
 }
 
 export const whatsappOn = (store: Store | undefined) => !store?.payments || store.payments.whatsapp;
+
+/** Card payments switched on for deposits and possible in the bookings currency. */
+export function depositProviders(b: Bookings | undefined): PaymentProvider[] {
+  if (!b || b.depositPercent <= 0) return [];
+  const out: PaymentProvider[] = [];
+  if (b.payments.paystack && PAYSTACK_CURRENCIES.includes(b.currency)) out.push('paystack');
+  if (b.payments.stripe) out.push('stripe');
+  return out;
+}
+

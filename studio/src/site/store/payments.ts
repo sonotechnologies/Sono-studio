@@ -1,7 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Bookings, PaymentProvider, Service, Store } from '../schema';
 import { depositFor, slotFree, whenLabel, type Busy, type Slot } from './booking-slots';
-import { cardProviders, fromMinor, minorUnits, PAYSTACK_CURRENCIES } from './payments-info';
+import { cardProviders, depositProviders, fromMinor, minorUnits } from './payments-info';
 
 /*
  * Card checkout with Paystack or Stripe, on the server only. The same code
@@ -41,7 +41,7 @@ export interface Verified {
 
 /* ---------- Which providers and currencies ---------- */
 
-export { cardProviders, minorUnits, fromMinor, PAYSTACK_CURRENCIES, whatsappOn } from './payments-info';
+export { cardProviders, depositProviders, minorUnits, fromMinor, PAYSTACK_CURRENCIES, whatsappOn } from './payments-info';
 
 /* ---------- The cart, priced on the server ---------- */
 
@@ -81,15 +81,6 @@ export function priceCart(store: Store, body: unknown): Omit<Order, 'reference'>
   if (!customer.name) throw new PaymentError('Enter your name.');
   const total = Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
   return { provider: req.provider, currency: store.currency, total, lines, customer };
-}
-
-/** Card payments switched on for deposits and possible in the bookings currency. */
-export function depositProviders(b: Bookings | undefined): PaymentProvider[] {
-  if (!b || b.depositPercent <= 0) return [];
-  const out: PaymentProvider[] = [];
-  if (b.payments.paystack && PAYSTACK_CURRENCIES.includes(b.currency)) out.push('paystack');
-  if (b.payments.stripe) out.push('stripe');
-  return out;
 }
 
 /**

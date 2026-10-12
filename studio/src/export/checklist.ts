@@ -1,5 +1,5 @@
 import type { SiteConfig } from '@/site/schema';
-import { cardProviders } from '@/site/store/payments-info';
+import { cardProviders, depositProviders } from '@/site/store/payments-info';
 
 /*
  * What to sort out before a client's site goes live. Built from the config,
@@ -92,7 +92,7 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
       detail: 'Vercel’s free Hobby plan is for non-commercial use. For a paying client, transfer the project to their own Vercel account or use a paid plan.',
     },
   ];
-  const cards = cardProviders(config.store);
+  const cards = [...new Set([...cardProviders(config.store), ...depositProviders(config.bookings)])];
   const names = cards.map((p) => (p === 'paystack' ? 'Paystack' : 'Stripe'));
   items.push(
     cards.length
@@ -132,6 +132,26 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
             : 'There’s no WhatsApp number for orders, so the cart can’t send them. Add one in the Products tab.',
       },
     );
+  }
+  const b = config.bookings;
+  if (b) {
+    const sampleServices = b.services.filter((x) => x.sample).length;
+    const canBook = (b.payments.whatsapp && b.whatsapp.replace(/[^0-9]/g, '').length >= 8) || depositProviders(b).length > 0;
+    const problems = [
+      sampleServices && `${plural(sampleServices, 'sample service')} to replace`,
+      !b.services.length && 'no services yet',
+      !b.hours.length && 'no opening hours',
+      !canBook && 'no way to book (add a WhatsApp number or a deposit)',
+    ].filter(Boolean);
+    items.splice(0, 0, {
+      key: 'bookings',
+      title: 'Bookings',
+      done: problems.length === 0,
+      important: problems.length > 0,
+      detail: problems.length
+        ? `${problems.join('; ')}. Fix them in the workspace’s Bookings tab.`
+        : `${plural(b.services.length, 'service')}, open ${b.hours.length} span${b.hours.length === 1 ? '' : 's'} a week in ${b.timezone.replace(/_/g, ' ')}. Check the services, hours and deposit with the client.`,
+    });
   }
   if (stock) {
     items.splice(1, 0, {

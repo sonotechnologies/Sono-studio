@@ -35,7 +35,7 @@ import { addableTypes } from '@/generate/plan';
 import type { ChatMessage, CustomStyle, Deployment } from '@/lib/data/repo';
 import { saveStyleAction } from '@/app/(app)/presets/actions';
 import { handoverChecklist } from '@/export/checklist';
-import { cardProviders } from '@/site/store/payments-info';
+import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { DeployDialog, fetchDeployment } from '@/components/deploy-dialog';
 import { PRESETS } from '@/lib/presets';
 import type { Project } from '@/lib/types';
@@ -66,9 +66,11 @@ import { HistoryDialog, MediaDialog } from './dialogs';
 import type { FieldCtx } from './fields';
 import { EditPanel, ThemePanel } from './panels';
 import { ProductsPanel } from './products-panel';
+import { BookingsPanel } from './bookings-panel';
+import { addBookings } from '@/workspace/bookings';
 import { Stage, type Device } from './stage';
 
-type Tab = 'chat' | 'edit' | 'theme' | 'products';
+type Tab = 'chat' | 'edit' | 'theme' | 'products' | 'bookings';
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'error';
 type ScopeKind = ChatScope['kind'];
 
@@ -704,8 +706,8 @@ export function Workspace({
         <button type="button" aria-label={sheet ? 'Collapse panel' : 'Expand panel'} onClick={() => setSheet((v) => !v)} className="flex flex-none cursor-pointer justify-center pt-2 md:hidden">
           <span className="h-1 w-10 rounded-full bg-border" />
         </button>
-        <div role="tablist" className="flex flex-none gap-4 border-b border-border px-5">
-          {(['chat', 'edit', 'theme', 'products'] as const).map((t) => (
+        <div role="tablist" className="flex flex-none gap-3.5 overflow-x-auto border-b border-border px-4 [scrollbar-width:none]">
+          {(['chat', 'edit', 'theme', 'products', 'bookings'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -716,7 +718,7 @@ export function Workspace({
                 else setSheet(true);
                 setTab(t);
               }}
-              className={`flex h-[50px] cursor-pointer items-center text-[14px] font-medium capitalize ${tab === t ? 'text-accent-text shadow-[inset_0_-2px_0_#B4502E]' : 'text-muted hover:text-text'}`}
+              className={`flex h-[50px] flex-none cursor-pointer items-center text-[14px] font-medium capitalize ${tab === t ? 'text-accent-text shadow-[inset_0_-2px_0_#B4502E]' : 'text-muted hover:text-text'}`}
             >
               {t}
             </button>
@@ -786,6 +788,20 @@ export function Workspace({
             }}
           />
         )}
+        {tab === 'bookings' && (
+          <BookingsPanel
+            config={config}
+            onChange={changeStore}
+            testKeys={testKeys}
+            onAdd={(opts) => {
+              const r = addBookings(configRef.current, opts);
+              changeStore(r.config, 'Added bookings');
+              goPage(r.pageId);
+              flash(r.config.pages.find((p) => p.id === r.pageId)?.sections.map((s) => s.id) ?? []);
+              toast('Book page added with sample services');
+            }}
+          />
+        )}
         {tab === 'theme' && (
           <ThemePanel
             theme={config.theme}
@@ -844,7 +860,7 @@ export function Workspace({
           projectName={project.name}
           version={version}
           checklist={handoverChecklist(config)}
-          payments={cardProviders(config.store)}
+          payments={[...new Set([...cardProviders(config.store), ...depositProviders(config.bookings)])]}
           hasVercel={deploy.hasVercel}
           hasGithub={deploy.hasGithub}
           initial={deployment}

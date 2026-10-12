@@ -2,7 +2,7 @@ import { PRESETS } from '@/lib/presets';
 import { siteConfigSchema, type Section, type SiteConfig, type SiteTheme } from '@/site/schema';
 import { contrast, readableOn, themeFromPreset } from '@/site/theme';
 import type { Asset, Brief, Extracted, Plan } from './brief';
-import { storeFor } from './products';
+import { bookingsFor, storeFor } from './products';
 
 /**
  * Logo colours replace the preset's primary and accent, but only where they
@@ -65,6 +65,8 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
   const wa = brief.client.whatsapp;
   const store = storeFor(brief, extracted);
   const shop = plan.pages.find((p) => p.id === 'shop');
+  const bookings = bookingsFor(brief, extracted);
+  const book = plan.pages.find((p) => p.id === 'book');
 
   const fixed = (pageId: string) => {
     const navbar: Section = {
@@ -75,7 +77,12 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
         brand: name,
         ...(logo ? { logo: { src: logo.url, alt: `${name} logo` } } : {}),
         links: navLinks.slice(0, 6),
-        cta: store && shop ? { label: 'Shop now', href: shop.path } : { label: wa ? 'Message us' : 'Get in touch', href: ctaHref },
+        cta:
+          bookings && book
+            ? { label: 'Book now', href: book.path }
+            : store && shop
+              ? { label: 'Shop now', href: shop.path }
+              : { label: wa ? 'Message us' : 'Get in touch', href: ctaHref },
       },
     };
     const footer: Section = {
@@ -114,6 +121,7 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
     theme: siteTheme(brief),
     modules: { 'contact-form': true },
     ...(store ? { store } : {}),
+    ...(bookings ? { bookings } : {}),
     pages: plan.pages.map((p) => {
       const { navbar, footer, float } = fixed(p.id);
       return { id: p.id, path: p.path, title: p.title, sections: [navbar, ...(filled[p.id] ?? []), footer, ...float] };

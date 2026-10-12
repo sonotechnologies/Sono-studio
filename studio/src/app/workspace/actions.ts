@@ -22,6 +22,7 @@ export async function saveSiteAction(projectId: string, config: SiteConfig, summ
   const version = await repo.saveSiteVersion(projectId, parsed.data, summary.slice(0, 300) || 'Edited');
   // A shop added in the workspace makes the project a store in the projects list.
   if (parsed.data.store && summary.includes('Added a shop')) await repo.updateProject(projectId, { siteType: 'store' });
+  if (parsed.data.bookings && summary.includes('Added bookings')) await repo.updateProject(projectId, { siteType: 'booking' });
   revalidatePath(`/projects/${projectId}`);
   return { version };
 }

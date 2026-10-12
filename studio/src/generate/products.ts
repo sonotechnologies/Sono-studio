@@ -1,4 +1,5 @@
-import type { Product, Store } from '@/site/schema';
+import type { Bookings, Product, Service, Store } from '@/site/schema';
+import { defaultBookings } from '@/workspace/bookings';
 import { sampleProducts } from '@/workspace/store';
 import type { Brief, Extracted } from './brief';
 
@@ -9,6 +10,7 @@ import type { Brief, Extracted } from './brief';
  */
 
 export const isStore = (brief: Pick<Brief, 'pages'>) => brief.pages.includes('shop');
+export const isBooking = (brief: Pick<Brief, 'pages'>) => brief.pages.includes('book');
 
 /** "₦4,500" → 4500, "GHS 25.50" → 25.5, "1.234,50 €" → 1234.5, "from $20" → 20; null when there's no number. */
 export function parsePrice(text: string): number | null {
@@ -93,4 +95,37 @@ export function storeFor(brief: Brief, extracted: Extracted | null): Store | und
     whatsapp: brief.client.whatsapp,
     products: products.length ? products : sampleProducts(),
   };
+}
+
+/** "45 min", "1 hr", "1h30", "2 hours" in an item's name or description; null if none. */
+export function parseDuration(text: string): number | null {
+  const t = text.toLowerCase();
+  const hm = /(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hour|hours)\b\s*(?:(\d{1,2})\s*(?:m|min|mins|minutes)?\b)?/.exec(t) ?? /(\d+)h(\d{2})/.exec(t);
+  if (hm) return Math.round(parseFloat(hm[1]) * 60 + (hm[2] ? parseInt(hm[2], 10) : 0));
+  const m = /(\d{1,3})\s*(?:m|min|mins|minutes)\b/.exec(t);
+  return m ? parseInt(m[1], 10) : null;
+}
+
+/** Services from the owner's price list; the length is read from the text, or an hour. */
+export function servicesFromItems(items: Extracted['items']): Service[] {
+  return productsFromItems(items).map((p, i) => {
+    const item = items.filter((x) => x.name.trim())[i];
+    const minutes = parseDuration(`${item?.name ?? ''} ${item?.description ?? ''} ${item?.price ?? ''} ${item?.category ?? ''}`);
+    const duration = Math.min(720, Math.max(5, Math.round((minutes ?? 60) / 5) * 5));
+    // "(90 min)" can be read as a category; a length isn't one.
+    const category = parseDuration(p.category) !== null && /^[\s\d.,]*(h|hr|hrs|hours?|m|mins?|minutes)\b/i.test(p.category.trim()) ? '' : p.category;
+    return { id: p.id, name: p.name, duration, price: p.price, description: p.description.slice(0, 400), category };
+  });
+}
+
+/** The bookings for a brief: services from the owner's items (or samples), Monday to Saturday hours. */
+export function bookingsFor(brief: Brief, extracted: Extracted | null): Bookings | undefined {
+  if (!isBooking(brief)) return undefined;
+  const items = extracted?.items ?? [];
+  return defaultBookings({
+    currency: brief.currency ?? detectCurrency(items.map((i) => i.price)) ?? 'USD',
+    timezone: brief.timezone ?? 'Africa/Lagos',
+    whatsapp: brief.client.whatsapp,
+    services: servicesFromItems(items),
+  });
 }

@@ -3,9 +3,10 @@
 /* eslint-disable @next/next/no-img-element */
 import { Check, ImagePlus, Loader2, Upload, X } from 'lucide-react';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Switch, inputClass } from '@/components/ui';
 import { CURRENCIES } from '@/workspace/store';
+import { TIMEZONES } from '@/workspace/bookings';
 import { BUSINESS_KINDS, PAGE_OPTIONS, type Asset, type Brief, type PageKey } from '@/generate/brief';
 import { PRESETS, PRESET_THUMBS } from '@/lib/presets';
 import { PRESET_IDS } from '@/lib/types';
@@ -135,7 +136,7 @@ export function BusinessStep({ brief, set }: { brief: Brief; set: (b: Brief) => 
             );
           })}
         </div>
-        {brief.pages.includes('shop') && (
+        {(brief.pages.includes('shop') || brief.pages.includes('book')) && (
           <div className="mt-4 flex max-w-[560px] flex-col gap-2 rounded-xl border border-border bg-surface p-4">
             <label className="flex flex-wrap items-center gap-3 text-[14px] font-medium">
               Prices in
@@ -150,13 +151,39 @@ export function BusinessStep({ brief, set }: { brief: Brief; set: (b: Brief) => 
                 ))}
               </select>
             </label>
+            {brief.pages.includes('book') && <TimezoneField brief={brief} set={set} />}
             <p className="m-0 text-[13px] leading-normal text-muted">
-              Products come from the price list or site you add in the next steps; none are made up. Without one, the shop starts with three samples to replace. Visitors order through a cart that sends the order to the business’s WhatsApp.
+              {brief.pages.includes('shop') ? 'Products' : 'Services'} come from the price list or site you add in the next steps; none are made up. Without one, {brief.pages.includes('shop') ? 'the shop starts with samples' : 'booking starts with sample services'} to replace.
+              {brief.pages.includes('book') ? ' Booking opens Monday to Saturday, 9:00 to 18:00; change the hours, deposit and services in the workspace.' : ' Visitors order through a cart that sends the order to the business’s WhatsApp.'}
             </p>
           </div>
         )}
       </fieldset>
     </div>
+  );
+}
+
+/** The time zone booking hours are in; starts as this computer's. */
+function TimezoneField({ brief, set }: { brief: Brief; set: (b: Brief) => void }) {
+  useEffect(() => {
+    if (brief.timezone) return;
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) set({ ...brief, timezone: tz });
+    } catch {}
+  }, [brief, set]);
+  const value = brief.timezone ?? 'Africa/Lagos';
+  return (
+    <label className="flex flex-wrap items-center gap-3 text-[14px] font-medium">
+      Opening hours in
+      <select value={value} onChange={(e) => set({ ...brief, timezone: e.target.value })} className={`${inputClass} h-10 max-w-[260px] cursor-pointer px-3 text-[14px]`}>
+        {[...new Set([value, ...TIMEZONES])].map((z) => (
+          <option key={z} value={z}>
+            {z.replace(/_/g, ' ')}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

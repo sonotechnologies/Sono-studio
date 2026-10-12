@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 8 done
+## Status: Phases 1 to 8 done, Phase 9 part 1 (bookings with deposits) done
 
 ### Phase 1, Foundation
 
@@ -175,7 +175,23 @@ Notes:
 - Supabase needs `supabase/migrations/0009_orders.sql`.
 - Security: the orders table is owner-only. Pitch visitors and live sites reach it only through narrow functions; marking an order paid needs a token only the studio's server can work out, and only after the provider confirmed the payment.
 
-Not yet built (later phases): bookings and the admin panel, custom sections.
+### Phase 9.1, Bookings with deposits
+
+| Built | Notes |
+| --- | --- |
+| Bookings | A site can take bookings (`config.bookings`): services (length, price, category), weekly opening hours with up to two spans a day, start times every N minutes, how many bookings at once, notice needed, how far ahead, closed days, and the time zone the hours are in |
+| Booking section | Choose a service, a day and a free time, then either pay a deposit by card (Paystack or Stripe, confirmed once paid) or send the request on WhatsApp. Times are worked out in the business's time zone, so visitors abroad see the right ones. Booked times are left out |
+| Holding times | A booking holds its time for 30 minutes while the deposit is paid. Overlaps and capacity are checked in the database under a lock, so two people can't take the last place |
+| Confirmation | The booking page checks the deposit with the provider, shows the service, time, deposit paid and what's left to pay, with Add to calendar and a WhatsApp link |
+| Workspace | A Bookings tab: services, opening hours, booking rules, closed days, deposit and payment options. "Add bookings" adds a Book page and menu link to any site |
+| Wizard | "Book" is a page option (ticked for salons and wellness studios), with the time zone. Services come from the price list, with lengths read from the text ("90 min", "1 hr") |
+| Project page | A Bookings card: coming up and recent, mark done or no-show, cancel to free the time |
+| Live sites | Deposits work on deployed sites too: the studio keeps the booking calendar, and the site holds and confirms bookings with its project key (set at deploy). Without deposits, booking is by WhatsApp and needs nothing else |
+
+Notes:
+- Supabase needs `supabase/migrations/0010_bookings.sql`.
+
+Not yet built (later phases): the client admin panel, custom sections.
 
 ## Run it locally
 

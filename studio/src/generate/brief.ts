@@ -8,6 +8,7 @@ import { themeSchema, type Section, type SectionType } from '@/site/schema';
 export const PAGE_OPTIONS = [
   { key: 'home', path: '/', title: 'Home', note: 'Always included' },
   { key: 'shop', path: '/shop', title: 'Shop', note: 'Products with prices, a cart and orders on WhatsApp' },
+  { key: 'book', path: '/book', title: 'Book', note: 'Services, free times and booking with a deposit or on WhatsApp' },
   { key: 'menu', path: '/menu', title: 'Menu', note: 'Dishes and prices' },
   { key: 'services', path: '/services', title: 'Services', note: 'Treatments, packages or services' },
   { key: 'rooms', path: '/rooms', title: 'Rooms', note: 'Rooms and rates' },
@@ -22,13 +23,13 @@ export const PAGE_KEYS = PAGE_OPTIONS.map((p) => p.key) as [PageKey, ...PageKey[
 export const BUSINESS_KINDS: { name: string; desc: string; preset: PresetId; pages: PageKey[] }[] = [
   { name: 'Restaurant', desc: 'Menu, bookings, opening hours', preset: 'warm-table', pages: ['home', 'menu', 'about', 'contact'] },
   { name: 'Hotel', desc: 'Rooms, rates, location', preset: 'luxe-minimal', pages: ['home', 'rooms', 'gallery', 'contact'] },
-  { name: 'Salon', desc: 'Services, prices, booking', preset: 'luxe-minimal', pages: ['home', 'services', 'about', 'contact'] },
+  { name: 'Salon', desc: 'Services, prices, booking', preset: 'luxe-minimal', pages: ['home', 'services', 'book', 'about', 'contact'] },
   { name: 'Fashion boutique', desc: 'Collections, lookbook, visit', preset: 'luxe-minimal', pages: ['home', 'shop', 'gallery', 'about', 'contact'] },
   { name: 'Streetwear', desc: 'Drops, products, socials', preset: 'bold-street', pages: ['home', 'shop', 'gallery', 'contact'] },
   { name: 'Bakery', desc: 'Daily bakes, orders, pickup', preset: 'warm-table', pages: ['home', 'menu', 'contact'] },
   { name: 'Travel agency', desc: 'Trips, packages, enquiries', preset: 'clean-corporate', pages: ['home', 'services', 'about', 'contact'] },
   { name: 'Gadget store', desc: 'Products, specs, delivery', preset: 'tech-dark', pages: ['home', 'shop', 'contact'] },
-  { name: 'Wellness studio', desc: 'Treatments, classes, booking', preset: 'soft-studio', pages: ['home', 'services', 'about', 'contact'] },
+  { name: 'Wellness studio', desc: 'Treatments, classes, booking', preset: 'soft-studio', pages: ['home', 'services', 'book', 'about', 'contact'] },
 ];
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -57,6 +58,8 @@ export const briefSchema = z.object({
   style: z.object({ id: z.string().max(64), name: z.string().max(60), theme: themeSchema }).nullable().optional(),
   /** For a site with a Shop page; unset means read it from the prices given. */
   currency: z.string().regex(/^[A-Z]{3}$/).optional(),
+  /** For a site with a Book page: the time zone its opening hours are in. */
+  timezone: z.string().max(60).regex(/^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/).optional(),
 });
 export type Brief = z.infer<typeof briefSchema>;
 

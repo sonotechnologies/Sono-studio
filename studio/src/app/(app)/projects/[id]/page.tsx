@@ -4,7 +4,7 @@ import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl } from '@/lib/format';
 import { handoverChecklist } from '@/export/checklist';
-import { cardProviders } from '@/site/store/payments-info';
+import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { siteConfigSchema } from '@/site/schema';
 import { copyChecklist } from '@/mirror/checklist';
 import { ProjectDetails } from './project-details';
@@ -39,6 +39,9 @@ export default async function ProjectPage({ params }: Props) {
   const orders = shop ? await repo.listOrders(project.id, 100) : null;
   const copy = version ? null : await repo.getSiteCopyMeta(project.id);
   const parsed = version ? siteConfigSchema.safeParse(version.config) : null;
+  const bookingsConfig = parsed?.success ? parsed.data.bookings : undefined;
+  // From a week ago, so recent ones can be marked done or no-show.
+  const bookings = bookingsConfig ? { list: await repo.listBookings(project.id, new Date(Date.now() - 7 * 86_400_000).toISOString(), 200), timezone: bookingsConfig.timezone } : null;
   const website = parsed?.success
     ? {
         version: version!.version,
@@ -46,7 +49,7 @@ export default async function ProjectPage({ params }: Props) {
         hasVercel: keys.some((k) => k.provider === 'vercel'),
         hasGithub: keys.some((k) => k.provider === 'github'),
         latest,
-        payments: cardProviders(parsed.data.store),
+        payments: [...new Set([...cardProviders(parsed.data.store), ...depositProviders(parsed.data.bookings)])],
       }
     : copy
       ? {
@@ -60,7 +63,7 @@ export default async function ProjectPage({ params }: Props) {
   const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} />
+      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} bookings={bookings} />
     </Page>
   );
 }

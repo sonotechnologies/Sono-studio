@@ -35,7 +35,9 @@ export function BookingWidget({ bookings: b, business, category, live }: { booki
   const [paying, setPaying] = useState<string | null>(null);
 
   useEffect(() => {
-    const d = openDays(b);
+    // Today only while it still has times left for the shortest service.
+    const shortest = Math.min(...b.services.map((x) => x.duration), 720);
+    const d = openDays(b).filter((day, i) => i > 0 || slotsFor(b, { duration: shortest }, day, []).length > 0);
     setDays(d);
     setDate((cur) => (d.includes(cur) ? cur : (d[0] ?? '')));
   }, [b]);

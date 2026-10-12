@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { PRESET_IDS } from '@/lib/types';
 import { googleFontsHref } from '@/site/fonts';
 import type { SectionType, SiteConfig, SitePage } from '@/site/schema';
-import { cardProviders } from '@/site/store/payments-info';
+import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { handoverChecklist, isStockUrl, type ChecklistItem } from './checklist';
 import template from './template.generated.json';
 
@@ -111,6 +111,9 @@ export async function exportSite(input: { config: SiteConfig; projectName: strin
   // A store always has product pages, and the store sections share the grid's price and card parts.
   // Card payments need the site's own server routes and the business's keys.
   const cards = store ? cardProviders(store) : [];
+  // Deposits need the same keys, plus the studio as the booking calendar.
+  const deposits = depositProviders(config.bookings);
+  const server = cards.length > 0 || deposits.length > 0;
   const used = [...new Set([...config.pages.flatMap((p) => p.sections.map((s) => s.type)), ...(store ? (['product-detail', 'product-grid'] as const) : [])])].sort() as SectionType[];
   const t = template as { files: Record<string, string>; css: { fonts: string; tokens: string; site: string }; versions: Record<string, string> };
   const v = t.versions;
@@ -193,11 +196,11 @@ ${used.map((type) => `    case '${type}':\n      return <${COMPONENTS[type].name
     `import data from './config.json';
 import { findPage, SitePageView } from './render';
 import type { SiteConfig } from './schema';
-${cards.length ? "import { checkoutCtx } from '@/lib/payments';\n" : ''}
+${server ? `import { ${[cards.length && 'checkoutCtx', deposits.length && 'bookingCtx'].filter(Boolean).join(', ')} } from '@/lib/payments';\n` : ''}
 /** All the site's content: edit config.json to change text, photos or colours. */
 export const site = data as unknown as SiteConfig;
 
-export const ctx = { link: (href: string) => href, editable: false${cards.length ? ', checkout: checkoutCtx(site)' : ''} };
+export const ctx = { link: (href: string) => href, editable: false${cards.length ? ', checkout: checkoutCtx(site)' : ''}${deposits.length ? ', booking: bookingCtx(site)' : ''} };
 
 export function SitePage({ path }: { path: string }) {
   const page = findPage(site, path);
@@ -299,7 +302,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 `,
     );
   }
-  if (cards.length) addPayments(add);
+  if (server) addPayments(add, { cards: cards.length > 0, deposits: deposits.length > 0 });
   add(
     'src/app/not-found.tsx',
     `import { site } from '@/site/page';
@@ -329,13 +332,14 @@ export default function NotFound() {
  * Nothing is stored on the site; paid orders are reported to the studio when
  * it's connected, and are always in the payment provider's dashboard.
  */
-function addPayments(add: (path: string, data: string) => void) {
+function addPayments(add: (path: string, data: string) => void, has: { cards: boolean; deposits: boolean }) {
   add(
     'src/lib/payments.ts',
-    `import type { CheckoutCtx } from '@/site/primitives';
+    `import type { BookingCtx, CheckoutCtx } from '@/site/primitives';
 import type { PaymentProvider, SiteConfig } from '@/site/schema';
-import { cardProviders } from '@/site/store/payments-info';
+import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import type { Order } from '@/site/store/payments';
+import type { Busy } from '@/site/store/booking-slots';
 
 /** The business's own keys, set as environment variables where the site is hosted. */
 export function secretFor(provider: PaymentProvider): string | null {
@@ -347,6 +351,55 @@ export function checkoutCtx(site: SiteConfig): CheckoutCtx | undefined {
   const providers = cardProviders(site.store).filter((p) => secretFor(p));
   if (!providers.length) return undefined;
   return { endpoint: '/api/checkout', providers, test: providers.every((p) => secretFor(p)!.startsWith('sk_test_')) };
+}
+
+/** Deposits switched on for bookings that have a key, when the studio keeps the booking calendar. */
+export function bookingCtx(site: SiteConfig): BookingCtx | undefined {
+  if (!process.env.SONO_SITE_API) return undefined;
+  const providers = depositProviders(site.bookings).filter((p) => secretFor(p));
+  if (!providers.length) return undefined;
+  return { busyEndpoint: '/api/busy', bookEndpoint: '/api/book', providers, test: providers.every((p) => secretFor(p)!.startsWith('sk_test_')) };
+}
+
+/** The studio's booking calendar for this site. */
+function studio(path: string, init?: RequestInit) {
+  return fetch(\`\${process.env.SONO_SITE_API}\${path}\`, {
+    ...init,
+    headers: { authorization: \`Bearer \${process.env.SONO_ORDERS_KEY}\`, 'content-type': 'application/json', ...init?.headers },
+    signal: AbortSignal.timeout(10000),
+    cache: 'no-store',
+  });
+}
+
+/** Times already booked between two moments. */
+export async function busyTimes(from: string, to: string): Promise<Busy[]> {
+  const res = await studio(\`/busy?from=\${encodeURIComponent(from)}&to=\${encodeURIComponent(to)}\`);
+  if (!res.ok) throw new Error('booking calendar unavailable');
+  return ((await res.json()) as { busy: Busy[] }).busy;
+}
+
+/** Holds a time while the deposit is paid: 'taken' if someone got there first. */
+export async function holdBooking(hold: Record<string, unknown>, provider: PaymentProvider): Promise<'ok' | 'taken'> {
+  const mode = secretFor(provider)?.startsWith('sk_test_') ? 'test' : 'live';
+  const res = await studio('/bookings', { method: 'POST', body: JSON.stringify({ action: 'hold', mode, hold }) });
+  if (res.status === 409) return 'taken';
+  if (!res.ok) throw new Error(\`booking calendar refused the booking (\${res.status})\`);
+  return 'ok';
+}
+
+/** Confirms a booking once its deposit is paid. Safe to call twice. */
+export async function confirmBooking(reference: string): Promise<void> {
+  try {
+    await studio('/bookings', { method: 'POST', body: JSON.stringify({ action: 'confirm', reference }) });
+  } catch (err) {
+    console.error('booking not confirmed', err);
+  }
+}
+
+/** Tells the studio about a paid order or deposit. */
+export async function recordPaid(order: Order): Promise<void> {
+  if (order.booking) await confirmBooking(order.reference);
+  else await reportOrder(order);
 }
 
 /** Tells the studio about a paid order, when the site is connected to it. Safe to call twice. */
@@ -369,6 +422,7 @@ export async function reportOrder(order: Order): Promise<void> {
 }
 `,
   );
+  if (has.cards)
   add(
     'src/app/api/checkout/route.ts',
     `import { secretFor } from '@/lib/payments';
@@ -396,6 +450,7 @@ export async function POST(req: Request) {
 }
 `,
   );
+  if (has.cards)
   add(
     'src/app/order/[ref]/page.tsx',
     `import type { Metadata } from 'next';
@@ -445,7 +500,7 @@ export default async function OrderPage({ params, searchParams }: Props) {
   );
   add(
     'src/app/api/webhooks/paystack/route.ts',
-    `import { reportOrder, secretFor } from '@/lib/payments';
+    `import { recordPaid, secretFor } from '@/lib/payments';
 import { checkPaystack, paystackSignatureOk } from '@/site/store/payments';
 
 /** Paystack → Settings → API Keys & Webhooks → Webhook URL: https://<this site>/api/webhooks/paystack */
@@ -456,7 +511,7 @@ export async function POST(req: Request) {
   const event = JSON.parse(raw) as { event?: string; data?: Parameters<typeof checkPaystack>[0] };
   if (event.event === 'charge.success' && event.data) {
     const v = checkPaystack(event.data);
-    if (v.paid && v.order) await reportOrder(v.order);
+    if (v.paid && v.order) await recordPaid(v.order);
   }
   return new Response(null, { status: 200 });
 }
@@ -464,7 +519,7 @@ export async function POST(req: Request) {
   );
   add(
     'src/app/api/webhooks/stripe/route.ts',
-    `import { reportOrder, secretFor } from '@/lib/payments';
+    `import { recordPaid, secretFor } from '@/lib/payments';
 import { stripeSignatureOk, verifyStripe } from '@/site/store/payments';
 
 /** Stripe → Developers → Webhooks: https://<this site>/api/webhooks/stripe, event checkout.session.completed. */
@@ -478,12 +533,115 @@ export async function POST(req: Request) {
   if (id && (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded')) {
     // Read back from Stripe before counting it as paid.
     const v = await verifyStripe({ secret, sessionId: id });
-    if (v.paid && v.order) await reportOrder(v.order);
+    if (v.paid && v.order) await recordPaid(v.order);
   }
   return new Response(null, { status: 200 });
 }
 `,
   );
+  if (has.deposits) {
+    add(
+      'src/app/api/busy/route.ts',
+      `import { busyTimes } from '@/lib/payments';
+
+/** Times already booked, from the studio's booking calendar. Never who booked them. */
+export async function GET(req: Request) {
+  const q = new URL(req.url).searchParams;
+  const from = Date.parse(q.get('from') ?? '');
+  const to = Date.parse(q.get('to') ?? '');
+  if (Number.isNaN(from) || Number.isNaN(to) || to <= from || to - from > 15 * 86400000) return Response.json({ busy: [] }, { status: 400 });
+  try {
+    return Response.json({ busy: await busyTimes(new Date(from).toISOString(), new Date(to).toISOString()) }, { headers: { 'cache-control': 'no-store' } });
+  } catch {
+    return Response.json({ busy: [] }, { status: 503 });
+  }
+}
+`,
+    );
+    add(
+      'src/app/api/book/route.ts',
+      `import { busyTimes, holdBooking, secretFor } from '@/lib/payments';
+import { siteKey } from '@/site/render';
+import { site } from '@/site/page';
+import { newReference, PaymentError, priceBooking, startPayment } from '@/site/store/payments';
+
+/** Checks the time is still free, holds it, and returns the deposit's payment page. */
+export async function POST(req: Request) {
+  try {
+    const b = site.bookings;
+    if (!b) throw new PaymentError('Booking isn’t available here.');
+    const body = await req.json().catch(() => null);
+    const start = Date.parse(String(body?.start ?? ''));
+    if (Number.isNaN(start)) throw new PaymentError('Choose a time.');
+    const busy = await busyTimes(new Date(start - 86400000).toISOString(), new Date(start + 2 * 86400000).toISOString());
+    const { order: priced, slot, service } = priceBooking(b, body, busy);
+    const secret = secretFor(priced.provider);
+    if (!secret) throw new PaymentError('Deposits aren’t set up yet.');
+    const order = { ...priced, reference: newReference(siteKey(site)) };
+    const held = await holdBooking(
+      { reference: order.reference, serviceId: service.id, serviceName: service.name, start: slot.start, end: slot.end, capacity: b.capacity, provider: priced.provider, currency: b.currency, deposit: priced.total, price: service.price, customer: priced.customer },
+      priced.provider,
+    );
+    if (held === 'taken') throw new PaymentError('Someone has just booked that time. Choose another.');
+    const origin = new URL(req.url).origin;
+    const bookPath = site.pages.find((p) => p.sections.some((s) => s.type === 'booking'))?.path ?? '/';
+    const url = await startPayment({ secret, order, returnUrl: \`\${origin}/booking/\${order.reference}\`, cancelUrl: \`\${origin}\${bookPath}\` });
+    return Response.json({ url });
+  } catch (err) {
+    if (err instanceof PaymentError) return Response.json({ error: err.message }, { status: 400 });
+    console.error('booking failed', err);
+    return Response.json({ error: 'The booking couldn’t start. Try again in a moment.' }, { status: 500 });
+  }
+}
+`,
+    );
+    add(
+      'src/app/booking/[ref]/page.tsx',
+      `import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { confirmBooking, secretFor } from '@/lib/payments';
+import { orderPage, SitePageView } from '@/site/render';
+import { ctx, site } from '@/site/page';
+import { BookingView } from '@/site/store/booking-view';
+import { PaymentError, verifyPaystack, verifyStripe, type Verified } from '@/site/store/payments';
+
+export const metadata: Metadata = { title: 'Your booking', robots: { index: false } };
+// Checked with the payment provider on every visit.
+export const dynamic = 'force-dynamic';
+
+type Props = { params: Promise<{ ref: string }>; searchParams: Promise<{ session_id?: string }> };
+
+export default async function BookingPage({ params, searchParams }: Props) {
+  const { ref } = await params;
+  const { session_id } = await searchParams;
+  if (!site.bookings || !/^[a-z0-9-]{6,80}$/.test(ref)) notFound();
+  let verified: Verified | null = null;
+  let error: string | undefined;
+  try {
+    const provider = session_id ? 'stripe' : 'paystack';
+    const secret = secretFor(provider);
+    if (!secret) throw new PaymentError('Deposits aren’t set up.');
+    verified = provider === 'stripe' ? await verifyStripe({ secret, sessionId: session_id! }) : await verifyPaystack({ secret, reference: ref });
+    if (verified.order?.reference !== ref || !verified.order.booking) {
+      verified = null;
+      error = 'This booking wasn’t found.';
+    } else if (verified.paid) await confirmBooking(ref);
+  } catch (err) {
+    error = err instanceof PaymentError ? err.message : 'The deposit couldn’t be checked right now.';
+  }
+  return (
+    <SitePageView
+      config={site}
+      page={orderPage(site)}
+      ctx={ctx}
+      className="min-h-dvh"
+      insert={<BookingView config={site} reference={ref} verified={verified} error={error} ctx={ctx} test={!!ctx.booking?.test} />}
+    />
+  );
+}
+`,
+    );
+  }
   add(
     '.env.example',
     `# Card payments: the business's own keys (Paystack and/or Stripe dashboards).
@@ -492,9 +650,11 @@ PAYSTACK_SECRET_KEY=
 STRIPE_SECRET_KEY=
 STRIPE_WEBHOOK_SECRET=
 
-# Optional: report paid orders to Sono Studio (set by the studio when it deploys).
+# Set by Sono Studio when it deploys: paid orders are reported to it, and it
+# keeps the booking calendar (needed for booking deposits).
 SONO_ORDERS_URL=
 SONO_ORDERS_KEY=
+SONO_SITE_API=
 `,
   );
 }

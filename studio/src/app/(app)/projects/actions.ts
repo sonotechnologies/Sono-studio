@@ -55,3 +55,13 @@ export async function setOrderStatusAction(projectId: string, orderId: string, s
   await (await getRepo()).setOrderStatus(projectId, orderId, status as (typeof ORDER_STATUSES)[number]);
   revalidatePath(`/projects/${projectId}`);
 }
+
+const BOOKING_STATUSES = ['held', 'confirmed', 'cancelled', 'done', 'no_show'] as const;
+
+/** Marks a booking done, a no-show, or cancelled (cancelling frees its time). */
+export async function setBookingStatusAction(projectId: string, bookingId: string, status: string): Promise<void> {
+  await requireUser();
+  if (!(BOOKING_STATUSES as readonly string[]).includes(status)) throw new Error('Unknown status');
+  await (await getRepo()).setBookingStatus(projectId, bookingId, status as (typeof BOOKING_STATUSES)[number]);
+  revalidatePath(`/projects/${projectId}`);
+}

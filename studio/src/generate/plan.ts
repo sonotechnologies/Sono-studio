@@ -2,7 +2,7 @@ import { PRESETS } from '@/lib/presets';
 import { SECTIONS } from '@/site/registry';
 import type { SectionType } from '@/site/schema';
 import { preferredLayouts } from '@/site/starter';
-import { isStore } from './products';
+import { isBooking, isStore } from './products';
 import { pagesFor, type Brief, type Extracted, type PageKey, type Plan, type PlanSection, type RawPlan } from './brief';
 
 /** Navbar, footer and the WhatsApp button are added to every page by the assembler, not planned. */
@@ -58,6 +58,10 @@ export const DEFAULT_PAGE_SECTIONS: Record<PageKey, { type: SectionType; note: s
     { type: 'gallery', variant: 'masonry', note: 'All the photos' },
   ],
   shop: [{ type: 'product-grid', note: 'Every product, with prices and category buttons' }],
+  book: [
+    { type: 'booking', note: 'Choose a service and a free time, then book' },
+    { type: 'faq', note: 'Questions about booking, deposits and changing a time' },
+  ],
   contact: [
     { type: 'contact', note: 'Address, hours, map and WhatsApp' },
     { type: 'faq', note: 'Practical questions: parking, groups, payment' },
@@ -66,7 +70,7 @@ export const DEFAULT_PAGE_SECTIONS: Record<PageKey, { type: SectionType; note: s
 
 /** The section types a brief can use: store sections only for a shop. */
 export function plannableFor(brief: Pick<Brief, 'pages'>): SectionType[] {
-  return isStore(brief) ? PLANNABLE_TYPES : PLANNABLE_TYPES.filter((t) => !STORE_TYPES.includes(t));
+  return PLANNABLE_TYPES.filter((t) => (isStore(brief) || !STORE_TYPES.includes(t)) && (isBooking(brief) || !BOOKING_TYPES.includes(t)));
 }
 
 function catalogue(brief: Brief): string {
@@ -125,6 +129,11 @@ Rules:
 ${
   isStore(brief)
     ? `- This business sells online. The Shop page leads with "product-grid". The home page shows a few products with "product-grid" or one with "product-feature". Products, prices and product pages are added automatically from their list.
+`
+    : ''
+}${
+  isBooking(brief)
+    ? `- This business takes bookings. The Book page leads with "booking"; other pages link to /book from their main buttons. Services, times and deposits are added automatically from their list.
 `
     : ''
 }
@@ -189,6 +198,8 @@ export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extr
       if (!sections.length) sections = DEFAULT_PAGE_SECTIONS[want.key];
       // A shop always shows its products: the grid leads the Shop page, and home gets a few after the hero.
       if (isStore(brief) && want.key === 'shop' && !sections.some((s) => s.type === 'product-grid')) sections = [DEFAULT_PAGE_SECTIONS.shop[0], ...sections];
+      // A Book page always leads with the booking section.
+      if (isBooking(brief) && want.key === 'book' && !sections.some((s) => s.type === 'booking')) sections = [DEFAULT_PAGE_SECTIONS.book[0], ...sections];
       if (isStore(brief) && want.key === 'home' && !sections.some((s) => STORE_TYPES.includes(s.type))) {
         const at = sections[0]?.type === 'hero' ? 1 : 0;
         sections = [...sections.slice(0, at), { type: 'product-grid', note: 'A few products, with a link to the shop' }, ...sections.slice(at)];

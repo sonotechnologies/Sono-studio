@@ -25,6 +25,8 @@ import {
 } from '@/lib/types';
 import type { OrderRecord } from '@/lib/data/repo';
 import { OrdersCard } from './orders-card';
+import { BookingsCard } from './bookings-card';
+import type { BookingRecord } from '@/lib/data/repo';
 import { createStarterSiteAction, deleteProjectAction, updateClientAction, updateProjectAction } from '../actions';
 
 const card = 'flex flex-col rounded-dialog border border-border bg-surface p-[22px]';
@@ -46,6 +48,7 @@ export function ProjectDetails({
   website,
   copy,
   orders,
+  bookings,
 }: {
   project: Project;
   link: string;
@@ -58,6 +61,8 @@ export function ProjectDetails({
   copy: MirrorMeta | null;
   /** The shop's orders, or null for a site without a shop. */
   orders: OrderRecord[] | null;
+  /** Bookings from a week ago on, or null for a site without bookings. */
+  bookings: { list: BookingRecord[]; timezone: string } | null;
   /** An unfinished generation for this project, if there is one. */
   setup: { jobId: string; status: JobStatus } | null;
 }) {
@@ -151,6 +156,7 @@ export function ProjectDetails({
         <div className="flex flex-col gap-5">
           {copy && <CopyCard p={p} copy={copy} now={now} />}
           {website && <WebsiteCard p={p} info={website} now={now} onLive={() => router.refresh()} />}
+          {bookings && <BookingsCard projectId={p.id} bookings={bookings.list} timezone={bookings.timezone} now={now} />}
           {orders && <OrdersCard projectId={p.id} orders={orders} now={now} />}
           <ActivityCard p={p} now={now} events={events} />
         </div>

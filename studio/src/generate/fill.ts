@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { SECTIONS } from '@/site/registry';
 import { sectionSchema, type Section, type SectionType } from '@/site/schema';
 import { briefSummary } from './plan';
-import { storeFor } from './products';
+import { bookingsFor, storeFor } from './products';
 import type { Brief, Extracted, PlanPage } from './brief';
 
 /** Content schema for each section type, taken from the discriminated union in the site schema. */
@@ -149,6 +149,11 @@ export function applyKnownFacts(section: Section, brief: Brief, extracted: Extra
     const products = storeFor(brief, extracted)?.products ?? [];
     if (s.type === 'product-grid' && s.content.category && !products.some((p) => p.category === s.content.category)) s.content.category = '';
     if (s.type === 'product-feature' && !products.some((p) => p.id === s.content.productId)) s.content.productId = products[0]?.id ?? '';
+  }
+  if (s.type === 'booking') {
+    // Only a real category of services, or the widget would show none.
+    const services = bookingsFor(brief, extracted)?.services ?? [];
+    if (s.content.category && !services.some((x) => x.category === s.content.category)) s.content.category = '';
   }
   if (s.type === 'testimonials') {
     // We never have real reviews at this point, so they must read as samples.
