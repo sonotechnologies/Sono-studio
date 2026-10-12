@@ -205,6 +205,57 @@ export const productFeatureContent = z.object({
 /** A product's own page. Made for every product, not placed by hand. */
 export const productDetailContent = z.object({ productId: text(64) });
 
+/* ---------- Bookings ---------- */
+
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a time like 09:00');
+
+export const serviceSchema = z.object({
+  id,
+  name: text(80),
+  /** Minutes. */
+  duration: z.number().int().min(5).max(720),
+  /** In the bookings currency; 0 means price on request. */
+  price: z.number().min(0).max(100_000_000),
+  description: text(400),
+  category: text(40),
+  sample: z.boolean().optional(),
+});
+export type Service = z.infer<typeof serviceSchema>;
+
+export const bookingsSchema = z.object({
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  /** Where booking requests go (digits, with country code). */
+  whatsapp: text(32),
+  /** IANA time zone the opening hours are in, e.g. Africa/Lagos. */
+  timezone: z.string().max(60).regex(/^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/),
+  services: z.array(serviceSchema).max(60),
+  /** Weekly opening hours: day 0 is Sunday. A day can have up to two spans (e.g. a lunch break). */
+  hours: z.array(z.object({ day: z.number().int().min(0).max(6), open: hhmm, close: hhmm })).max(14),
+  /** Minutes between possible start times. */
+  step: z.number().int().min(5).max(240),
+  /** Bookings at the same time, e.g. two stylists. */
+  capacity: z.number().int().min(1).max(20),
+  /** Hours of notice needed. */
+  notice: z.number().int().min(0).max(168),
+  /** How far ahead people can book, in days. */
+  daysAhead: z.number().int().min(1).max(180),
+  /** Days the business is closed (YYYY-MM-DD), on top of the weekly hours. */
+  closed: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).max(60),
+  /** Share of the price paid upfront by card, 0 to 100. 0 means no deposit. */
+  depositPercent: z.number().int().min(0).max(100),
+  /** How a booking is made: a WhatsApp request, or confirmed by paying the deposit. */
+  payments: z.object({ whatsapp: z.boolean(), paystack: z.boolean(), stripe: z.boolean() }),
+});
+export type Bookings = z.infer<typeof bookingsSchema>;
+
+export const bookingContent = z.object({
+  eyebrow: text(60),
+  heading: text(120),
+  intro: text(300),
+  /** Only this category of services; empty shows them all. */
+  category: text(40),
+});
+
 /* ---------- Section instances ---------- */
 
 const base = { id, hidden: z.boolean().optional() };
@@ -249,6 +300,7 @@ export const sectionSchema = z.discriminatedUnion('type', [
   z.object({ ...base, type: z.literal('product-grid'), variant: z.enum(['cards', 'minimal', 'list']), content: productGridContent }),
   z.object({ ...base, type: z.literal('product-feature'), variant: z.enum(['split', 'centered']), content: productFeatureContent }),
   z.object({ ...base, type: z.literal('product-detail'), variant: z.enum(['gallery', 'compact']), content: productDetailContent }),
+  z.object({ ...base, type: z.literal('booking'), variant: z.enum(['steps', 'split']), content: bookingContent }),
   z.object({
     ...base,
     type: z.literal('whatsapp-float'),
@@ -327,6 +379,8 @@ export const siteConfigSchema = z
     modules: z.partialRecord(z.enum(MODULE_IDS), z.boolean()),
     /** Products and ordering, for online stores. */
     store: storeSchema.optional(),
+    /** Services, hours and deposits, for booking sites. */
+    bookings: bookingsSchema.optional(),
   })
   .superRefine((site, ctx) => {
     const paths = new Set<string>();
@@ -344,6 +398,14 @@ export const siteConfigSchema = z
     site.store?.products.forEach((p, i) => {
       if (productIds.has(p.id)) ctx.addIssue({ code: 'custom', message: `Duplicate product id ${p.id}`, path: ['store', 'products', i, 'id'] });
       productIds.add(p.id);
+    });
+    const serviceIds = new Set<string>();
+    site.bookings?.services.forEach((s, i) => {
+      if (serviceIds.has(s.id)) ctx.addIssue({ code: 'custom', message: `Duplicate service id ${s.id}`, path: ['bookings', 'services', i, 'id'] });
+      serviceIds.add(s.id);
+    });
+    site.bookings?.hours.forEach((h, i) => {
+      if (h.close <= h.open) ctx.addIssue({ code: 'custom', message: 'Closing time must be after opening time', path: ['bookings', 'hours', i, 'close'] });
     });
   });
 

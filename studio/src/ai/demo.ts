@@ -105,6 +105,8 @@ export function demoContent(type: SectionType, brief: Brief, extracted: Extracte
         category: '',
         ...(pageTitle === 'Home' ? { limit: 4 } : { filter: true }),
       } satisfies ContentOf<'product-grid'>;
+    case 'booking':
+      return { eyebrow: 'Book online', heading: 'Book an appointment', intro: 'Choose a service and a time that suits you.', category: '' } satisfies ContentOf<'booking'>;
     case 'product-feature':
       return { eyebrow: 'Featured', heading: '', productId: '' } satisfies ContentOf<'product-feature'>;
     default:

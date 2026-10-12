@@ -41,6 +41,7 @@ const COMPONENTS: Record<SectionType, { file: string; name: string }> = {
   'product-grid': { file: 'product-grid', name: 'ProductGrid' },
   'product-feature': { file: 'product-feature', name: 'ProductFeature' },
   'product-detail': { file: 'product-detail', name: 'ProductDetail' },
+  booking: { file: 'booking', name: 'Booking' },
   'whatsapp-float': { file: 'whatsapp-float', name: 'WhatsappFloat' },
 };
 

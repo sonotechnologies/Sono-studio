@@ -11,6 +11,13 @@ export const FIXED_TYPES: SectionType[] = ['navbar', 'footer', 'whatsapp-float']
 export const PLANNABLE_TYPES = (Object.keys(SECTIONS) as SectionType[]).filter((t) => !FIXED_TYPES.includes(t) && t !== 'product-detail');
 /** Sections that only make sense on a site with products. */
 export const STORE_TYPES: SectionType[] = ['product-grid', 'product-feature'];
+/** Sections that only make sense on a site taking bookings. */
+export const BOOKING_TYPES: SectionType[] = ['booking'];
+
+/** Section types that can be added to a site as it is: shop and booking sections need their module set up. */
+export function addableTypes(config: { store?: unknown; bookings?: unknown }): SectionType[] {
+  return PLANNABLE_TYPES.filter((t) => (config.store || !STORE_TYPES.includes(t)) && (config.bookings || !BOOKING_TYPES.includes(t)));
+}
 
 /** Sensible sections per page, used when the model leaves a page out and by the demo provider. */
 type SourceSection = { type: string; note?: string; variant?: string };

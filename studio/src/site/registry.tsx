@@ -15,6 +15,7 @@ import { WhatsappFloat } from './sections/whatsapp-float';
 import { ProductDetail } from './sections/product-detail';
 import { ProductFeature } from './sections/product-feature';
 import { ProductGrid } from './sections/product-grid';
+import { Booking } from './sections/booking';
 
 export interface VariantInfo<T extends SectionType> {
   id: VariantOf<T>;
@@ -181,6 +182,16 @@ export const SECTIONS: Registry = {
       { id: 'compact', label: 'Compact', note: 'Photos stacked in one column' },
     ],
     Component: ProductDetail,
+  },
+  booking: {
+    type: 'booking',
+    label: 'Booking',
+    purpose: 'Online booking: services, free times, and a deposit or WhatsApp request',
+    variants: [
+      { id: 'steps', label: 'Steps', note: 'Heading above, booking steps below' },
+      { id: 'split', label: 'Split', note: 'Heading beside the booking steps' },
+    ],
+    Component: Booking,
   },
   'whatsapp-float': {
     type: 'whatsapp-float',

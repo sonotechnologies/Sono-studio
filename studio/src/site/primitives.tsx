@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import type { SiteImage, SiteLink, Store } from './schema';
+import type { Bookings, SiteImage, SiteLink, Store } from './schema';
 
 /**
  * Passed to every section. `link` maps a site path ("/about") to wherever the
@@ -15,6 +15,21 @@ export interface RenderCtx {
   siteKey?: string;
   /** Card checkout, where the page is served with a server that can take payments. */
   checkout?: CheckoutCtx;
+  /** Services and opening hours, for the booking section. */
+  bookings?: Bookings;
+  businessName?: string;
+  /** Live availability and deposits, where a server can check them. */
+  booking?: BookingCtx;
+}
+
+export interface BookingCtx {
+  /** GET ?from=ISO&to=ISO → { busy: { start, end }[] }. */
+  busyEndpoint: string;
+  /** POST a booking → { url } of the deposit payment page. */
+  bookEndpoint: string;
+  /** Card payments available for deposits. */
+  providers: ('paystack' | 'stripe')[];
+  test: boolean;
 }
 
 export interface CheckoutCtx {

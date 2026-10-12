@@ -31,7 +31,7 @@ import { ThemeToggle } from '@/components/theme';
 import { StatusPill, useToast } from '@/components/ui';
 import type { ChatScope } from '@/ai/chat';
 import type { Asset } from '@/generate/brief';
-import { PLANNABLE_TYPES, STORE_TYPES } from '@/generate/plan';
+import { addableTypes } from '@/generate/plan';
 import type { ChatMessage, CustomStyle, Deployment } from '@/lib/data/repo';
 import { saveStyleAction } from '@/app/(app)/presets/actions';
 import { handoverChecklist } from '@/export/checklist';
@@ -525,7 +525,7 @@ export function Workspace({
           </button>
           {addMenu && (
             <div className="absolute top-10 right-3 z-20 flex max-h-[60dvh] w-[220px] flex-col gap-0.5 overflow-auto rounded-xl border border-border bg-raised p-1.5 shadow-raised">
-              {PLANNABLE_TYPES.filter((t) => config.store || !STORE_TYPES.includes(t)).map((t) => (
+              {addableTypes(config).map((t) => (
                 <button key={t} type="button" onClick={() => addSection(t)} className="flex cursor-pointer flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-hover">
                   <span className="text-[13px] font-medium">{SECTIONS[t].label}</span>
                   <span className="text-[11px] leading-snug text-muted">{SECTIONS[t].purpose}</span>

@@ -1,4 +1,6 @@
 import { VOLT_SUPPLY } from '@/site/samples/volt-supply';
+import { starterConfig } from '@/site/starter';
+import { addBookings } from '@/workspace/bookings';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import type { PresetId, Project, ProjectStatus, SiteType } from '../types';
 import type { SiteVersion } from './repo';
@@ -86,6 +88,28 @@ export function devSeedVersions(projects: Project[]): Record<string, SiteVersion
   if (volt) {
     volt.currentVersion = 1;
     out[volt.id] = [{ version: 1, config: VOLT_SUPPLY, summary: 'Hand-written sample store', createdAt: volt.createdAt }];
+  }
+  const nala = projects.find((p) => p.pitchSlug === 'studio-nala-m8wd');
+  if (nala) {
+    // A salon taking bookings, with real-looking services and a 30% deposit.
+    const base = addBookings(starterConfig(nala), { currency: 'NGN', timezone: 'Africa/Lagos' }).config;
+    const config = {
+      ...base,
+      bookings: {
+        ...base.bookings!,
+        whatsapp: nala.client.whatsapp,
+        depositPercent: 30,
+        payments: { whatsapp: true, paystack: true, stripe: false },
+        services: [
+          { id: 'silk-press', name: 'Silk press', duration: 90, price: 25000, description: 'Wash, deep condition and silk press.', category: 'Hair' },
+          { id: 'braids', name: 'Knotless braids', duration: 240, price: 60000, description: 'Medium length; hair included.', category: 'Hair' },
+          { id: 'cut', name: 'Cut and style', duration: 60, price: 15000, description: '', category: 'Hair' },
+          { id: 'consult', name: 'Colour consultation', duration: 30, price: 0, description: 'Free; we talk through shades and timing.', category: 'Colour' },
+        ],
+      },
+    };
+    nala.currentVersion = 1;
+    out[nala.id] = [{ version: 1, config, summary: 'Sample salon with bookings', createdAt: nala.createdAt }];
   }
   return out;
 }

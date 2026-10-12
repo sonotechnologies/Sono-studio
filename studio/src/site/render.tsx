@@ -61,7 +61,7 @@ export function SitePageView({
 }) {
   const store = config.store;
   const key = siteKey(config);
-  const sectionCtx: RenderCtx = store ? { ...ctx, store, siteKey: key } : ctx;
+  const sectionCtx: RenderCtx = { ...ctx, ...(store ? { store } : {}), ...(config.bookings ? { bookings: config.bookings } : {}), siteKey: key, businessName: config.meta.businessName };
   return (
     <div className={`sono-site ${className}`} style={themeStyle(config.theme)} data-motion={config.theme.motion ?? 'none'}>
       <div className="s-root" lang={config.meta.language}>
