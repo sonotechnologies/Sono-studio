@@ -1,4 +1,5 @@
 import type { SiteConfig } from '@/site/schema';
+import { cardProviders } from '@/site/store/payments-info';
 
 /*
  * What to sort out before a client's site goes live. Built from the config,
@@ -90,13 +91,20 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
       done: false,
       detail: 'Vercel’s free Hobby plan is for non-commercial use. For a paying client, transfer the project to their own Vercel account or use a paid plan.',
     },
-    {
-      key: 'env',
-      title: 'Environment variables',
-      done: true,
-      detail: 'None needed: this site has no database, payments or forms.',
-    },
   ];
+  const cards = cardProviders(config.store);
+  const names = cards.map((p) => (p === 'paystack' ? 'Paystack' : 'Stripe'));
+  items.push(
+    cards.length
+      ? {
+          key: 'env',
+          title: 'Card payments',
+          done: false,
+          important: true,
+          detail: `Paid into the client’s own ${names.join(' and ')} account. When you deploy, paste their secret key${cards.length > 1 ? 's' : ''} into the Deploy dialog (or add ${cards.map((p) => (p === 'paystack' ? 'PAYSTACK_SECRET_KEY' : 'STRIPE_SECRET_KEY')).join(' and ')} in Vercel). Then set the webhook in their dashboard: ${cards.map((p) => `<site address>/api/webhooks/${p}`).join(' and ')}${cards.includes('stripe') ? ' (Stripe: event checkout.session.completed, then add its signing secret as STRIPE_WEBHOOK_SECRET)' : ''}. Make one small real payment to test before launch.`,
+        }
+      : { key: 'env', title: 'Environment variables', done: true, detail: 'None needed: this site has no database, payments or forms.' },
+  );
   if (config.store) {
     const problems = [
       sampleProducts && `${plural(sampleProducts, 'sample product')} to replace with real ones`,

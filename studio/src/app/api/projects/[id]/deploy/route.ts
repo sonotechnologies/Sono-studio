@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { refreshDeploy, startDeploy } from '@/deploy/run';
+import { refreshDeploy, startDeploy, type PaymentKeys } from '@/deploy/run';
 import { getRepo, getUser } from '@/lib/auth';
 
 // Exporting, pushing to GitHub and uploading to Vercel can take a while for sites with many photos.
@@ -10,7 +10,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!(await getUser())) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
   const { id } = await params;
   try {
-    const deployment = await startDeploy(await getRepo(), id, new URL(req.url).origin);
+    // The client's payment keys, when the shop takes cards: passed on to the hosting, never stored.
+    const body = (await req.json().catch(() => null)) as { paymentKeys?: PaymentKeys } | null;
+    const deployment = await startDeploy(await getRepo(), id, new URL(req.url).origin, { paymentKeys: body?.paymentKeys });
     return NextResponse.json({ deployment });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 400 });

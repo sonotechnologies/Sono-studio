@@ -10,7 +10,7 @@ function fake(routes: Record<string, (body: unknown, url: string) => { status?: 
   const f = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
-    const body = typeof init?.body === 'string' && init.body.startsWith('{') ? JSON.parse(init.body) : init?.body;
+    const body = typeof init?.body === 'string' && /^[{[]/.test(init.body) ? JSON.parse(init.body) : init?.body;
     calls.push({ method, url, body });
     const key = Object.keys(routes)
       .filter((k) => {
@@ -103,6 +103,26 @@ describe('Vercel deploy', () => {
     expect(body).toMatchObject({ name: 'kora-kitchen-2', target: 'production', projectSettings: { framework: 'nextjs' } });
     expect(body.files.map((x) => x.file)).toEqual(['package.json', 'public/images/a.jpg']);
     expect(body.files[1].size).toBe(3);
+  });
+
+  it('sets payment keys on a new project before uploading, and reports which are there', async () => {
+    const { f, calls } = fake({
+      'GET /v9/projects/volt': (_b, url) => (url.endsWith('/env') ? { json: { envs: [{ key: 'PAYSTACK_SECRET_KEY' }, { key: 'SONO_ORDERS_KEY' }] } } : { status: 404 }),
+      'POST /v11/projects': () => ({ json: { id: 'prj_1' } }),
+      'POST /v10/projects/volt/env': () => ({ json: {} }),
+      'POST /v2/files': () => ({ json: {} }),
+      'POST /v13/deployments': () => ({ json: { id: 'dpl_3', url: 'volt-abc.vercel.app' } }),
+    });
+    const d = await deployToVercel({ token: 't', existing: null, name: 'volt', files, env: { PAYSTACK_SECRET_KEY: 'sk_live_x', SONO_ORDERS_KEY: 'k' }, fetch: f });
+    const order = calls.map((c) => `${c.method} ${new URL(c.url).pathname}`);
+    expect(order.indexOf('POST /v11/projects')).toBeLessThan(order.indexOf('POST /v10/projects/volt/env'));
+    expect(order.indexOf('POST /v10/projects/volt/env')).toBeLessThan(order.indexOf('POST /v2/files'));
+    const env = calls.find((c) => c.url.includes('/env?upsert=true'))!.body as { key: string; type: string; target: string[] }[];
+    expect(env).toEqual([
+      { key: 'PAYSTACK_SECRET_KEY', value: 'sk_live_x', type: 'encrypted', target: ['production', 'preview'] },
+      { key: 'SONO_ORDERS_KEY', value: 'k', type: 'encrypted', target: ['production', 'preview'] },
+    ]);
+    expect(d.env).toEqual(['PAYSTACK_SECRET_KEY', 'SONO_ORDERS_KEY']);
   });
 
   it('redeploys to the project it created before', async () => {

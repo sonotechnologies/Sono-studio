@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { PRESET_IDS } from '@/lib/types';
 import { googleFontsHref } from '@/site/fonts';
 import type { SectionType, SiteConfig, SitePage } from '@/site/schema';
+import { cardProviders } from '@/site/store/payments-info';
 import { handoverChecklist, isStockUrl, type ChecklistItem } from './checklist';
 import template from './template.generated.json';
 
@@ -107,6 +108,8 @@ export async function exportSite(input: { config: SiteConfig; projectName: strin
 
   const store = config.store?.products.length ? config.store : null;
   // A store always has product pages, and the store sections share the grid's price and card parts.
+  // Card payments need the site's own server routes and the business's keys.
+  const cards = store ? cardProviders(store) : [];
   const used = [...new Set([...config.pages.flatMap((p) => p.sections.map((s) => s.type)), ...(store ? (['product-detail', 'product-grid'] as const) : [])])].sort() as SectionType[];
   const t = template as { files: Record<string, string>; css: { fonts: string; tokens: string; site: string }; versions: Record<string, string> };
   const v = t.versions;
@@ -189,11 +192,11 @@ ${used.map((type) => `    case '${type}':\n      return <${COMPONENTS[type].name
     `import data from './config.json';
 import { findPage, SitePageView } from './render';
 import type { SiteConfig } from './schema';
-
+${cards.length ? "import { checkoutCtx } from '@/lib/payments';\n" : ''}
 /** All the site's content: edit config.json to change text, photos or colours. */
 export const site = data as unknown as SiteConfig;
 
-const ctx = { link: (href: string) => href, editable: false };
+export const ctx = { link: (href: string) => href, editable: false${cards.length ? ', checkout: checkoutCtx(site)' : ''} };
 
 export function SitePage({ path }: { path: string }) {
   const page = findPage(site, path);
@@ -295,6 +298,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 `,
     );
   }
+  if (cards.length) addPayments(add);
   add(
     'src/app/not-found.tsx',
     `import { site } from '@/site/page';
@@ -316,6 +320,182 @@ export default function NotFound() {
   const checklist = handoverChecklist(input.config, { missingImages: missing.length });
   add('README.md', readme(input.projectName, config, checklist));
   return { files, checklist };
+}
+
+/**
+ * Card checkout for a live site: the business's own Paystack or Stripe keys
+ * (environment variables), a checkout route, the order page and webhooks.
+ * Nothing is stored on the site; paid orders are reported to the studio when
+ * it's connected, and are always in the payment provider's dashboard.
+ */
+function addPayments(add: (path: string, data: string) => void) {
+  add(
+    'src/lib/payments.ts',
+    `import type { CheckoutCtx } from '@/site/primitives';
+import type { PaymentProvider, SiteConfig } from '@/site/schema';
+import { cardProviders } from '@/site/store/payments-info';
+import type { Order } from '@/site/store/payments';
+
+/** The business's own keys, set as environment variables where the site is hosted. */
+export function secretFor(provider: PaymentProvider): string | null {
+  return (provider === 'paystack' ? process.env.PAYSTACK_SECRET_KEY : process.env.STRIPE_SECRET_KEY) || null;
+}
+
+/** Card payments switched on for the shop that have a key. */
+export function checkoutCtx(site: SiteConfig): CheckoutCtx | undefined {
+  const providers = cardProviders(site.store).filter((p) => secretFor(p));
+  if (!providers.length) return undefined;
+  return { endpoint: '/api/checkout', providers, test: providers.every((p) => secretFor(p)!.startsWith('sk_test_')) };
+}
+
+/** Tells the studio about a paid order, when the site is connected to it. Safe to call twice. */
+export async function reportOrder(order: Order): Promise<void> {
+  const url = process.env.SONO_ORDERS_URL;
+  const key = process.env.SONO_ORDERS_KEY;
+  if (!url || !key) return;
+  const mode = secretFor(order.provider)?.startsWith('sk_test_') ? 'test' : 'live';
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { authorization: \`Bearer \${key}\`, 'content-type': 'application/json' },
+      body: JSON.stringify({ order, mode }),
+      signal: AbortSignal.timeout(8000),
+    });
+  } catch (err) {
+    // The order is still in the payment provider's dashboard.
+    console.error('order not reported', err);
+  }
+}
+`,
+  );
+  add(
+    'src/app/api/checkout/route.ts',
+    `import { secretFor } from '@/lib/payments';
+import { siteKey } from '@/site/render';
+import { site } from '@/site/page';
+import { newReference, PaymentError, priceCart, startPayment } from '@/site/store/payments';
+
+/** Prices the cart from the product list and returns the payment page to send the customer to. */
+export async function POST(req: Request) {
+  try {
+    if (!site.store) throw new PaymentError('This site has no shop.');
+    const priced = priceCart(site.store, await req.json().catch(() => null));
+    const secret = secretFor(priced.provider);
+    if (!secret) throw new PaymentError('Card payments aren’t set up yet.');
+    const order = { ...priced, reference: newReference(siteKey(site)) };
+    const origin = new URL(req.url).origin;
+    const shop = site.pages.find((p) => p.sections.some((s) => s.type === 'product-grid'))?.path ?? '/';
+    const url = await startPayment({ secret, order, returnUrl: \`\${origin}/order/\${order.reference}\`, cancelUrl: \`\${origin}\${shop}\` });
+    return Response.json({ url });
+  } catch (err) {
+    if (err instanceof PaymentError) return Response.json({ error: err.message }, { status: 400 });
+    console.error('checkout failed', err);
+    return Response.json({ error: 'The payment couldn’t start. Try again in a moment.' }, { status: 500 });
+  }
+}
+`,
+  );
+  add(
+    'src/app/order/[ref]/page.tsx',
+    `import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { reportOrder, secretFor } from '@/lib/payments';
+import { orderPage, siteKey, SitePageView } from '@/site/render';
+import { ctx, site } from '@/site/page';
+import { OrderView } from '@/site/store/order-view';
+import { PaymentError, verifyPaystack, verifyStripe, type Verified } from '@/site/store/payments';
+
+export const metadata: Metadata = { title: 'Your order', robots: { index: false } };
+// Checked with the payment provider on every visit.
+export const dynamic = 'force-dynamic';
+
+type Props = { params: Promise<{ ref: string }>; searchParams: Promise<{ session_id?: string }> };
+
+export default async function OrderPage({ params, searchParams }: Props) {
+  const { ref } = await params;
+  const { session_id } = await searchParams;
+  if (!site.store || !/^[a-z0-9-]{6,80}$/.test(ref)) notFound();
+  let verified: Verified | null = null;
+  let error: string | undefined;
+  try {
+    const provider = session_id ? 'stripe' : 'paystack';
+    const secret = secretFor(provider);
+    if (!secret) throw new PaymentError('Card payments aren’t set up.');
+    verified = provider === 'stripe' ? await verifyStripe({ secret, sessionId: session_id! }) : await verifyPaystack({ secret, reference: ref });
+    if (verified.order?.reference !== ref) {
+      verified = null;
+      error = 'This order wasn’t found.';
+    } else if (verified.paid) await reportOrder(verified.order);
+  } catch (err) {
+    error = err instanceof PaymentError ? err.message : 'The payment couldn’t be checked right now.';
+  }
+  const test = !!ctx.checkout?.test;
+  return (
+    <SitePageView
+      config={site}
+      page={orderPage(site)}
+      ctx={ctx}
+      className="min-h-dvh"
+      insert={<OrderView config={site} reference={ref} verified={verified} error={error} ctx={ctx} siteKey={siteKey(site)} test={test} />}
+    />
+  );
+}
+`,
+  );
+  add(
+    'src/app/api/webhooks/paystack/route.ts',
+    `import { reportOrder, secretFor } from '@/lib/payments';
+import { checkPaystack, paystackSignatureOk } from '@/site/store/payments';
+
+/** Paystack → Settings → API Keys & Webhooks → Webhook URL: https://<this site>/api/webhooks/paystack */
+export async function POST(req: Request) {
+  const raw = await req.text();
+  const secret = secretFor('paystack');
+  if (!secret || !paystackSignatureOk(raw, req.headers.get('x-paystack-signature'), secret)) return new Response(null, { status: 401 });
+  const event = JSON.parse(raw) as { event?: string; data?: Parameters<typeof checkPaystack>[0] };
+  if (event.event === 'charge.success' && event.data) {
+    const v = checkPaystack(event.data);
+    if (v.paid && v.order) await reportOrder(v.order);
+  }
+  return new Response(null, { status: 200 });
+}
+`,
+  );
+  add(
+    'src/app/api/webhooks/stripe/route.ts',
+    `import { reportOrder, secretFor } from '@/lib/payments';
+import { stripeSignatureOk, verifyStripe } from '@/site/store/payments';
+
+/** Stripe → Developers → Webhooks: https://<this site>/api/webhooks/stripe, event checkout.session.completed. */
+export async function POST(req: Request) {
+  const raw = await req.text();
+  const signing = process.env.STRIPE_WEBHOOK_SECRET;
+  const secret = secretFor('stripe');
+  if (!signing || !secret || !stripeSignatureOk(raw, req.headers.get('stripe-signature'), signing)) return new Response(null, { status: 401 });
+  const event = JSON.parse(raw) as { type?: string; data?: { object?: { id?: string } } };
+  const id = event.data?.object?.id;
+  if (id && (event.type === 'checkout.session.completed' || event.type === 'checkout.session.async_payment_succeeded')) {
+    // Read back from Stripe before counting it as paid.
+    const v = await verifyStripe({ secret, sessionId: id });
+    if (v.paid && v.order) await reportOrder(v.order);
+  }
+  return new Response(null, { status: 200 });
+}
+`,
+  );
+  add(
+    '.env.example',
+    `# Card payments: the business's own keys (Paystack and/or Stripe dashboards).
+# Test keys (sk_test_...) take test payments; live keys (sk_live_...) take real ones.
+PAYSTACK_SECRET_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+
+# Optional: report paid orders to Sono Studio (set by the studio when it deploys).
+SONO_ORDERS_URL=
+SONO_ORDERS_KEY=
+`,
+  );
 }
 
 function readme(projectName: string, config: SiteConfig, checklist: ChecklistItem[]): string {

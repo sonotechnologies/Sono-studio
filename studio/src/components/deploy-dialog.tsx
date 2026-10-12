@@ -47,6 +47,7 @@ export function DeployDialog({
   beforeDeploy,
   onDone,
   onClose,
+  payments = [],
 }: {
   projectId: string;
   projectName: string;
@@ -59,7 +60,10 @@ export function DeployDialog({
   beforeDeploy?: () => Promise<void>;
   onDone?: (d: Deployment) => void;
   onClose: () => void;
+  /** Card payments the shop takes: the dialog asks for the client's keys. */
+  payments?: ('paystack' | 'stripe')[];
 }) {
+  const [keys, setKeys] = useState({ paystack: '', stripe: '', stripeWebhook: '' });
   const [phase, setPhase] = useState<Phase>(initial?.status === 'building' && initial.vercelDeploymentId ? 'building' : 'confirm');
   const [d, setD] = useState<Deployment | null>(initial);
   const [error, setError] = useState('');
@@ -106,7 +110,13 @@ export function DeployDialog({
     started.current = Date.now();
     try {
       await beforeDeploy?.();
-      const res = await fetch(`/api/projects/${projectId}/deploy`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${projectId}/deploy`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ paymentKeys: payments.length ? keys : undefined }),
+      });
+      // Typed keys aren't kept in the page once sent.
+      setKeys({ paystack: '', stripe: '', stripeWebhook: '' });
       const body = (await res.json()) as { deployment?: Deployment; error?: string };
       if (!res.ok || !body.deployment) throw new Error(body.error ?? 'The deploy couldn’t start.');
       setD(body.deployment);
@@ -165,6 +175,22 @@ export function DeployDialog({
               {target ? <span className="font-mono text-[13px] text-text">{target.replace(/^https:\/\//, '')}</span> : 'a new Vercel project'}. The pitch link will point to the live site.
               {hasGithub ? ' The code is also saved to a private GitHub repository.' : ' Add a GitHub token in Settings to also keep the code in a repository.'}
             </p>
+            {payments.length > 0 && (
+              <fieldset className="m-0 flex flex-col gap-2.5 rounded-xl border border-border p-3.5">
+                <legend className="px-1 text-[13px] font-semibold">The client’s payment keys</legend>
+                <p className="m-0 text-[13px] leading-normal text-muted">
+                  From the client’s own {payments.map((p) => (p === 'paystack' ? 'Paystack' : 'Stripe')).join(' and ')} dashboard. They go straight to Vercel as encrypted settings and aren’t kept in the studio.
+                  {redeploy ? ' Leave empty to keep the keys already there.' : ' Without them the shop takes WhatsApp orders only.'} Test keys (sk_test_…) work too, for a trial run.
+                </p>
+                {payments.includes('paystack') && <KeyField label="Paystack secret key" placeholder="sk_live_…" value={keys.paystack} onChange={(v) => setKeys({ ...keys, paystack: v })} />}
+                {payments.includes('stripe') && (
+                  <>
+                    <KeyField label="Stripe secret key" placeholder="sk_live_…" value={keys.stripe} onChange={(v) => setKeys({ ...keys, stripe: v })} />
+                    <KeyField label="Stripe webhook signing secret (optional)" placeholder="whsec_…" value={keys.stripeWebhook} onChange={(v) => setKeys({ ...keys, stripeWebhook: v })} />
+                  </>
+                )}
+              </fieldset>
+            )}
             {warnings.length > 0 && (
               <div className="flex flex-col gap-2.5 rounded-xl bg-warn-bg p-3.5">
                 <span className="text-[13px] font-semibold text-warn">Before a client sees it</span>
@@ -263,5 +289,22 @@ function Step({ state, label }: { state: 'done' | 'active' | 'waiting'; label: s
       </span>
       {label}
     </li>
+  );
+}
+
+function KeyField({ label, placeholder, value, onChange }: { label: string; placeholder: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex flex-col gap-1 text-[13px] font-medium">
+      {label}
+      <input
+        type="password"
+        autoComplete="off"
+        spellCheck={false}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="h-10 rounded-[10px] border border-border bg-bg px-3 font-mono text-[13px] text-text outline-none focus:border-terracotta"
+      />
+    </label>
   );
 }

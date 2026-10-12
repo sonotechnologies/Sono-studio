@@ -35,6 +35,7 @@ import { PLANNABLE_TYPES, STORE_TYPES } from '@/generate/plan';
 import type { ChatMessage, CustomStyle, Deployment } from '@/lib/data/repo';
 import { saveStyleAction } from '@/app/(app)/presets/actions';
 import { handoverChecklist } from '@/export/checklist';
+import { cardProviders } from '@/site/store/payments-info';
 import { DeployDialog, fetchDeployment } from '@/components/deploy-dialog';
 import { PRESETS } from '@/lib/presets';
 import type { Project } from '@/lib/types';
@@ -843,6 +844,7 @@ export function Workspace({
           projectName={project.name}
           version={version}
           checklist={handoverChecklist(config)}
+          payments={cardProviders(config.store)}
           hasVercel={deploy.hasVercel}
           hasGithub={deploy.hasGithub}
           initial={deployment}

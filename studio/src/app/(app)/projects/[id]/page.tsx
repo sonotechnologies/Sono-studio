@@ -4,6 +4,7 @@ import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl } from '@/lib/format';
 import { handoverChecklist } from '@/export/checklist';
+import { cardProviders } from '@/site/store/payments-info';
 import { siteConfigSchema } from '@/site/schema';
 import { copyChecklist } from '@/mirror/checklist';
 import { ProjectDetails } from './project-details';
@@ -45,6 +46,7 @@ export default async function ProjectPage({ params }: Props) {
         hasVercel: keys.some((k) => k.provider === 'vercel'),
         hasGithub: keys.some((k) => k.provider === 'github'),
         latest,
+        payments: cardProviders(parsed.data.store),
       }
     : copy
       ? {

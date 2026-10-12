@@ -56,4 +56,24 @@ describe('store', () => {
       }
     }
   });
+
+  it('adds checkout, the order page and webhooks only when card payments are on', async () => {
+    const withCards = { ...VOLT_SUPPLY, store: { ...VOLT_SUPPLY.store!, payments: { whatsapp: true, paystack: true, stripe: true } } };
+    const { files, checklist } = await exportSite({ config: withCards, projectName: 'Volt Supply', version: 1, loadImage: async () => null });
+    const paths = files.map((f) => f.path);
+    expect(paths).toEqual(expect.arrayContaining(['src/app/api/checkout/route.ts', 'src/app/order/[ref]/page.tsx', 'src/app/api/webhooks/paystack/route.ts', 'src/app/api/webhooks/stripe/route.ts', 'src/lib/payments.ts', 'src/site/store/payments.ts', '.env.example']));
+    expect(String(files.find((f) => f.path === 'src/site/page.tsx')!.data)).toContain('checkout: checkoutCtx(site)');
+    expect(checklist.find((c) => c.key === 'env')).toMatchObject({ title: 'Card payments', important: true });
+    const plain = await exportSite({ config: VOLT_SUPPLY, projectName: 'Volt Supply', version: 1, loadImage: async () => null });
+    expect(plain.files.some((f) => f.path.startsWith('src/app/api/'))).toBe(false);
+    if (process.env.SONO_EXPORT_PAY_OUT) {
+      const { mkdir, writeFile } = await import('node:fs/promises');
+      const path = await import('node:path');
+      for (const f of files) {
+        const p = path.join(process.env.SONO_EXPORT_PAY_OUT, f.path);
+        await mkdir(path.dirname(p), { recursive: true });
+        await writeFile(p, f.data);
+      }
+    }
+  });
 });

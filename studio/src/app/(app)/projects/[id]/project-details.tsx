@@ -544,6 +544,8 @@ export interface WebsiteInfo {
   hasVercel: boolean;
   hasGithub: boolean;
   latest: Deployment | null;
+  /** Card payments the shop takes. */
+  payments?: ('paystack' | 'stripe')[];
 }
 
 /** Export, deploy and the handover checklist. */
@@ -625,6 +627,7 @@ function WebsiteCard({ p, info, now, onLive }: { p: Project; info: WebsiteInfo; 
           checklist={info.checklist}
           hasVercel={info.hasVercel}
           hasGithub={info.hasGithub}
+          payments={info.payments}
           initial={d}
           onDone={(next) => {
             setD(next);

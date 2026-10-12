@@ -53,6 +53,8 @@ export interface VercelDeployment {
   project: string;
   /** The unique deployment address (may be protected); the production address comes from projectUrl(). */
   url: string;
+  /** The project's environment variable names, when variables were set. */
+  env?: string[];
 }
 
 /** A project name for this site: `existing` if this studio created one, otherwise a free name. */
@@ -66,9 +68,44 @@ async function chooseProject(vc: ReturnType<typeof client>, existing: string | n
   throw new DeployError('Couldn’t find a free Vercel project name.');
 }
 
-export async function deployToVercel(opts: { token: string; existing: string | null; name: string; files: ExportFile[]; framework?: 'nextjs' | null; fetch?: Fetch }): Promise<VercelDeployment> {
+/**
+ * Sets environment variables on the project (creating it first if this is its
+ * first deploy), so the build and the site's server routes can read them.
+ * Values are stored encrypted by Vercel and never kept by the studio.
+ */
+async function setEnv(vc: ReturnType<typeof client>, project: string, vars: Record<string, string>, framework: 'nextjs' | null) {
+  const found = await vc('GET', `/v9/projects/${project}`, undefined, { okStatuses: [404] });
+  if (!found) await vc('POST', '/v11/projects', { name: project, framework });
+  await vc(
+    'POST',
+    `/v10/projects/${project}/env?upsert=true`,
+    Object.entries(vars).map(([key, value]) => ({ key, value, type: 'encrypted', target: ['production', 'preview'] })),
+  );
+}
+
+/** The names of the environment variables a project has (never their values). */
+async function envNames(vc: ReturnType<typeof client>, project: string): Promise<string[]> {
+  const r = await vc<{ envs: { key: string }[] }>('GET', `/v9/projects/${project}/env`, undefined, { okStatuses: [404] });
+  return (r?.envs ?? []).map((e) => e.key);
+}
+
+export async function deployToVercel(opts: {
+  token: string;
+  existing: string | null;
+  name: string;
+  files: ExportFile[];
+  framework?: 'nextjs' | null;
+  /** Environment variables to set before the build, e.g. the business's payment keys. */
+  env?: Record<string, string>;
+  fetch?: Fetch;
+}): Promise<VercelDeployment> {
   const vc = client(opts.token, opts.fetch ?? fetch);
   const project = await chooseProject(vc, opts.existing, opts.name);
+  let env: string[] | undefined;
+  if (opts.env && Object.keys(opts.env).length) {
+    await setEnv(vc, project, opts.env, opts.framework === null ? null : 'nextjs');
+    env = await envNames(vc, project);
+  }
 
   const files = opts.files.map((f) => {
     const bytes = bytesOf(f.data);
@@ -93,7 +130,7 @@ export async function deployToVercel(opts: { token: string; existing: string | n
     // A copied site is plain files: no framework, no build step.
     projectSettings: { framework: opts.framework === null ? null : 'nextjs' },
   });
-  return { id: d!.id, project, url: `https://${d!.url}` };
+  return { id: d!.id, project, url: `https://${d!.url}`, ...(env ? { env } : {}) };
 }
 
 export type BuildState = 'building' | 'ready' | 'error';

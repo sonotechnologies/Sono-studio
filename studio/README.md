@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 7 done, Phase 8 part 1 (stores with WhatsApp ordering) done
+## Status: Phases 1 to 8 done
 
 ### Phase 1, Foundation
 
@@ -160,7 +160,22 @@ Notes:
 Notes:
 - No migration needed: the store lives in the site config.
 
-Not yet built (later phases): card payments (Paystack, Stripe) and order records, bookings and the admin panel, custom sections.
+### Phase 8.2, Card payments and orders
+
+| Built | Notes |
+| --- | --- |
+| Ways to pay | Per shop, in the Products tab: WhatsApp ordering, Paystack (card, bank transfer, mobile money in NGN, GHS, ZAR, KES, USD) and Stripe (international cards, Apple Pay, Google Pay). Money goes into the business's own account |
+| Checkout | The cart asks for name, email, phone and a delivery note, then opens the provider's own payment page. Prices always come from the product list on the server, never from the browser. Back on the site, the order page checks the payment with the provider before saying it's paid. Webhooks (signature-checked) catch customers who close the tab |
+| Test mode in the studio | Settings → Test payments takes your own Paystack and Stripe test keys (test keys only). Pitch links and the preview then take test payments, with the test card numbers shown in the cart, so a client can try the whole checkout |
+| Orders | Recorded per project and shown on the project page: test orders from the pitch link and preview, live orders from the deployed site. Mark fulfilled or cancelled |
+| Live sites | The export gets a checkout route, the order page and webhook routes, reading the business's keys from environment variables. The Deploy dialog asks for the client's keys and sends them straight to Vercel (encrypted there, not kept in the studio). Paid orders are reported back to the studio with a per-project key that changes on every deploy |
+| Checklist | Keys to add, webhook addresses to set in the client's dashboards, and a small real payment to test before launch |
+
+Notes:
+- Supabase needs `supabase/migrations/0009_orders.sql`.
+- Security: the orders table is owner-only. Pitch visitors and live sites reach it only through narrow functions; marking an order paid needs a token only the studio's server can work out, and only after the provider confirmed the payment.
+
+Not yet built (later phases): bookings and the admin panel, custom sections.
 
 ## Run it locally
 
