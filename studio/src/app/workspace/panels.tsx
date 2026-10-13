@@ -1,17 +1,18 @@
 'use client';
 
-import { AlertTriangle, ArrowDown, ArrowUp, Check, Copy, Eye, EyeOff, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowDown, ArrowUp, Check, Code2, Copy, Eye, EyeOff, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { contentSchemaFor } from '@/generate/fill';
 import { PRESETS } from '@/lib/presets';
 import { PRESET_IDS, type PresetId } from '@/lib/types';
 import { SECTIONS } from '@/site/registry';
-import type { Section, SiteTheme } from '@/site/schema';
+import type { CustomDef, Section, SiteTheme } from '@/site/schema';
+import { Switch } from '@/components/ui';
+import { MiniSpin } from '@/components/orbit';
 import { FONT_VARS, readableOn, themeFromPreset } from '@/site/theme';
 import { themeWarnings } from '@/style/reference';
 import type { CustomStyle } from '@/lib/data/repo';
 import { sectionLabel } from '@/workspace/model';
-import { FieldFor, type FieldCtx } from './fields';
+import { SectionFields, type FieldCtx } from './fields';
 
 const pill = 'flex h-[34px] cursor-pointer items-center gap-1.5 rounded-full border border-border px-3 text-[13px] font-medium hover:bg-hover disabled:cursor-default disabled:opacity-40';
 
@@ -28,6 +29,8 @@ export function EditPanel({
   onToggleHidden,
   onRemove,
   onAsk,
+  customSections,
+  custom,
 }: {
   section: Section | null;
   isFirst: boolean;
@@ -39,6 +42,9 @@ export function EditPanel({
   onToggleHidden: () => void;
   onRemove: () => void;
   onAsk: () => void;
+  customSections?: Record<string, CustomDef>;
+  /** For an AI-written section: change it with AI, and mark its code as read. */
+  custom?: { busy: boolean; onChange: (change: string) => void; onReviewed: (reviewed: boolean) => void };
 }) {
   if (!section) {
     return <div className="flex flex-1 items-center justify-center p-8 text-center text-[14px] leading-normal text-muted">Select a section in the preview or the list to edit it.</div>;
@@ -84,7 +90,7 @@ export function EditPanel({
       )}
 
       <div className="flex flex-col gap-4">
-        <FieldFor name="content" schema={contentSchemaFor(section.type)} value={section.content} path="" ctx={ctx} hideLabel />
+        <SectionFields section={section} customSections={customSections} ctx={ctx} />
       </div>
 
       <div className="flex flex-wrap gap-2 pt-1">
@@ -113,10 +119,62 @@ export function EditPanel({
           </button>
         )}
       </div>
-      <button type="button" onClick={onAsk} className="flex cursor-pointer items-center gap-1.5 self-start text-[13px] font-medium text-accent-text hover:underline">
-        <Sparkles size={14} />
-        Ask the AI to change this section
-      </button>
+      {section.type === 'custom' && customSections?.[section.content.component] && custom ? (
+        <CustomTools def={customSections[section.content.component]} {...custom} />
+      ) : (
+        <button type="button" onClick={onAsk} className="flex cursor-pointer items-center gap-1.5 self-start text-[13px] font-medium text-accent-text hover:underline">
+          <Sparkles size={14} />
+          Ask the AI to change this section
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** An AI-written section: what it's for, changing it with AI, its code, and your review. */
+function CustomTools({ def, busy, onChange, onReviewed }: { def: CustomDef; busy: boolean; onChange: (change: string) => void; onReviewed: (reviewed: boolean) => void }) {
+  const [change, setChange] = useState('');
+  return (
+    <div className="flex flex-col gap-4 border-t border-border pt-4">
+      <div className="flex flex-col gap-1">
+        <span className="text-[13px] font-medium">Written by AI: {def.name}</span>
+        <span className="text-[12px] leading-snug text-muted">{def.purpose}</span>
+      </div>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (change.trim()) onChange(change);
+        }}
+        className="flex flex-col gap-2"
+      >
+        <textarea
+          value={change}
+          onChange={(e) => setChange(e.target.value)}
+          rows={2}
+          maxLength={600}
+          placeholder="Change it: e.g. put the years on the right, make it two columns"
+          aria-label="What to change"
+          className="resize-y rounded-[10px] border border-border bg-bg px-[11px] py-[9px] text-[14px] text-text outline-none focus:border-terracotta"
+        />
+        <button type="submit" disabled={busy || !change.trim()} className={`${pill} self-start`}>
+          {busy ? <MiniSpin /> : <Sparkles size={14} />}
+          {busy ? 'Writing and checking…' : 'Change with AI'}
+        </button>
+      </form>
+      <details className="rounded-xl border border-border">
+        <summary className="flex cursor-pointer items-center gap-1.5 px-3 py-2 text-[13px] font-medium">
+          <Code2 size={14} />
+          Code
+        </summary>
+        <pre className="m-0 max-h-[320px] overflow-auto border-t border-border p-3 font-mono text-[11px] leading-relaxed whitespace-pre-wrap">{def.code}</pre>
+      </details>
+      <div className="flex items-start gap-3">
+        <span className="flex flex-1 flex-col gap-0.5">
+          <span className="text-[13px] font-medium">I’ve read the code</span>
+          <span className="text-[12px] leading-snug text-muted">It passed the automatic checks; read it once before a client site goes live. The handover checklist asks for this.</span>
+        </span>
+        <Switch on={def.reviewed} label="I’ve read the code" size="sm" onChange={onReviewed} />
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PRESET_IDS, type PresetId } from '@/lib/types';
 import { SECTION_TYPES } from '@/site/registry';
-import { themeSchema, type Section, type SectionType } from '@/site/schema';
+import { themeSchema, type CustomDef, type Section, type SectionType } from '@/site/schema';
 
 /* ---------- What the wizard collects ---------- */
 
@@ -120,6 +120,8 @@ export interface PlanSection {
   type: SectionType;
   variant: string;
   note: string;
+  /** For a custom section: what the AI wrote, once written (or why it couldn't). */
+  custom?: { def: CustomDef; data: Record<string, unknown> } | { failed: string };
 }
 export interface PlanPage {
   id: string;

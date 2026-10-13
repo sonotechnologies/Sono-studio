@@ -9,6 +9,8 @@ import { pagesFor, type Brief, type Extracted, type PageKey, type Plan, type Pla
 export const FIXED_TYPES: SectionType[] = ['navbar', 'footer', 'whatsapp-float'];
 /** Product pages are made for every product, never planned; custom sections are written by AI for a gap, not picked from the library. */
 export const PLANNABLE_TYPES = (Object.keys(SECTIONS) as SectionType[]).filter((t) => !FIXED_TYPES.includes(t) && t !== 'product-detail' && t !== 'custom');
+/** AI-written sections per site: the library comes first. */
+export const MAX_CUSTOM = 2;
 /** Sections that only make sense on a site with products. */
 export const STORE_TYPES: SectionType[] = ['product-grid', 'product-feature'];
 /** Sections that only make sense on a site taking bookings. */
@@ -125,6 +127,7 @@ Rules:
 - Each section gets a "note": one short line saying the section's job, e.g. "the rooms, with prices if known".
 - Notes must not invent anything. Only mention amenities, services, products, rooms, materials, places or numbers that appear in the facts above. Nothing is known beyond what is listed.
 - Only include "faq" if the facts or contact details can answer real questions.
+- Only when no library section can do what a page needs (for example a timeline of the business's history, a step-by-step "how it works", a comparison table), use type "custom" with a note that describes the section in a sentence. At most two in the whole site; prefer the library.
 - Vary variants across pages so the site doesn't repeat itself.
 ${
   isStore(brief)
@@ -160,6 +163,7 @@ function validVariant(type: SectionType, variant: string | undefined, brief: Pic
  * Pages the model left out get the default sections.
  */
 export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extracted | null): Plan {
+  let customs = 0;
   const hasFacts = (extracted?.facts.length ?? 0) > 0;
   const wanted = pagesFor(brief);
   const norm = (path: string) => path.trim().replace(/\/+$/, '') || '/';
@@ -191,10 +195,11 @@ export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extr
       const pi = match.get(want.key) ?? -1;
       const source: SourceSection[] = pi >= 0 && raw ? raw.pages[pi].sections : DEFAULT_PAGE_SECTIONS[want.key];
       const allowed = plannableFor(brief);
-      const known = (t: string): t is SectionType => allowed.includes(t as SectionType);
+      // A custom section (written by AI later) needs a note saying what it's for; at most two per site.
+      const known = (t: string, note?: string): t is SectionType => allowed.includes(t as SectionType) || (t === 'custom' && !!note?.trim() && customs++ < MAX_CUSTOM);
       let sections = source
         .map((s) => ({ ...s, type: s.type.toLowerCase().replace(/[\s_]+/g, '-') }))
-        .filter((s): s is SourceSection & { type: SectionType } => known(s.type) && (s.type !== 'stats' || hasFacts));
+        .filter((s): s is SourceSection & { type: SectionType } => known(s.type, s.note) && (s.type !== 'stats' || hasFacts));
       if (!sections.length) sections = DEFAULT_PAGE_SECTIONS[want.key];
       // A shop always shows its products: the grid leads the Shop page, and home gets a few after the hero.
       if (isStore(brief) && want.key === 'shop' && !sections.some((s) => s.type === 'product-grid')) sections = [DEFAULT_PAGE_SECTIONS.shop[0], ...sections];
@@ -212,7 +217,7 @@ export function normalisePlan(raw: RawPlan | null, brief: Brief, extracted: Extr
           id: `${want.key}-${s.type}${counts[s.type] > 1 ? `-${counts[s.type]}` : ''}`,
           type: s.type,
           // A price list with no prices to show reads as broken; use cards instead.
-          variant: s.type === 'features' && !hasItems && s.variant === 'price-list' ? 'cards' : validVariant(s.type, s.variant, brief),
+          variant: s.type === 'custom' ? 'default' : s.type === 'features' && !hasItems && s.variant === 'price-list' ? 'cards' : validVariant(s.type, s.variant, brief),
           note: (s.note || SECTIONS[s.type].purpose).slice(0, 200),
         };
       });
@@ -228,13 +233,13 @@ export function cleanEditedPlan(plan: Plan, brief: Brief): Plan {
     pages: plan.pages.map((p) => ({
       ...p,
       sections: p.sections
-        .filter((s) => plannableFor(brief).includes(s.type))
+        .filter((s) => plannableFor(brief).includes(s.type) || (s.type === 'custom' && !!s.note.trim()))
         .slice(0, 12)
         .map((s, i) => {
           let id = s.id.replace(/[^a-z0-9-]/g, '').slice(0, 60) || `${p.id}-${s.type}-${i}`;
           while (ids.has(id)) id = `${id}-x`;
           ids.add(id);
-          return { id, type: s.type, variant: validVariant(s.type, s.variant, brief), note: s.note.slice(0, 200) };
+          return { id, type: s.type, variant: s.type === 'custom' ? 'default' : validVariant(s.type, s.variant, brief), note: s.note.slice(0, 200), ...(s.custom ? { custom: s.custom } : {}) };
         }),
     })),
   };

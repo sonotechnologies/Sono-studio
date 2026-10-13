@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 9 done
+## Status: Phases 1 to 10 done
 
 ### Phase 1, Foundation
 
@@ -206,7 +206,18 @@ Notes:
 - Supabase needs `supabase/migrations/0011_site_admin.sql`.
 - Sites deployed before this phase pick up client edits after one more deploy (it adds the `SONO_SITE_API` setting).
 
-Not yet built (later phases): custom sections.
+### Phase 10, Custom sections written by AI
+
+| Built | Notes |
+| --- | --- |
+| Adding one | In the workspace, the + menu ends with "Custom section · written by AI": describe it (a timeline, a price comparison, a team grid) and the AI writes a component plus the fields to edit its content. The wizard's planner may also use up to two, when no library section fits |
+| The check | Before a section is accepted, its code is compiled and scanned: one component with plain JSX and Tailwind classes, content only from its fields; no imports, scripts, network, storage, timers, state, event handlers or raw HTML. Code that fails is sent back to the AI with the reasons |
+| Preview | In the studio it renders in a sandboxed frame with no access to the studio, cookies or the network, in the site's fonts and colours |
+| Editing | Its words and photos are edited like any section (and by the client in the admin panel). "Change with AI" rewrites it; "Code" shows what was written; "I've read the code" records your review. The code itself stays yours: clients can't change it |
+| Export | Each becomes an ordinary component file in `src/site/sections/custom/`; Vercel's build is the final check. The handover checklist flags any you haven't reviewed |
+
+Notes:
+- No migration needed: custom sections live in the site's config.
 
 ## Run it locally
 

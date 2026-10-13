@@ -4,7 +4,8 @@ import type { SiteConfig } from '@/site/schema';
  * What a client may change in the admin panel: the words and photos in each
  * section, their products, services, opening hours and contact number. The
  * design stays yours: theme, pages, which sections there are, their layouts
- * and order, and the payment and deposit settings.
+ * and order, the code of AI-written sections, and the payment and deposit
+ * settings.
  */
 
 /** The config with everything a client may edit blanked out; two configs that match here differ only in client-editable parts. */
@@ -12,7 +13,7 @@ function frame(c: SiteConfig): unknown {
   return {
     ...c,
     meta: c.meta,
-    pages: c.pages.map((p) => ({ ...p, sections: p.sections.map((s) => ({ ...s, content: null })) })),
+    pages: c.pages.map((p) => ({ ...p, sections: p.sections.map((s) => ({ ...s, content: s.type === 'custom' ? { component: s.content.component } : null })) })),
     ...(c.store ? { store: { ...c.store, products: null, whatsapp: null } } : {}),
     ...(c.bookings
       ? { bookings: { ...c.bookings, services: null, hours: null, closed: null, whatsapp: null, step: null, capacity: null, notice: null, daysAhead: null } }
@@ -29,5 +30,6 @@ export function adminChangeProblem(before: SiteConfig, after: SiteConfig): strin
   if (JSON.stringify(before.store?.payments) !== JSON.stringify(after.store?.payments) || JSON.stringify(before.bookings?.payments) !== JSON.stringify(after.bookings?.payments))
     return 'the payment settings';
   if (before.bookings?.depositPercent !== after.bookings?.depositPercent) return 'the deposit';
+  if (JSON.stringify(before.customSections) !== JSON.stringify(after.customSections)) return 'a custom section’s code';
   return 'the layout';
 }

@@ -3,6 +3,7 @@ import { DEFAULT_PAGE_SECTIONS } from '@/generate/plan';
 import { pagesFor } from '@/generate/brief';
 import type { ContentOf, SectionType } from '@/site/schema';
 import type { ChatRequest, ChatResult, ProviderClient } from './types';
+import { TIMELINE_CODE, TIMELINE_FIELDS } from '@/site/custom/samples';
 
 /*
  * Demo provider for local development without API keys. It answers each task
@@ -14,7 +15,8 @@ export type DemoContext =
   | { kind: 'parse'; brief: Brief }
   | { kind: 'plan'; brief: Brief }
   | { kind: 'fill'; brief: Brief; extracted: Extracted | null; page: PlanPage }
-  | { kind: 'chat' };
+  | { kind: 'chat' }
+  | { kind: 'custom'; purpose: string };
 
 export function demoAllowed(): boolean {
   return process.env.NODE_ENV !== 'production' || process.env.SONO_DEMO_AI === '1';
@@ -156,6 +158,20 @@ export function demoClient(): ProviderClient {
             title: p.title,
             sections: DEFAULT_PAGE_SECTIONS[p.key].map((s) => ({ type: s.type, variant: s.variant ?? '', note: s.note })),
           })),
+        };
+      else if (ctx.kind === 'custom')
+        body = {
+          name: 'Timeline',
+          fields: TIMELINE_FIELDS,
+          data: {
+            eyebrow: '',
+            heading: 'How it started',
+            moments: [
+              { year: 'Then', title: 'The beginning', text: 'Replace with a real moment from the business’s story.' },
+              { year: 'Now', title: 'Today', text: 'Replace with where the business is now.' },
+            ],
+          },
+          code: TIMELINE_CODE,
         };
       else if (ctx.kind === 'chat')
         body = { reply: 'Demo mode can’t follow instructions, so nothing changed. Add an AI key in Settings → AI providers to edit by chat.', ops: [] };

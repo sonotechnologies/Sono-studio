@@ -57,6 +57,9 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
   const unphotographed = products.filter((p) => !p.image.src).length;
   const orderTo = (config.store?.whatsapp ?? '').replace(/[^0-9]/g, '');
 
+  const customs = [...new Set(visible.flatMap((s) => (s.type === 'custom' ? [s.content.component] : [])))].map((c) => config.customSections?.[c]).filter((d) => !!d);
+  const unreviewed = customs.filter((d) => !d.reviewed);
+
   const items: ChecklistItem[] = [
     {
       key: 'photos',
@@ -92,6 +95,16 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
       detail: 'Vercel’s free Hobby plan is for non-commercial use. For a paying client, transfer the project to their own Vercel account or use a paid plan.',
     },
   ];
+  if (customs.length)
+    items.push({
+      key: 'custom-code',
+      title: 'Custom sections',
+      done: unreviewed.length === 0,
+      important: unreviewed.length > 0,
+      detail: unreviewed.length
+        ? `${plural(unreviewed.length, 'section')} written by AI (${unreviewed.map((d) => d.name).join(', ')}) ${unreviewed.length === 1 ? 'hasn’t' : 'haven’t'} been reviewed. Open each in the Edit tab, read the code under “Code details” and tick “I’ve read the code”.`
+        : 'Every AI-written section has been reviewed.',
+    });
   const cards = [...new Set([...cardProviders(config.store), ...depositProviders(config.bookings)])];
   const names = cards.map((p) => (p === 'paystack' ? 'Paystack' : 'Stripe'));
   items.push(

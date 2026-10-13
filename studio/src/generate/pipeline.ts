@@ -4,10 +4,11 @@ import type { ProviderClient } from '@/ai/types';
 import type { Section, SiteConfig } from '@/site/schema';
 import { buildConfig } from './assemble';
 import { EMPTY_EXTRACTED, extractedSchema, rawPlanSchema, type Asset, type GenerationJob, type StepLog } from './brief';
-import { fillPrompt, fillResponseSchema, toSections } from './fill';
+import { customPrompt, customReplySchema, toCustom } from './custom';
+import { fillPrompt, fillResponseSchema, libraryPage, toSections } from './fill';
 import { placeImages } from './images';
 import { parsePrompt } from './ingest';
-import { normalisePlan, planPrompt } from './plan';
+import { briefSummary, normalisePlan, planPrompt } from './plan';
 import type { StockPhoto, StockSearch } from './stock';
 
 export interface PipelineDeps {
@@ -35,6 +36,7 @@ export function stepsFor(job: GenerationJob): StepView[] {
     { key: 'read', label: 'Reading your inputs' },
     { key: 'plan', label: 'Planning pages and sections' },
     ...(pages.length ? pages.map((p) => ({ key: `write:${p.id}`, label: `Writing copy · ${p.title}` })) : [{ key: 'write', label: 'Writing copy' }]),
+    ...pages.flatMap((p) => p.sections.filter((s) => s.type === 'custom').map((s) => ({ key: `custom:${s.id}`, label: `Writing a custom section · ${s.note.slice(0, 40)}` }))),
     { key: 'photos', label: 'Choosing photos' },
     { key: 'assemble', label: 'Assembling and checking' },
   ];
@@ -57,6 +59,8 @@ export function nextUnit(job: GenerationJob): Unit | null {
   if (!job.plan) return { key: 'plan', label: 'Planning pages and sections' };
   const page = job.plan.pages.find((p) => !job.filled[p.id]);
   if (page) return { key: `write:${page.id}`, label: `Writing copy · ${page.title}` };
+  const custom = job.plan.pages.flatMap((p) => p.sections).find((s) => s.type === 'custom' && !s.custom);
+  if (custom) return { key: `custom:${custom.id}`, label: `Writing a custom section · ${custom.note.slice(0, 40)}` };
   if (!job.imagesDone) return { key: 'photos', label: 'Choosing photos' };
   return { key: 'assemble', label: 'Assembling and checking' };
 }
@@ -93,19 +97,41 @@ export async function advance(job: GenerationJob, deps: PipelineDeps): Promise<{
       log({ status: 'done', provider: r.provider, model: r.model, ms: r.ms });
     } else if (unit.key.startsWith('write:')) {
       const page = j.plan!.pages.find((p) => `write:${p.id}` === unit.key)!;
-      if (!page.sections.length) {
+      if (!libraryPage(page).sections.length) {
         j.filled[page.id] = [];
         log({ status: 'skipped', provider: 'local', detail: 'No sections' });
       } else {
         const photos = deps.assets.filter((a) => a.kind === 'photo').length;
         const r = await runJson(
           deps.providers,
-          { task: 'fill', ...fillPrompt(j.brief, j.extracted, page, photos), temperature: 0.7, demo: demo({ kind: 'fill', brief: j.brief, extracted: j.extracted, page }) },
+          { task: 'fill', ...fillPrompt(j.brief, j.extracted, page, photos), temperature: 0.7, demo: demo({ kind: 'fill', brief: j.brief, extracted: j.extracted, page: libraryPage(page) }) },
           fillResponseSchema(page),
           deps.hooks,
         );
         j.filled[page.id] = toSections(r.data, page, j.brief, j.extracted);
         log({ status: 'done', provider: r.provider, model: r.model, ms: r.ms });
+      }
+    } else if (unit.key.startsWith('custom:')) {
+      const page = j.plan!.pages.find((p) => p.sections.some((s) => `custom:${s.id}` === unit.key))!;
+      const planned = page.sections.find((s) => `custom:${s.id}` === unit.key)!;
+      try {
+        const r = await runJson(
+          deps.providers,
+          {
+            task: 'custom',
+            ...customPrompt({ businessName: j.brief.businessName, businessType: j.brief.businessType, purpose: planned.note, pageTitle: page.title, facts: briefSummary(j.brief, j.extracted) }),
+            temperature: 0.4,
+            demo: demo({ kind: 'custom', purpose: planned.note }),
+          },
+          customReplySchema,
+          deps.hooks,
+        );
+        planned.custom = toCustom(r.data, planned.note);
+        log({ status: 'done', provider: r.provider, model: r.model, ms: r.ms });
+      } catch (err) {
+        // A custom section is extra: the site is finished without it, and the plan says why.
+        planned.custom = { failed: ((err as Error).message || 'Couldn’t be written').slice(0, 300) };
+        log({ status: 'skipped', provider: 'local', detail: `Left out: ${planned.custom.failed.slice(0, 200)}` });
       }
     } else if (unit.key === 'photos') {
       const order = j.plan!.pages.map((p) => p.id);

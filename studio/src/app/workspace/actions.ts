@@ -1,5 +1,8 @@
 'use server';
 
+import { customPrompt, customReplySchema, toCustom } from '@/generate/custom';
+import type { CustomDef } from '@/site/schema';
+
 import { revalidatePath } from 'next/cache';
 import { applyOps, chatPrompt, chatReplySchema, chatReplyText, type ChatScope } from '@/ai/chat';
 import { AllProvidersFailed, runJson } from '@/ai/router';
@@ -119,3 +122,41 @@ export async function addStockAssetAction(projectId: string, photo: StockPhoto):
   });
 }
 
+
+/**
+ * Asks the AI for a custom section, or a change to one. The reply is checked
+ * (fields, content and code) before it's returned; nothing is saved here.
+ */
+export async function writeCustomAction(
+  projectId: string,
+  input: { purpose: string; pageTitle: string; businessType: string; businessName: string; existing?: { def: CustomDef; data: Record<string, unknown>; change: string } },
+): Promise<{ def?: CustomDef; data?: Record<string, unknown>; model?: string; error?: string }> {
+  await requireUser();
+  const purpose = input.purpose.trim().slice(0, 300);
+  if (!purpose) return { error: 'Describe what the section should show.' };
+  const repo = await getRepo();
+  if (!(await repo.getProject(projectId))) return { error: 'Project not found' };
+  try {
+    const r = await runJson(
+      await loadProviders(repo),
+      {
+        task: 'custom',
+        ...customPrompt({
+          businessName: input.businessName,
+          businessType: input.businessType,
+          purpose,
+          pageTitle: input.pageTitle,
+          existing: input.existing ? { ...input.existing, change: input.existing.change.trim().slice(0, 600) } : undefined,
+        }),
+        temperature: 0.4,
+        demo: { kind: 'custom', purpose },
+      },
+      customReplySchema,
+      routerHooks(repo),
+    );
+    const out = toCustom(r.data, purpose);
+    return { ...out, model: r.provider === 'demo' ? 'Demo' : r.model };
+  } catch (err) {
+    return { error: err instanceof AllProvidersFailed ? err.message : `The section couldn’t be written: ${(err as Error).message.slice(0, 300)}` };
+  }
+}

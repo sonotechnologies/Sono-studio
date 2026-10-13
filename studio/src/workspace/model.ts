@@ -1,7 +1,7 @@
 import { demoContent } from '@/ai/demo';
 import { EMPTY_EXTRACTED, type Brief } from '@/generate/brief';
 import { SECTIONS } from '@/site/registry';
-import { sectionSchema, siteConfigSchema, type Section, type SectionType, type SiteConfig, type SitePage } from '@/site/schema';
+import { customDataSchema, sectionSchema, siteConfigSchema, type CustomDef, type Section, type SectionType, type SiteConfig, type SitePage } from '@/site/schema';
 import { preferredLayouts } from '@/site/starter';
 
 /*
@@ -68,6 +68,12 @@ export function setField(config: SiteConfig, sectionId: string, path: string, va
     const next = { ...s, content: setIn(s.content, path, value) } as Section;
     const check = sectionSchema.safeParse(next);
     if (!check.success) throw new Error(check.error.issues[0]?.message ?? 'That value is not allowed here');
+    // An AI-written section's content must still match the fields it declared.
+    const def = check.data.type === 'custom' ? config.customSections?.[check.data.content.component] : undefined;
+    if (def && check.data.type === 'custom') {
+      const data = customDataSchema(def.fields).safeParse(check.data.content.data);
+      if (!data.success) throw new Error(data.error.issues[0]?.message ?? 'That value is not allowed here');
+    }
     return check.data;
   });
 }
@@ -94,7 +100,7 @@ export function moveSection(config: SiteConfig, sectionId: string, toIndex: numb
 }
 
 export function removeSection(config: SiteConfig, sectionId: string): SiteConfig {
-  return { ...config, pages: config.pages.map((p) => ({ ...p, sections: p.sections.filter((s) => s.id !== sectionId) })) };
+  return pruneCustom({ ...config, pages: config.pages.map((p) => ({ ...p, sections: p.sections.filter((s) => s.id !== sectionId) })) });
 }
 
 export function uniqueSectionId(config: SiteConfig, base: string): string {
@@ -108,7 +114,14 @@ export function duplicateSection(config: SiteConfig, sectionId: string): { confi
   const at = findSection(config, sectionId);
   if (!at) return { config, id: sectionId };
   const id = uniqueSectionId(config, `${sectionId}-copy`);
-  return { config: insertSection(config, at.page.id, at.index + 1, { ...structuredClone(at.section), id }), id };
+  const copy = { ...structuredClone(at.section), id };
+  // A copied custom section gets its own component, so changing one with AI leaves the other alone.
+  if (copy.type === 'custom' && config.customSections?.[copy.content.component]) {
+    const component = uniqueComponent(config, id);
+    config = { ...config, customSections: { ...config.customSections, [component]: structuredClone(config.customSections[copy.content.component]) } };
+    copy.content = { ...copy.content, component };
+  }
+  return { config: insertSection(config, at.page.id, at.index + 1, copy), id };
 }
 
 export function insertSection(config: SiteConfig, pageId: string, index: number, section: Section): SiteConfig {
@@ -160,7 +173,7 @@ export function syncShared(config: SiteConfig, sectionId: string): SiteConfig {
 
 /** "Hero · Quiet space for modern rest." for lists and labels. */
 export function sectionLabel(s: Section): { name: string; detail: string } {
-  const c = s.content as Record<string, unknown>;
+  const c = (s.type === 'custom' ? s.content.data : s.content) as Record<string, unknown>;
   const text = [c.heading, c.brand, c.label, c.eyebrow].find((v) => typeof v === 'string' && v.trim()) as string | undefined;
   return { name: SECTIONS[s.type].label, detail: s.hidden ? 'Hidden' : text ?? SECTIONS[s.type].variants.find((v) => v.id === s.variant)?.label ?? '' };
 }
@@ -211,4 +224,45 @@ export function applyLayouts(config: SiteConfig): { config: SiteConfig; changed:
     }),
   }));
   return { config: changed ? { ...config, pages } : config, changed };
+}
+
+/* ---------- AI-written sections ---------- */
+
+/** Adds an AI-written section to a page, with its definition. */
+export function addCustomSection(config: SiteConfig, pageId: string, index: number, def: CustomDef, data: Record<string, unknown>): { config: SiteConfig; id: string } {
+  const page = config.pages.find((p) => p.id === pageId) ?? config.pages[0];
+  const id = uniqueSectionId(config, `${page.id}-custom`);
+  const component = uniqueComponent(config, id);
+  const next = { ...config, customSections: { ...(config.customSections ?? {}), [component]: def } };
+  return { config: insertSection(next, page.id, index, { id, type: 'custom', variant: 'default', content: { component, data } }), id };
+}
+
+function uniqueComponent(config: SiteConfig, base: string): string {
+  const taken = config.customSections ?? {};
+  if (!(base in taken)) return base;
+  for (let n = 2; ; n++) if (!(`${base}-${n}` in taken)) return `${base}-${n}`;
+}
+
+/** Replaces a section's code and fields (after "change with AI"); it needs reviewing again. */
+export function replaceCustom(config: SiteConfig, sectionId: string, def: CustomDef, data: Record<string, unknown>): SiteConfig {
+  const found = findSection(config, sectionId);
+  if (!found || found.section.type !== 'custom') return config;
+  const component = found.section.content.component;
+  const next = { ...config, customSections: { ...(config.customSections ?? {}), [component]: { ...def, reviewed: false } } };
+  return setField(next, sectionId, 'data', data);
+}
+
+export function setCustomReviewed(config: SiteConfig, component: string, reviewed: boolean): SiteConfig {
+  const def = config.customSections?.[component];
+  return def ? { ...config, customSections: { ...config.customSections, [component]: { ...def, reviewed } } } : config;
+}
+
+/** Drops definitions no section uses any more (after a custom section is removed). */
+export function pruneCustom(config: SiteConfig): SiteConfig {
+  if (!config.customSections) return config;
+  const used = new Set(config.pages.flatMap((p) => p.sections.flatMap((s) => (s.type === 'custom' ? [s.content.component] : []))));
+  const kept = Object.fromEntries(Object.entries(config.customSections).filter(([k]) => used.has(k)));
+  if (Object.keys(kept).length === Object.keys(config.customSections).length) return config;
+  const { customSections: _drop, ...rest } = config;
+  return Object.keys(kept).length ? { ...rest, customSections: kept } : rest;
 }

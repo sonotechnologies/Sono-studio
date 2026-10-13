@@ -49,10 +49,13 @@ import {
   insertSection,
   moveSection,
   newSection,
+  addCustomSection,
   removeSection,
+  replaceCustom,
   revertChange,
   sectionLabel,
   setField,
+  setCustomReviewed,
   setIn,
   setVariant,
   syncShared,
@@ -60,7 +63,7 @@ import {
 } from '@/workspace/model';
 import { addShop, saveProduct } from '@/workspace/store';
 import type { AiMode } from '../new/setup-flow';
-import { chatAction, restoreVersionAction, saveSiteAction } from './actions';
+import { chatAction, restoreVersionAction, saveSiteAction, writeCustomAction } from './actions';
 import { ChatPanel, type ChatView } from './chat-panel';
 import { HistoryDialog, MediaDialog } from './dialogs';
 import type { FieldCtx } from './fields';
@@ -344,6 +347,40 @@ export function Workspace({
     flash([s.id]);
   };
 
+  /* ----- Custom sections (written by AI) ----- */
+  const [customAsk, setCustomAsk] = useState('');
+  const [customBusy, setCustomBusy] = useState(false);
+  const customInput = (purpose: string) => ({ purpose, pageTitle: page.title, businessType: project.businessType, businessName: configRef.current.meta.businessName || project.name });
+
+  const addCustom = async () => {
+    const purpose = customAsk.trim();
+    if (!purpose || customBusy) return;
+    setCustomBusy(true);
+    const r = await writeCustomAction(project.id, customInput(purpose)).catch((err: Error) => ({ error: err.message, def: undefined, data: undefined }));
+    setCustomBusy(false);
+    if (!r.def || !r.data) return toast(r.error ?? 'The section couldn’t be written.');
+    setAddMenu(false);
+    setCustomAsk('');
+    const at = selIndex >= 0 ? Math.max(selIndex + 1, min) : max + 1;
+    const added = addCustomSection(configRef.current, page.id, Math.min(at, max + 1), r.def, r.data);
+    commit(added.config, `Added ${r.def.name}`);
+    select(added.id, 'list');
+    flash([added.id]);
+  };
+
+  const changeCustom = async (change: string) => {
+    const s = selected;
+    if (!s || s.type !== 'custom' || customBusy) return;
+    const def = configRef.current.customSections?.[s.content.component];
+    if (!def) return;
+    setCustomBusy(true);
+    const r = await writeCustomAction(project.id, { ...customInput(def.purpose), existing: { def, data: s.content.data, change } }).catch((err: Error) => ({ error: err.message, def: undefined, data: undefined }));
+    setCustomBusy(false);
+    if (!r.def || !r.data) return toast(r.error ?? 'The section couldn’t be changed.');
+    commit(replaceCustom(configRef.current, s.id, r.def, r.data), `Changed ${r.def.name}`);
+    flash([s.id]);
+  };
+
   const remove = (id: string) => {
     const before = configRef.current;
     commit(removeSection(before, id), `Removed ${label(id)}`);
@@ -533,6 +570,27 @@ export function Workspace({
                   <span className="text-[11px] leading-snug text-muted">{SECTIONS[t].purpose}</span>
                 </button>
               ))}
+              <form
+                className="mt-1 flex flex-col gap-1.5 border-t border-border px-2.5 pt-2 pb-1.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void addCustom();
+                }}
+              >
+                <span className="text-[13px] font-medium">Custom section · written by AI</span>
+                <textarea
+                  value={customAsk}
+                  onChange={(e) => setCustomAsk(e.target.value)}
+                  rows={3}
+                  maxLength={300}
+                  placeholder="e.g. A timeline of our story, year by year"
+                  className="resize-none rounded-lg border border-border bg-bg px-2 py-1.5 text-[12px] outline-none focus:border-accent-text"
+                />
+                <button type="submit" disabled={customBusy || !customAsk.trim()} className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-text px-2 py-1.5 text-[12px] font-medium text-bg disabled:cursor-default disabled:opacity-50">
+                  {customBusy ? <MiniSpin /> : null}
+                  {customBusy ? 'Writing and checking…' : 'Write it'}
+                </button>
+              </form>
             </div>
           )}
         </div>
@@ -753,6 +811,12 @@ export function Workspace({
             isFirst={selIndex <= min}
             isLast={selIndex >= max}
             ctx={fieldCtx}
+            customSections={config.customSections}
+            custom={{
+              busy: customBusy,
+              onChange: (change) => void changeCustom(change),
+              onReviewed: (v) => selected?.type === 'custom' && commit(setCustomReviewed(configRef.current, selected.content.component, v), v ? 'Code reviewed' : 'Review cleared'),
+            }}
             onVariant={(v) => commit(syncShared(setVariant(configRef.current, selected!.id, v), selected!.id), `${label(selected!.id)} layout`)}
             onMove={(dir) => moveTo(selected!.id, selIndex + dir)}
             onDuplicate={() => {

@@ -8,14 +8,13 @@ import type { Asset } from '@/generate/brief';
 import type { BookingRecord, OrderRecord } from '@/lib/data/repo';
 import { SECTIONS } from '@/site/registry';
 import type { SiteConfig, SiteImage } from '@/site/schema';
-import { contentSchemaFor } from '@/generate/fill';
 import { findSection, getIn, setField, setIn, syncShared } from '@/workspace/model';
 import { saveProduct } from '@/workspace/store';
 import { BookingsCard } from '../(app)/projects/[id]/bookings-card';
 import { OrdersCard } from '../(app)/projects/[id]/orders-card';
 import { BookingsPanel } from '../workspace/bookings-panel';
 import { MediaDialog } from '../workspace/dialogs';
-import { FieldFor, type FieldCtx } from '../workspace/fields';
+import { SectionFields, type FieldCtx } from '../workspace/fields';
 import { ProductsPanel } from '../workspace/products-panel';
 import { Stage } from '../workspace/stage';
 import { adminSaveAction, adminSetBookingStatusAction, adminSetOrderStatusAction, adminSignOutAction } from './actions';
@@ -254,7 +253,7 @@ export function AdminApp({
                       Done
                     </button>
                   </div>
-                  <FieldFor name="content" schema={contentSchemaFor(selected.type)} value={selected.content} path="" ctx={fieldCtx} hideLabel />
+                  <SectionFields section={selected} customSections={config.customSections} ctx={fieldCtx} />
                 </div>
               ) : (
                 <div className="flex flex-1 items-center justify-center p-8 text-center text-[14px] leading-normal text-muted">

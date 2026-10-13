@@ -5,6 +5,8 @@ import { ArrowDown, ArrowUp, ChevronRight, ImagePlus, Plus, Trash2 } from 'lucid
 import { useState } from 'react';
 import type { z } from 'zod';
 import { inputClass, Switch } from '@/components/ui';
+import { contentSchemaFor } from '@/generate/fill';
+import { customDataSchema, type CustomDef, type Section } from '@/site/schema';
 
 /*
  * The Edit panel's form, built from each section's content schema, so every
@@ -297,7 +299,8 @@ export function FieldFor({
 }) {
   const { schema: inner, optional } = unwrap(schema);
   const d = def(inner);
-  const label = hideLabel ? '' : humanLabel(name);
+  // AI-written sections name their own fields.
+  const label = hideLabel ? '' : (schema.description ?? inner.description ?? humanLabel(name));
   const remove = optional ? () => ctx.set(path, undefined) : undefined;
 
   if (d.type === 'boolean') {
@@ -386,5 +389,16 @@ export function FieldFor({
       </label>
     );
   }
-  return <TextField label={label} value={String(value ?? '')} path={path} multiline={MULTILINE.has(name)} ctx={ctx} />;
+  const max = (inner as unknown as { _zod?: { bag?: { maximum?: number } } })._zod?.bag?.maximum ?? 0;
+  return <TextField label={label} value={String(value ?? '')} path={path} multiline={MULTILINE.has(name) || max > 300} ctx={ctx} />;
+}
+
+/** The form for one section's content; an AI-written section's comes from the fields it declared. */
+export function SectionFields({ section, customSections, ctx }: { section: Section; customSections?: Record<string, CustomDef>; ctx: FieldCtx }) {
+  if (section.type === 'custom') {
+    const def = customSections?.[section.content.component];
+    if (!def) return <p className="m-0 text-[13px] text-muted">This section’s code is missing.</p>;
+    return <FieldFor name="content" schema={customDataSchema(def.fields)} value={section.content.data} path="data" ctx={ctx} hideLabel />;
+  }
+  return <FieldFor name="content" schema={contentSchemaFor(section.type)} value={section.content} path="" ctx={ctx} hideLabel />;
 }

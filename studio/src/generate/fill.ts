@@ -48,7 +48,11 @@ export function pasteFor(paste: string, page: Pick<PlanPage, 'title' | 'path'>, 
   return out;
 }
 
-export function fillPrompt(brief: Brief, extracted: Extracted | null, page: PlanPage, photoCount: number) {
+/** The page's library sections: custom sections are written by their own step. */
+export const libraryPage = (page: PlanPage): PlanPage => ({ ...page, sections: page.sections.filter((s) => s.type !== 'custom') });
+
+export function fillPrompt(brief: Brief, extracted: Extracted | null, fullPage: PlanPage, photoCount: number) {
+  const page = libraryPage(fullPage);
   const items = extracted?.items ?? [];
   return {
     system: [
@@ -101,7 +105,8 @@ Reply with JSON in exactly this shape:
 }
 
 /** Accepts the model's page reply only if every planned section is present and valid. */
-export function fillResponseSchema(page: PlanPage) {
+export function fillResponseSchema(fullPage: PlanPage) {
+  const page = libraryPage(fullPage);
   return z
     .object({ sections: z.array(z.object({ id: z.string(), content: z.unknown() })) })
     .superRefine((value, ctx) => {
@@ -164,7 +169,8 @@ export function applyKnownFacts(section: Section, brief: Brief, extracted: Extra
   return s;
 }
 
-export function toSections(reply: { sections: { id: string; content: unknown }[] }, page: PlanPage, brief: Brief, extracted: Extracted | null): Section[] {
+export function toSections(reply: { sections: { id: string; content: unknown }[] }, fullPage: PlanPage, brief: Brief, extracted: Extracted | null): Section[] {
+  const page = libraryPage(fullPage);
   return page.sections.map((planned) => {
     const got = reply.sections.find((s) => s.id === planned.id)!;
     const section = applyKnownFacts(sectionSchema.parse({ id: planned.id, type: planned.type, variant: planned.variant, content: got.content }), brief, extracted);

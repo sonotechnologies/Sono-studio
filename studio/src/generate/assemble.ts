@@ -111,6 +111,16 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
     return { navbar, footer, float };
   };
 
+  // AI-written sections go where the plan put them; ones that couldn't be written are left out.
+  const customSections: NonNullable<SiteConfig['customSections']> = {};
+  const withCustom = (p: Plan['pages'][number], library: Section[]): Section[] =>
+    p.sections.flatMap((planned): Section[] => {
+      if (planned.type !== 'custom') return library.filter((s) => s.id === planned.id);
+      if (!planned.custom || !('def' in planned.custom)) return [];
+      customSections[planned.id] = planned.custom.def;
+      return [{ id: planned.id, type: 'custom', variant: 'default', content: { component: planned.id, data: planned.custom.data } }];
+    });
+
   const config: SiteConfig = {
     schemaVersion: 1,
     meta: {
@@ -124,8 +134,9 @@ export function buildConfig(brief: Brief, extracted: Extracted | null, plan: Pla
     ...(bookings ? { bookings } : {}),
     pages: plan.pages.map((p) => {
       const { navbar, footer, float } = fixed(p.id);
-      return { id: p.id, path: p.path, title: p.title, sections: [navbar, ...(filled[p.id] ?? []), footer, ...float] };
+      return { id: p.id, path: p.path, title: p.title, sections: [navbar, ...withCustom(p, filled[p.id] ?? []), footer, ...float] };
     }),
+    ...(Object.keys(customSections).length ? { customSections } : {}),
   };
   return siteConfigSchema.parse(fixLinks(config));
 }

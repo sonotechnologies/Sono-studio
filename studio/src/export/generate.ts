@@ -65,6 +65,49 @@ function images(config: SiteConfig): { src: string }[] {
   return out;
 }
 
+/**
+ * AI-written sections become ordinary components in the exported site: one
+ * file each, exactly as reviewed in the studio, and a small dispatcher. The
+ * code passed the studio's check; the Vercel build is the final check.
+ */
+export function customFiles(config: SiteConfig): { path: string; data: string }[] {
+  const used = [...new Set(config.pages.flatMap((p) => p.sections.flatMap((s) => (s.type === 'custom' ? [s.content.component] : []))))].filter(
+    (c) => config.customSections?.[c],
+  );
+  const files = used.map((c) => {
+    const def = config.customSections![c];
+    const head = [
+      '// @ts-nocheck',
+      `// ${def.name}: written by AI in Sono Studio${def.reviewed ? ' and reviewed' : ''}.`,
+      `// ${def.purpose.replace(/\s+/g, ' ')}`,
+      '// Its content comes from config.json (data); edit the words there or in the admin panel.',
+      '',
+    ].join('\n');
+    return { path: `src/site/sections/custom/${c}.tsx`, data: `${head}${def.code.trim()}\n` };
+  });
+  files.push({
+    path: 'src/site/sections/custom.tsx',
+    data: `import type { SectionOf } from '../schema';
+import type { RenderCtx } from '../primitives';
+${used.map((c, i) => `import Custom${i} from './custom/${c}';`).join('\n')}
+
+type Props = { section: SectionOf<'custom'>; ctx: RenderCtx };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const COMPONENTS: Record<string, (props: { data: any }) => React.ReactNode> = {
+${used.map((c, i) => `  '${c}': Custom${i},`).join('\n')}
+};
+
+/** The site's custom sections, written by AI and checked in the studio. */
+export function Custom({ section }: Props) {
+  const Component = COMPONENTS[section.content.component];
+  return Component ? <Component data={section.content.data} /> : null;
+}
+`,
+  });
+  return files;
+}
+
 export function packageName(name: string): string {
   return (
     name
@@ -171,7 +214,8 @@ export async function exportSite(input: { config: SiteConfig; projectName: strin
   for (const f of ['src/site/primitives.tsx', 'src/site/render.tsx', 'src/site/theme.ts', 'src/site/schema.ts', 'src/lib/presets.ts', 'src/lib/presets.json']) add(f, t.files[f]);
   // The cart is part of the renderer (it shows only when the site has products).
   for (const [f, data] of Object.entries(t.files)) if (f.startsWith('src/site/store/')) add(f, data);
-  for (const type of used) add(`src/site/sections/${COMPONENTS[type].file}.tsx`, t.files[`src/site/sections/${COMPONENTS[type].file}.tsx`]);
+  for (const type of used) if (type !== 'custom') add(`src/site/sections/${COMPONENTS[type].file}.tsx`, t.files[`src/site/sections/${COMPONENTS[type].file}.tsx`]);
+  if (used.includes('custom')) for (const f of customFiles(config)) add(f.path, f.data);
   add(
     'src/lib/types.ts',
     `export const PRESET_IDS = ${JSON.stringify(PRESET_IDS)} as const;\nexport type PresetId = (typeof PRESET_IDS)[number];\n`,
