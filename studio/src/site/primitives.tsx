@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import type { Bookings, SiteImage, SiteLink, Store } from './schema';
+import type { Bookings, CustomDef, SiteImage, SiteLink, Store } from './schema';
 
 /**
  * Passed to every section. `link` maps a site path ("/about") to wherever the
@@ -18,6 +18,10 @@ export interface RenderCtx {
   /** Services and opening hours, for the booking section. */
   bookings?: Bookings;
   businessName?: string;
+  /** AI-written sections, and what their sandboxed preview needs from the theme. */
+  customSections?: Record<string, CustomDef>;
+  themeCss?: string;
+  fonts?: string[];
   /** Live availability and deposits, where a server can check them. */
   booking?: BookingCtx;
 }

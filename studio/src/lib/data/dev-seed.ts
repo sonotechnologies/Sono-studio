@@ -1,6 +1,7 @@
 import { VOLT_SUPPLY } from '@/site/samples/volt-supply';
 import { starterConfig } from '@/site/starter';
 import { addBookings } from '@/workspace/bookings';
+import { timelineDef } from '@/site/custom/samples';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import type { PresetId, Project, ProjectStatus, SiteType } from '../types';
 import type { SiteVersion } from './repo';
@@ -82,7 +83,28 @@ export function devSeedVersions(projects: Project[]): Record<string, SiteVersion
   const kora = projects.find((p) => p.pitchSlug === 'kora-kitchen-7k2q');
   if (kora) {
     kora.currentVersion = 1;
-    out[kora.id] = [{ version: 1, config: KORA_KITCHEN, summary: 'Hand-written sample site', createdAt: kora.createdAt }];
+    // With one AI-written section, so the sandboxed preview has something to show.
+    const config = structuredClone(KORA_KITCHEN);
+    config.customSections = { timeline: timelineDef() };
+    const at = config.pages[0].sections.findIndex((x) => x.type === 'about') + 1;
+    config.pages[0].sections.splice(at, 0, {
+      id: 'home-timeline',
+      type: 'custom',
+      variant: 'default',
+      content: {
+        component: 'timeline',
+        data: {
+          eyebrow: 'Our story',
+          heading: 'From a market stall to Mill Lane',
+          moments: [
+            { year: '2014', title: 'A Saturday stall', text: 'Amara’s jollof at the Old Town market, sold out by noon.' },
+            { year: '2018', title: 'Supper clubs', text: 'Monthly dinners in friends’ kitchens, booked by WhatsApp.' },
+            { year: '2021', title: 'Kora Kitchen opens', text: 'Twenty-eight seats on Mill Lane, the same family recipes.' },
+          ],
+        },
+      },
+    });
+    out[kora.id] = [{ version: 1, config, summary: 'Hand-written sample site', createdAt: kora.createdAt }];
   }
   const volt = projects.find((p) => p.pitchSlug === 'volt-supply-h3vk');
   if (volt) {

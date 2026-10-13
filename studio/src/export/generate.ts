@@ -42,6 +42,8 @@ const COMPONENTS: Record<SectionType, { file: string; name: string }> = {
   'product-feature': { file: 'product-feature', name: 'ProductFeature' },
   'product-detail': { file: 'product-detail', name: 'ProductDetail' },
   booking: { file: 'booking', name: 'Booking' },
+  // Generated per site from its AI-written sections (see customFiles), not copied.
+  custom: { file: 'custom', name: 'Custom' },
   'whatsapp-float': { file: 'whatsapp-float', name: 'WhatsappFloat' },
 };
 

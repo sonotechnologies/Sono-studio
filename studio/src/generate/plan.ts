@@ -7,8 +7,8 @@ import { pagesFor, type Brief, type Extracted, type PageKey, type Plan, type Pla
 
 /** Navbar, footer and the WhatsApp button are added to every page by the assembler, not planned. */
 export const FIXED_TYPES: SectionType[] = ['navbar', 'footer', 'whatsapp-float'];
-/** Product pages are made for every product, never planned. */
-export const PLANNABLE_TYPES = (Object.keys(SECTIONS) as SectionType[]).filter((t) => !FIXED_TYPES.includes(t) && t !== 'product-detail');
+/** Product pages are made for every product, never planned; custom sections are written by AI for a gap, not picked from the library. */
+export const PLANNABLE_TYPES = (Object.keys(SECTIONS) as SectionType[]).filter((t) => !FIXED_TYPES.includes(t) && t !== 'product-detail' && t !== 'custom');
 /** Sections that only make sense on a site with products. */
 export const STORE_TYPES: SectionType[] = ['product-grid', 'product-feature'];
 /** Sections that only make sense on a site taking bookings. */

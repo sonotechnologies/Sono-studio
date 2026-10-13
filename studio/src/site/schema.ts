@@ -256,6 +256,56 @@ export const bookingContent = z.object({
   category: text(40),
 });
 
+/* ---------- AI-written sections ---------- */
+
+const fieldKey = z.string().regex(/^[a-z][a-zA-Z0-9]{0,30}$/, 'Use camelCase letters');
+const simpleField = z.enum(['text', 'paragraph', 'image', 'link']);
+
+/** One editable field of an AI-written section; a list holds items made of simple fields. */
+export const customFieldSchema = z.object({
+  key: fieldKey,
+  label: text(40),
+  type: z.union([simpleField, z.literal('list')]),
+  fields: z.array(z.object({ key: fieldKey, label: text(40), type: simpleField })).min(1).max(8).optional(),
+  /** Most items in a list. */
+  max: z.number().int().min(1).max(24).optional(),
+});
+export type CustomField = z.infer<typeof customFieldSchema>;
+
+export const customDefSchema = z.object({
+  name: text(60),
+  /** What it's for, in a sentence: what the AI was asked for. */
+  purpose: text(300),
+  fields: z.array(customFieldSchema).min(1).max(16),
+  /** The component's source (TSX), as written and checked. */
+  code: z.string().max(20_000),
+  /** The same, compiled for the sandboxed preview. */
+  js: z.string().max(60_000),
+  /** Set by you after reading the code; the handover checklist asks for it. */
+  reviewed: z.boolean(),
+});
+export type CustomDef = z.infer<typeof customDefSchema>;
+
+/** The content an AI-written section's fields describe. */
+export function customDataSchema(fields: CustomField[]): z.ZodType {
+  const simple = (f: { type: z.infer<typeof simpleField>; label: string }) =>
+    (f.type === 'text' ? text(200) : f.type === 'paragraph' ? text(1500) : f.type === 'image' ? imageSchema : linkSchema).describe(f.label);
+  return z.object(
+    Object.fromEntries(
+      fields.map((f) => [
+        f.key,
+        f.type === 'list' ? z.array(z.object(Object.fromEntries((f.fields ?? []).map((sub) => [sub.key, simple(sub)])))).max(f.max ?? 12).describe(f.label) : simple(f as { type: z.infer<typeof simpleField>; label: string }),
+      ]),
+    ),
+  );
+}
+
+export const customContent = z.object({
+  /** Which entry of the site's customSections this is. */
+  component: id,
+  data: z.record(z.string(), z.unknown()),
+});
+
 /* ---------- Section instances ---------- */
 
 const base = { id, hidden: z.boolean().optional() };
@@ -301,6 +351,7 @@ export const sectionSchema = z.discriminatedUnion('type', [
   z.object({ ...base, type: z.literal('product-feature'), variant: z.enum(['split', 'centered']), content: productFeatureContent }),
   z.object({ ...base, type: z.literal('product-detail'), variant: z.enum(['gallery', 'compact']), content: productDetailContent }),
   z.object({ ...base, type: z.literal('booking'), variant: z.enum(['steps', 'split']), content: bookingContent }),
+  z.object({ ...base, type: z.literal('custom'), variant: z.enum(['default']), content: customContent }),
   z.object({
     ...base,
     type: z.literal('whatsapp-float'),
@@ -381,6 +432,8 @@ export const siteConfigSchema = z
     store: storeSchema.optional(),
     /** Services, hours and deposits, for booking sites. */
     bookings: bookingsSchema.optional(),
+    /** AI-written sections, by id, used by sections of type "custom". */
+    customSections: z.record(id, customDefSchema).optional(),
   })
   .superRefine((site, ctx) => {
     const paths = new Set<string>();
@@ -404,6 +457,17 @@ export const siteConfigSchema = z
       if (serviceIds.has(s.id)) ctx.addIssue({ code: 'custom', message: `Duplicate service id ${s.id}`, path: ['bookings', 'services', i, 'id'] });
       serviceIds.add(s.id);
     });
+    const customs = site.customSections ?? {};
+    if (Object.keys(customs).length > 12) ctx.addIssue({ code: 'custom', message: 'At most 12 custom sections', path: ['customSections'] });
+    site.pages.forEach((p, pi) =>
+      p.sections.forEach((s, si) => {
+        if (s.type !== 'custom') return;
+        const def = customs[s.content.component];
+        if (!def) return ctx.addIssue({ code: 'custom', message: `No custom section "${s.content.component}"`, path: ['pages', pi, 'sections', si, 'content', 'component'] });
+        const check = customDataSchema(def.fields).safeParse(s.content.data);
+        if (!check.success) ctx.addIssue({ code: 'custom', message: check.error.issues[0]?.message ?? 'Invalid content', path: ['pages', pi, 'sections', si, 'content', 'data', ...(check.error.issues[0]?.path.map(String) ?? [])] });
+      }),
+    );
     site.bookings?.hours.forEach((h, i) => {
       if (h.close <= h.open) ctx.addIssue({ code: 'custom', message: 'Closing time must be after opening time', path: ['bookings', 'hours', i, 'close'] });
     });

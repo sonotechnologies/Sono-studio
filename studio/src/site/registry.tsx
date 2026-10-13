@@ -16,6 +16,7 @@ import { ProductDetail } from './sections/product-detail';
 import { ProductFeature } from './sections/product-feature';
 import { ProductGrid } from './sections/product-grid';
 import { Booking } from './sections/booking';
+import { Custom } from './sections/custom';
 
 export interface VariantInfo<T extends SectionType> {
   id: VariantOf<T>;
@@ -192,6 +193,13 @@ export const SECTIONS: Registry = {
       { id: 'split', label: 'Split', note: 'Heading beside the booking steps' },
     ],
     Component: Booking,
+  },
+  custom: {
+    type: 'custom',
+    label: 'Custom section',
+    purpose: 'Written by AI for something the library doesn’t cover; checked, then shown in a sandbox',
+    variants: [{ id: 'default', label: 'As written', note: 'The layout is part of the section’s code' }],
+    Component: Custom,
   },
   'whatsapp-float': {
     type: 'whatsapp-float',

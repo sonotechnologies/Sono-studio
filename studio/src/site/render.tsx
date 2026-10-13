@@ -36,6 +36,13 @@ export function orderPage(config: SiteConfig): SitePage {
   return { id: 'order', path: '/order', title: 'Your order', sections: home.sections.filter((s) => s.type === 'navbar' || s.type === 'footer' || s.type === 'whatsapp-float') };
 }
 
+/** A style object as CSS text ("--s-bg:#fff;..."), for the custom-section frame. */
+function cssText(style: Record<string, unknown>): string {
+  return Object.entries(style)
+    .map(([k, v]) => `${k}:${String(v)}`)
+    .join(';');
+}
+
 /** A short, stable key for the site's cart in the visitor's browser. */
 export function siteKey(config: SiteConfig): string {
   return config.meta.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) || 'site';
@@ -61,7 +68,14 @@ export function SitePageView({
 }) {
   const store = config.store;
   const key = siteKey(config);
-  const sectionCtx: RenderCtx = { ...ctx, ...(store ? { store } : {}), ...(config.bookings ? { bookings: config.bookings } : {}), siteKey: key, businessName: config.meta.businessName };
+  const sectionCtx: RenderCtx = {
+    ...ctx,
+    ...(store ? { store } : {}),
+    ...(config.bookings ? { bookings: config.bookings } : {}),
+    ...(config.customSections ? { customSections: config.customSections, themeCss: cssText(themeStyle(config.theme) as Record<string, unknown>), fonts: [config.theme.fonts.heading, config.theme.fonts.body] } : {}),
+    siteKey: key,
+    businessName: config.meta.businessName,
+  };
   return (
     <div className={`sono-site ${className}`} style={themeStyle(config.theme)} data-motion={config.theme.motion ?? 'none'}>
       <div className="s-root" lang={config.meta.language}>

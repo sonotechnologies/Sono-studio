@@ -32,3 +32,7 @@ for (const d of ['next', 'react', 'react-dom', 'lucide-react', 'zod', 'tailwindc
 const out = { files, css: { fonts: region(css, 'fonts'), tokens: region(css, 'tokens'), site: region(css, 'site') }, versions };
 await mkdir(path.join(root, 'src/export'), { recursive: true });
 await writeFile(path.join(root, 'src/export/template.generated.json'), JSON.stringify(out, null, 1) + '\n');
+
+// Tailwind's browser runtime, served to the sandboxed frame that previews AI-written sections.
+await mkdir(path.join(root, 'public/vendor'), { recursive: true });
+await writeFile(path.join(root, 'public/vendor/tailwind-browser.js'), await read('node_modules/@tailwindcss/browser/dist/index.global.js'));
