@@ -64,7 +64,7 @@ export default async function LibraryPage({ searchParams }: Props) {
   return (
     <Page title="Section library">
       <div className="-mb-2 flex flex-col gap-4">
-        <nav aria-label="Section types" className="flex gap-[22px] overflow-x-auto border-b border-border">
+        <nav aria-label="Section types" className="flex gap-[22px] overflow-x-auto border-b border-border [scrollbar-color:var(--color-border)_transparent] [scrollbar-width:thin]">
           {[null, ...LIBRARY_TYPES].map((t) => {
             const on = t === type;
             const count = t ? SECTIONS[t].variants.length : total;
