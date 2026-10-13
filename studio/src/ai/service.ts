@@ -7,6 +7,7 @@ import { pickModels } from './models';
 import { listModels, makeClient } from './providers';
 import type { RouterHooks } from './router';
 import { withRecording } from '@/sono-ai';
+import { alertProviderRest } from '@/sono-ai/alerts';
 import { AI_PROVIDERS, PROVIDER_INFO, type AiProviderId, type ProviderClient } from './types';
 
 export function isAiProvider(p: string): p is AiProviderId {
@@ -46,7 +47,8 @@ async function chooseProviders(repo: Repo): Promise<ProviderClient[]> {
 export function routerHooks(repo: Repo): RouterHooks {
   return {
     onRequest: (p) => (p === 'demo' ? undefined : repo.recordUsage(p).catch(() => {})),
-    onCooldown: (p, until) => (p === 'demo' ? undefined : repo.setCooldown(p, until.toISOString()).catch(() => {})),
+    onCooldown: (p, until) =>
+      p === 'demo' ? undefined : repo.setCooldown(p, until.toISOString()).then(() => alertProviderRest(repo, p, until), () => {}),
   };
 }
 

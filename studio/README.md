@@ -237,6 +237,22 @@ Notes:
 - Requests are stored redacted but still sent to the AI providers as they are, since the site's copy needs the real business name. Redacting what is sent is for the assistant's own requests in stage 3.
 - Generation jobs keep only the latest run per project, so the import covers each project's latest generation plus all chat edits.
 
+### Stage 2, Notify
+
+| Built | Notes |
+| --- | --- |
+| Telegram bot | Your own bot (from BotFather). `/sono-ai` → Connect Telegram registers its webhook and gives a one-time link; pressing Start links your chat. The bot answers only that chat and ignores everyone else; webhook calls without the secret set at registration are refused |
+| Alerts | Sent the moment the event is saved, each once: a pitch link's first real open (bots filtered), a failed generation or deploy, a provider hitting its limit, and every AI provider resting at once |
+| Morning summary | Around 8:00 Lagos time (Vercel Cron, `vercel.json`), only when something needs you: at most five items, one line each with a link, ordered approvals, follow-ups, failures, then the rest. Routine numbers are left out, nothing is sent on a quiet day, and a thumbs-down on an item leaves that kind out (bring it back on `/sono-ai`). Facts come straight from the database; the wording is fixed text, so nothing can be invented |
+| Knowledge search index | Project summaries, client notes and pitch outcomes, redacted, cut into chunks and embedded with Gemini's free embedding model into pgvector. It catches up in the background at most every ten minutes while you work (or Update the index now), rewrites only what changed, and a deleted project's chunks go with it. Answers from it come in stage 3 |
+
+Notes:
+- Supabase needs `supabase/migrations/0013_sono_ai_notify.sql` (it turns on the `vector` extension).
+- Vercel needs `TELEGRAM_BOT_TOKEN` (from BotFather) and `CRON_SECRET` (any long random string; Vercel Cron sends it to the summary route). Both stay on the server.
+- The summary time is in `vercel.json` (`0 7 * * *` is 07:00 UTC, 8:00 in Lagos). On Vercel's free plan a daily job can run any time within that hour.
+- The follow-up threshold is set on `/sono-ai` (3 days to start). The summary shows on `/sono-ai` rather than the studio dashboard, so the dashboard stays untouched.
+- Embeddings use your Gemini key from Settings → AI providers; without one, chunks wait and are embedded once a key is added.
+
 ## Run it locally
 
 ```bash
@@ -284,7 +300,7 @@ src/
   ai/                      provider adapters, router, demo provider
   generate/                brief, plan, copy, photos, products, assembly, pipeline
   workspace/               pure edit functions for the workspace (sections, products, shop)
-  sono-ai/                 Sono AI (experimental): recorder, redaction, knowledge bank, history import
+  sono-ai/                 Sono AI (experimental): recorder, redaction, knowledge bank, history import, Telegram, alerts, summary, search index
   lib/
     auth.ts                session + picks the data store
     data/                  Repo interface, Supabase and dev-store implementations

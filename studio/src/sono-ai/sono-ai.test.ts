@@ -6,42 +6,11 @@ import type { Project } from '@/lib/types';
 import { backfill, outcomesOf, type StudioReader } from './backfill';
 import { recorded } from './record';
 import { Redactor, type Redaction } from './redact';
-import type { Interaction, NewInteraction, Outcome, SonoAiStore } from './store';
+import { memoryStore } from './memory-store';
+import type { Interaction } from './store';
 
 const client = { businessName: 'Kora Kitchen', ownerName: 'Amara Osei', whatsapp: '+1 555 214 0090', instagram: '@korakitchen', address: '14 Mill Lane, Old Town' };
 
-function memoryStore(): SonoAiStore & { rows: Interaction[]; outcomes: Outcome[]; redactions: Redaction[] } {
-  const s = {
-    rows: [] as Interaction[],
-    outcomes: [] as Outcome[],
-    redactions: [] as Redaction[],
-    async addInteractions(rows: NewInteraction[]) {
-      for (const r of rows) if (!r.sourceRef || !s.rows.some((x) => x.sourceRef === r.sourceRef)) s.rows.push({ ...r, id: `i${s.rows.length + 1}`, createdAt: r.createdAt ?? new Date().toISOString() });
-    },
-    async listInteractions({ projectId }: { projectId?: string } = {}) {
-      return s.rows.filter((r) => !projectId || r.projectId === projectId);
-    },
-    async addOutcomes(rows: Outcome[]) {
-      for (const o of rows) if (!s.outcomes.some((x) => x.key === o.key)) s.outcomes.push(o);
-    },
-    async listOutcomes() {
-      return s.outcomes;
-    },
-    async getRedactions() {
-      return s.redactions;
-    },
-    async addRedactions(_: string, rows: Redaction[]) {
-      s.redactions.push(...rows);
-    },
-    async firstLive() {
-      return s.rows.filter((r) => r.source === 'live').map((r) => r.createdAt).sort()[0] ?? null;
-    },
-    async stats() {
-      return { interactions: s.rows.length, live: 0, backfilled: 0, outcomes: s.outcomes.length, redactions: s.redactions.length };
-    },
-  };
-  return s;
-}
 
 describe('redaction', () => {
   it('swaps client details for placeholders and leaves prices and years alone', () => {
@@ -50,6 +19,11 @@ describe('redaction', () => {
     const out = r.redact(text);
     expect(out).toBe('Client A (owner Person 1, Email 1) on Phone 1 or Phone 1, Handle 1, Address 1. Since 2014, mains ₦45,000. Ask Handle 2.');
     expect(r.restore(out)).toContain('Kora Kitchen (owner Amara Osei, amara@kora.example)');
+  });
+
+  it('catches a name’s distinctive words on their own, but not everyday words', () => {
+    expect(new Redactor([], client).redact('Inside Kora, ask for Amara. A kora is a harp.')).toBe('Inside Client A, ask for Person 1. A kora is a harp.');
+    expect(new Redactor([], { businessName: 'Kick Lab' }).redact('Kick Lab: kick off at the Lab. Kick it.')).toBe('Client A: kick off at the Lab. Client A it.');
   });
 
   it('keeps placeholders stable across requests from the saved map', () => {

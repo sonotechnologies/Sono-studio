@@ -1,3 +1,4 @@
+import { alertGenerationFailed } from '@/sono-ai/alerts';
 import { NextResponse } from 'next/server';
 import { availability, healModels, isAiProvider, retiredModels, loadProviders, loadStock, routerHooks } from '@/ai/service';
 import { advance } from '@/generate/pipeline';
@@ -52,6 +53,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     result = await run(await loadProviders(repo, { projectId: job.projectId }));
   }
   await repo.saveJob(result.job);
+  if (result.job.status === 'failed') alertGenerationFailed(result.job, async () => (await repo.getProject(job.projectId))?.name ?? 'a site');
   if (result.job.status === 'done' && result.job.extracted?.tagline) {
     await repo.updateProject(job.projectId, { headline: result.job.extracted.tagline.slice(0, 120) }).catch(() => {});
   }

@@ -61,6 +61,19 @@ export interface BankStats {
   redactions: number;
 }
 
+/** One piece of the knowledge search index: redacted text and its embedding. */
+export interface Chunk {
+  id: string;
+  projectId: string | null;
+  source: string;
+  sourceId: string;
+  chunk: number;
+  content: string;
+  contentHash: string;
+  embedded: boolean;
+}
+export type NewChunk = Omit<Chunk, 'id' | 'embedded'>;
+
 export interface SonoAiStore {
   addInteractions(rows: NewInteraction[]): Promise<void>;
   /** Newest first, without the request and answer text unless asked. */
@@ -72,6 +85,12 @@ export interface SonoAiStore {
   stats(): Promise<BankStats>;
   /** When live recording started (the oldest live row), or null. History after it is already recorded. */
   firstLive(): Promise<string | null>;
+  /** The index, without embeddings. */
+  listChunks(): Promise<Chunk[]>;
+  /** Adds or replaces chunks (by source, source id and number); a replaced chunk loses its embedding. */
+  saveChunks(rows: NewChunk[]): Promise<void>;
+  deleteChunks(ids: string[]): Promise<void>;
+  setEmbedding(id: string, embedding: number[]): Promise<void>;
 }
 
 /* ---------- Supabase ---------- */
@@ -157,6 +176,37 @@ export function supabaseStore(db: SupabaseClient): SonoAiStore {
       const [interactions, live, outcomes, redactions] = await Promise.all([count('ai_interactions'), count('ai_interactions', ['source', 'live']), count('outcomes'), count('redaction_map')]);
       return { interactions, live, backfilled: interactions - live, outcomes, redactions };
     },
+    async listChunks() {
+      const out: Chunk[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await db
+          .from('knowledge_chunks')
+          .select('id, project_id, source, source_id, chunk, content, content_hash, has_embedding')
+          .range(from, from + 999);
+        check(error);
+        const rows = (data ?? []) as unknown as { id: string; project_id: string | null; source: string; source_id: string; chunk: number; content: string; content_hash: string; has_embedding: boolean }[];
+        out.push(...rows.map((r) => ({ id: r.id, projectId: r.project_id, source: r.source, sourceId: r.source_id, chunk: r.chunk, content: r.content, contentHash: r.content_hash, embedded: r.has_embedding })));
+        if (rows.length < 1000) return out;
+      }
+    },
+    async saveChunks(rows) {
+      if (!rows.length) return;
+      const { error } = await db.from('knowledge_chunks').upsert(
+        rows.map((c) => ({ project_id: c.projectId, source: c.source, source_id: c.sourceId, chunk: c.chunk, content: c.content, content_hash: c.contentHash, embedding: null, indexed_at: new Date().toISOString() })),
+        { onConflict: 'owner_id,source,source_id,chunk' },
+      );
+      check(error);
+    },
+    async deleteChunks(ids) {
+      for (let i = 0; i < ids.length; i += 200) {
+        const { error } = await db.from('knowledge_chunks').delete().in('id', ids.slice(i, i + 200));
+        check(error);
+      }
+    },
+    async setEmbedding(id, embedding) {
+      const { error } = await db.from('knowledge_chunks').update({ embedding: JSON.stringify(embedding) }).eq('id', id);
+      check(error);
+    },
     async firstLive() {
       const { data, error } = await db.from('ai_interactions').select('created_at').eq('source', 'live').order('created_at').limit(1);
       check(error);
@@ -171,6 +221,7 @@ interface DevBank {
   interactions: Interaction[];
   outcomes: Outcome[];
   redactions: (Redaction & { projectId: string })[];
+  chunks?: (Omit<Chunk, 'embedded'> & { embedding: number[] | null })[];
 }
 
 const FILE = path.join(process.cwd(), '.data', 'sono-ai.json');
@@ -231,6 +282,25 @@ export const devStore: SonoAiStore = {
     const live = bank.interactions.filter((i) => i.source === 'live').length;
     return { interactions: bank.interactions.length, live, backfilled: bank.interactions.length - live, outcomes: bank.outcomes.length, redactions: bank.redactions.length };
   },
+  async listChunks() {
+    return ((await load()).chunks ?? []).map(({ embedding, ...c }) => ({ ...c, embedded: !!embedding }));
+  },
+  saveChunks: (rows) =>
+    change((bank) => {
+      const chunks = (bank.chunks ??= []);
+      for (const r of rows) {
+        const at = chunks.findIndex((c) => c.source === r.source && c.sourceId === r.sourceId && c.chunk === r.chunk);
+        const row = { ...r, id: at >= 0 ? chunks[at].id : randomUUID(), embedding: null };
+        if (at >= 0) chunks[at] = row;
+        else chunks.push(row);
+      }
+    }),
+  deleteChunks: (ids) => change((bank) => void (bank.chunks = (bank.chunks ?? []).filter((c) => !ids.includes(c.id)))),
+  setEmbedding: (id, embedding) =>
+    change((bank) => {
+      const c = (bank.chunks ?? []).find((x) => x.id === id);
+      if (c) c.embedding = embedding;
+    }),
   async firstLive() {
     const live = (await load()).interactions.filter((i) => i.source === 'live').map((i) => i.createdAt).sort();
     return live[0] ?? null;

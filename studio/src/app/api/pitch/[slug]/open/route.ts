@@ -1,5 +1,6 @@
 import { getRepo, getUser } from '@/lib/auth';
 import { deviceFrom, isBotAgent, validSlug } from '@/lib/pitch';
+import { alertPitchOpen } from '@/sono-ai/alerts';
 
 /**
  * Called once per visit by the pitch page after it loads. Link-preview fetchers
@@ -17,7 +18,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     if (typeof body.path === 'string' && /^\/[a-z0-9-/]{0,99}$/.test(body.path)) path = body.path;
   } catch {}
   try {
-    await (await getRepo()).logPitchOpen(slug, { device: deviceFrom(ua), isBot: isBotAgent(ua), path });
+    const isBot = isBotAgent(ua);
+    await (await getRepo()).logPitchOpen(slug, { device: deviceFrom(ua), isBot, path });
+    if (!isBot) alertPitchOpen(slug);
   } catch (err) {
     console.error('pitch open not logged', err);
   }

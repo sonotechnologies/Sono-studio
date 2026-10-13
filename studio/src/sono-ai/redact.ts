@@ -40,6 +40,8 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 const PHONE = /(?<![\w.])\+?\(?\d[\d\s().-]{7,}\d(?![\w.])/g;
 const HANDLE = /(?<![\w@])@[A-Za-z0-9_](?:[A-Za-z0-9_.]{1,28}[A-Za-z0-9_])(?![\w@])/g;
 
+/** True when `word` is one of the words of `name` ("Kora" in "Kora Kitchen"). */
+const isPartOf = (word: string, name: string) => word !== name && name.split(/[\s&,.'’-]+/).includes(word);
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const digits = (s: string) => s.replace(/\D/g, '');
 
@@ -50,11 +52,11 @@ export class Redactor {
 
   constructor(existing: Redaction[] = [], client: ClientDetails = {}) {
     this.entries = [...existing];
-    if (client.businessName) this.ensure('business', client.businessName);
-    if (client.ownerName) {
-      this.ensure('person', client.ownerName);
-      // First or last name on its own ("Amara"), when it isn't an everyday word.
-      for (const part of client.ownerName.split(/\s+/)) if (part.length >= 3 && !COMMON.has(part.toLowerCase())) this.ensure('person', part);
+    // Names, and their distinctive words on their own ("Kora", "Amara"), when they aren't everyday words.
+    for (const [kind, name] of [['business', client.businessName], ['person', client.ownerName]] as const) {
+      if (!name?.trim()) continue;
+      this.ensure(kind, name);
+      for (const part of name.split(/[\s&,.'’-]+/)) if (part.length >= 3 && !COMMON.has(part.toLowerCase()) && part !== name.trim()) this.ensure(kind, part);
     }
     if (client.whatsapp && digits(client.whatsapp).length >= 7) this.ensure('phone', client.whatsapp);
     if (client.instagram) this.ensure('handle', client.instagram.startsWith('@') ? client.instagram : `@${client.instagram}`);
@@ -67,10 +69,10 @@ export class Redactor {
     const same = (e: Redaction) => e.kind === kind && (kind === 'phone' ? digits(e.value) === digits(value) : e.value.toLowerCase() === value.toLowerCase());
     const found = this.entries.find(same);
     if (found) return found.placeholder;
-    // A first or last name shares the full name's placeholder.
-    const person = kind === 'person' ? this.entries.find((e) => e.kind === 'person' && e.value.split(/\s+/).some((p) => p.toLowerCase() === value.toLowerCase())) : undefined;
+    // A word of a name shares the full name's placeholder.
+    const whole = kind === 'person' || kind === 'business' ? this.entries.find((e) => e.kind === kind && isPartOf(value, e.value)) : undefined;
     const n = new Set(this.entries.filter((e) => e.kind === kind).map((e) => e.placeholder)).size;
-    const placeholder = person?.placeholder ?? (kind === 'business' ? `${LABEL[kind]} ${String.fromCharCode(65 + (n % 26))}${n >= 26 ? Math.floor(n / 26) : ''}` : `${LABEL[kind]} ${n + 1}`);
+    const placeholder = whole?.placeholder ?? (kind === 'business' ? `${LABEL[kind]} ${String.fromCharCode(65 + (n % 26))}${n >= 26 ? Math.floor(n / 26) : ''}` : `${LABEL[kind]} ${n + 1}`);
     const entry = { placeholder, kind, value };
     this.entries.push(entry);
     this.added.push(entry);
@@ -88,7 +90,9 @@ export class Redactor {
     for (const e of known) {
       const edge = /^\w/.test(e.value) ? '(?<![\\w])' : '';
       const end = /\w$/.test(e.value) ? '(?![\\w])' : '';
-      out = out.replace(new RegExp(`${edge}${escape(e.value)}${end}`, 'gi'), e.placeholder);
+      // A single word of a name only counts capitalised as written ("Kora", not "kora"), so everyday words survive.
+      const part = this.entries.some((x) => x !== e && x.kind === e.kind && isPartOf(e.value, x.value));
+      out = out.replace(new RegExp(`${edge}${escape(e.value)}${end}`, part ? 'g' : 'gi'), e.placeholder);
     }
     return out;
   }

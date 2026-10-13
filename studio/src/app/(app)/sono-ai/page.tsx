@@ -2,9 +2,14 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
-import { sonoAiEnabled } from '@/sono-ai';
+import { sonoAiEnabled, indexSoon } from '@/sono-ai';
+import { keyedStoreSignedIn, settingsStore } from '@/sono-ai/notify-store';
 import { getStore } from '@/sono-ai/store';
+import { SUMMARY_KINDS, summaryItems, type SummaryKind } from '@/sono-ai/summary';
+import { telegramToken } from '@/sono-ai/telegram';
 import { ImportButton } from './import-button';
+import { ActionButton, ConnectTelegram, FollowUpDays } from './notify-controls';
+import { disconnectTelegramAction, rebuildIndexAction, sendSummaryNowAction, testTelegramAction, unmuteAction } from './notify-actions';
 
 export const metadata: Metadata = { title: 'Sono AI' };
 
@@ -16,8 +21,22 @@ export default async function SonoAiPage() {
   await requireUser();
   if (!sonoAiEnabled()) notFound();
   const store = await getStore();
-  const [stats, recent, projects] = await Promise.all([store.stats(), store.listInteractions({ limit: 25, withText: true }), (await getRepo()).listProjects()]);
+  const repo = await getRepo();
+  const settingsDb = await settingsStore();
+  // Lets the morning summary, Telegram and pitch alerts recognise this studio's server.
+  await settingsDb.registerKey();
+  const [stats, recent, projects, settings, facts, chunks] = await Promise.all([
+    store.stats(),
+    store.listInteractions({ limit: 25, withText: true }),
+    repo.listProjects(),
+    settingsDb.get(),
+    (await keyedStoreSignedIn()).daily(false).catch(() => null),
+    store.listChunks().catch(() => []),
+  ]);
   const names = new Map(projects.map((p) => [p.id, p.name]));
+  const summary = facts ? summaryItems(facts) : null;
+  const hasToken = !!telegramToken();
+  indexSoon(repo);
 
   return (
     <Page title="Sono AI" newSite={false}>
@@ -39,6 +58,81 @@ export default async function SonoAiPage() {
             <span className="text-[24px] font-semibold tabular-nums">{v}</span>
           </div>
         ))}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={`m-0 ${label}`}>Telegram</h2>
+        {settings.telegramChatId ? (
+          <>
+            <p className="m-0 max-w-[680px] text-[14px] text-muted">
+              Connected. Alerts arrive as things happen: a pitch link&rsquo;s first open, a failed generation or deploy, a provider hitting its limit, and every
+              provider resting at once. The bot answers only your chat.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <ActionButton label="Send a test message" busyLabel="Sending…" action={testTelegramAction} />
+              <ActionButton label="Disconnect" action={disconnectTelegramAction} />
+            </div>
+          </>
+        ) : hasToken ? (
+          <>
+            <p className="m-0 max-w-[680px] text-[14px] text-muted">Connect your Telegram chat to get alerts and the morning summary.</p>
+            <ConnectTelegram />
+          </>
+        ) : (
+          <ol className="m-0 flex max-w-[680px] flex-col gap-1.5 pl-5 text-[14px] text-muted">
+            <li>
+              In Telegram, open <b className="text-text">@BotFather</b>, send <code>/newbot</code>, and pick a name and username. It replies with a token.
+            </li>
+            <li>
+              In Vercel, add it as <code>TELEGRAM_BOT_TOKEN</code> (Settings → Environment Variables), then redeploy. Never paste it anywhere else.
+            </li>
+            <li>Come back here and press Connect Telegram.</li>
+          </ol>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={`m-0 ${label}`}>Morning summary</h2>
+        <p className="m-0 max-w-[680px] text-[14px] text-muted">
+          Around 8:00 Lagos time, only when something needs you: at most five items, most important first, each with a link. Nothing is sent on a quiet day.
+          A thumbs-down on an item leaves that kind out from then on.
+        </p>
+        <FollowUpDays value={settings.followUpDays} />
+        {settings.muted.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[14px]">Left out of summaries:</span>
+            {settings.muted.map((k) => (
+              <div key={k} className="flex flex-wrap items-center gap-3 text-[14px]">
+                <span className="min-w-[200px]">{SUMMARY_KINDS[k as SummaryKind] ?? k}</span>
+                <ActionButton label="Bring back" action={unmuteAction.bind(null, k)} />
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex max-w-[680px] flex-col gap-2 rounded-card border border-border bg-surface px-4 py-3">
+          <span className="text-[13px] text-muted">If it were sent now</span>
+          {summary?.items.length ? (
+            <ol className="m-0 flex flex-col gap-1 pl-5 text-[14px]">
+              {summary.items.map((i, n) => (
+                <li key={n}>{i.text}</li>
+              ))}
+              {summary.more > 0 && <li className="list-none text-muted">and {summary.more} more</li>}
+            </ol>
+          ) : (
+            <span className="text-[14px] text-muted">Nothing worth your attention, so no message.</span>
+          )}
+        </div>
+        {settings.telegramChatId ? <ActionButton label="Send it to Telegram now" busyLabel="Sending…" action={sendSummaryNowAction} /> : null}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className={`m-0 ${label}`}>Knowledge search index</h2>
+        <p className="m-0 max-w-[680px] text-[14px] text-muted">
+          Project summaries, client notes and pitch outcomes, redacted and indexed by meaning for the assistant in the next stage. It catches up in the
+          background while you work. Embeddings use your Gemini key ({chunks.length ? `${chunks.filter((c) => c.embedded).length} of ${chunks.length} chunks embedded` : 'nothing indexed yet'}
+          {settings.lastIndexedAt ? `, last updated ${new Date(settings.lastIndexedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}).
+        </p>
+        <ActionButton label="Update the index now" busyLabel="Indexing…" action={rebuildIndexAction} />
       </section>
 
       <section className="flex flex-col gap-3">
