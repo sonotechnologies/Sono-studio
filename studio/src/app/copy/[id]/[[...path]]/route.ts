@@ -1,5 +1,9 @@
+import { createHash } from 'node:crypto';
 import { getRepo, getUser } from '@/lib/auth';
 import { fileFor, filesOf, mimeOf } from '@/mirror/zip-files';
+
+/** Private (signed in only), kept for an hour, then checked against the copy's date. */
+const CACHE = 'private, max-age=3600, must-revalidate';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -20,9 +24,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const repo = await getRepo();
   const meta = await repo.getSiteCopyMeta(id);
   if (!meta) return new Response('This project has no site copy', { status: 404 });
-  const copy = await repo.getSiteCopy(id);
-  if (!copy) return new Response('The site copy is missing', { status: 404 });
-  const files = filesOf(`${id}:${meta.copiedAt}`, copy.zip);
+  // The copy only changes when it's made again, so its date identifies this version of every file.
+  const etag = `"${createHash('sha256').update(`${id}:${meta.copiedAt}:${path.join('/')}`).digest('hex').slice(0, 32)}"`;
+  if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers: { etag, 'cache-control': CACHE } });
+  const files = await filesOf(`${id}:${meta.copiedAt}`, async () => (await repo.getSiteCopy(id))?.zip ?? null);
+  if (!files) return new Response('The site copy is missing', { status: 404 });
   const file = fileFor(files, (path ?? []).map(decodeURIComponent).join('/'));
   if (!file) return new Response('Not in the copy', { status: 404 });
   const isHtml = file.endsWith('.html');
@@ -33,7 +39,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       // No scripts, no form posts: the copy can't act as the signed-in studio.
       'content-security-policy': "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'; base-uri 'none'",
       'x-content-type-options': 'nosniff',
-      'cache-control': 'private, no-store',
+      // Your browser keeps each file and only asks whether it changed, instead of downloading it again.
+      'cache-control': CACHE,
+      etag,
     },
   });
 }

@@ -29,14 +29,21 @@ export const MIME: Record<string, string> = {
 
 export const mimeOf = (p: string) => MIME[p.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
 
-// Unzipping a large copy on every request would be slow; keep the last few.
-const cache = new Map<string, Record<string, Uint8Array>>();
+// Unzipping a large copy on every request would be slow, and downloading it again for every
+// image and stylesheet on a page would use up the storage egress; keep the last few unzipped.
+const cache = new Map<string, Promise<Record<string, Uint8Array> | null>>();
 
-export function filesOf(cacheKey: string, zip: Uint8Array): Record<string, Uint8Array> {
+/**
+ * The copy's files, downloading the zip only when this server doesn't already
+ * hold them. A page asks for all its files at once, so they share one download.
+ */
+export function filesOf(cacheKey: string, loadZip: () => Promise<Uint8Array | null>): Promise<Record<string, Uint8Array> | null> {
   const hit = cache.get(cacheKey);
   if (hit) return hit;
-  const files = unzipSync(zip);
+  const files = loadZip().then((zip) => (zip ? unzipSync(zip) : null));
   cache.set(cacheKey, files);
+  // A failed or missing download isn't kept, so the next request tries again.
+  files.then((f) => !f && cache.delete(cacheKey), () => cache.delete(cacheKey));
   while (cache.size > 3) cache.delete(cache.keys().next().value!);
   return files;
 }
