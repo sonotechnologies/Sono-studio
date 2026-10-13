@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
-import { pitchUrl } from '@/lib/format';
+import { pitchUrl, siteUrl } from '@/lib/format';
 import { handoverChecklist } from '@/export/checklist';
 import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { siteConfigSchema } from '@/site/schema';
@@ -36,6 +36,7 @@ export default async function ProjectPage({ params }: Props) {
     repo.getLatestDeployment(project.id),
   ]);
   const shop = !!(version && (version.config as { store?: unknown }).store);
+  const admins = version ? await repo.listSiteAdmins(project.id) : null;
   const orders = shop ? await repo.listOrders(project.id, 100) : null;
   const copy = version ? null : await repo.getSiteCopyMeta(project.id);
   const parsed = version ? siteConfigSchema.safeParse(version.config) : null;
@@ -63,7 +64,7 @@ export default async function ProjectPage({ params }: Props) {
   const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} bookings={bookings} />
+      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} bookings={bookings} admins={admins} adminUrl={`${siteUrl()}/admin`} />
     </Page>
   );
 }

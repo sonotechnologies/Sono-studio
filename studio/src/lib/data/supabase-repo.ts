@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Client, type Project, type StudioSettings } from '../types';
-import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type BookingHold, type BookingRecord, type Busy, type OrderRecord, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type PitchEvent, type AdminView, type BookingHold, type BookingRecord, type SiteAdmin, type Busy, type OrderRecord, type PitchView, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 import type { Order } from '@/site/store/payments';
 
 interface ClientRow {
@@ -669,6 +669,78 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async setBookingStatus(projectId, bookingId, status) {
       check(await db.from('bookings').update({ status }).eq('id', bookingId).eq('project_id', projectId));
+    },
+
+    async listSiteAdmins(projectId) {
+      const rows = check(await db.from('site_admins').select('id, email, name, last_sign_in_at, created_at').eq('project_id', projectId).order('created_at')) as {
+        id: string; email: string; name: string; last_sign_in_at: string | null; created_at: string;
+      }[];
+      return rows.map((r): SiteAdmin => ({ id: r.id, email: r.email, name: r.name, lastSignInAt: r.last_sign_in_at, createdAt: r.created_at }));
+    },
+
+    async setSiteAdmin(projectId, input) {
+      check(await db.rpc('set_site_admin', { p_project: projectId, p_email: input.email, p_name: input.name, p_password: input.password }));
+    },
+
+    async removeSiteAdmin(projectId, adminId) {
+      check(await db.from('site_admins').delete().eq('id', adminId).eq('project_id', projectId));
+    },
+
+    async adminSignIn(email, password) {
+      return (check(await db.rpc('admin_sign_in', { p_email: email, p_password: password })) as string | null) ?? null;
+    },
+
+    async adminSignOut(token) {
+      check(await db.rpc('admin_sign_out', { p_token: token }));
+    },
+
+    async adminMe(token) {
+      return (check(await db.rpc('admin_me', { p_token: token })) as AdminView | null) ?? null;
+    },
+
+    async adminSave(token, baseVersion, config, summary) {
+      return check(await db.rpc('admin_save', { p_token: token, p_base_version: baseVersion, p_config: config, p_summary: summary })) as number;
+    },
+
+    async adminOrders(token) {
+      return (check(await db.rpc('admin_orders', { p_token: token })) as OrderRow[]).map(toOrder);
+    },
+
+    async adminSetOrderStatus(token, orderId, status) {
+      return check(await db.rpc('admin_set_order_status', { p_token: token, p_id: orderId, p_status: status })) === true;
+    },
+
+    async adminBookings(token, since) {
+      return (check(await db.rpc('admin_bookings', { p_token: token, p_since: since })) as BookingRow[]).map(toBooking);
+    },
+
+    async adminSetBookingStatus(token, bookingId, status) {
+      return check(await db.rpc('admin_set_booking_status', { p_token: token, p_id: bookingId, p_status: status })) === true;
+    },
+
+    async adminAssets(token) {
+      return (check(await db.rpc('admin_assets', { p_token: token })) as AssetRow[]).map(toAsset);
+    },
+
+    async adminUpload(token, file, alt) {
+      // A one-time ticket lets this upload through the storage rules; nothing else can be written.
+      const path = check(await db.rpc('admin_upload_ticket', { p_token: token, p_ext: file.ext })) as string | null;
+      if (!path) return null;
+      const up = await db.storage.from(BUCKET).upload(path, file.bytes, { contentType: file.contentType, upsert: false });
+      if (up.error) throw new Error(up.error.message);
+      const url = db.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      const id = check(await db.rpc('admin_record_upload', { p_token: token, p_path: path, p_url: url, p_alt: alt, p_width: null, p_height: null })) as string | null;
+      if (!id) return null;
+      return { id, projectId: '', kind: 'photo', source: 'upload', url, alt, credit: '', width: null, height: null, createdAt: new Date().toISOString() };
+    },
+
+    async publishedConfig(projectId) {
+      return (check(await db.rpc('published_config', { p_project: projectId })) as unknown) ?? null;
+    },
+
+    async setPublishedVersion(projectId, version) {
+      // Never back: a client may have published a newer version while this deploy was being prepared.
+      check(await db.from('projects').update({ published_version: version }).eq('id', projectId).or(`published_version.is.null,published_version.lt.${Math.floor(version)}`));
     },
 
     async updateSettings(s) {

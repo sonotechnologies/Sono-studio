@@ -52,6 +52,7 @@ export function MediaDialog({
   kind,
   onPick,
   onClose,
+  uploadUrl,
 }: {
   projectId: string;
   assets: Asset[];
@@ -61,6 +62,8 @@ export function MediaDialog({
   kind: 'photo' | 'logo';
   onPick: (image: SiteImage) => void;
   onClose: () => void;
+  /** Where uploads go; the client admin uses its own. Stock photos are offered only with the studio's. */
+  uploadUrl?: string;
 }) {
   const [tab, setTab] = useState<'project' | 'stock'>('project');
   const [query, setQuery] = useState(current?.alt ?? '');
@@ -85,7 +88,7 @@ export function MediaDialog({
       form.set('alt', f.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '));
       form.set('width', String(prepared.width));
       form.set('height', String(prepared.height));
-      const res = await fetch(`/api/projects/${projectId}/assets`, { method: 'POST', body: form });
+      const res = await fetch(uploadUrl ?? `/api/projects/${projectId}/assets`, { method: 'POST', body: form });
       const data = (await res.json()) as { asset?: Asset; error?: string };
       if (!res.ok || !data.asset) throw new Error(data.error ?? 'Upload failed');
       onAssetAdded(data.asset);
@@ -121,7 +124,7 @@ export function MediaDialog({
   return (
     <Dialog title={kind === 'logo' ? 'Choose a logo' : 'Choose a photo'} icon={<ImagePlus size={18} />} onClose={onClose} wide>
       <div className="flex flex-none flex-wrap items-center gap-2 px-5 pt-4">
-        {kind === 'photo' && (
+        {kind === 'photo' && !uploadUrl && (
           <div className="flex rounded-full bg-sel p-[3px]">
             {(['project', 'stock'] as const).map((t) => (
               <button

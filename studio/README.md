@@ -4,7 +4,7 @@ A private, single-user web app that generates Next.js websites for local busines
 
 The design reference lives in `../project/` (Claude Design export) and the briefs in `../project/uploads/` and the Build Brief.
 
-## Status: Phases 1 to 8 done, Phase 9 part 1 (bookings with deposits) done
+## Status: Phases 1 to 9 done
 
 ### Phase 1, Foundation
 
@@ -191,7 +191,22 @@ Notes:
 Notes:
 - Supabase needs `supabase/migrations/0010_bookings.sql`.
 
-Not yet built (later phases): the client admin panel, custom sections.
+### Phase 9.2, Client admin panel
+
+| Built | Notes |
+| --- | --- |
+| Client logins | On the project page, the Client login card creates a login for the client (email plus a generated password shown once, with a message to send them), sets a new password or removes it. Passwords are hashed in the database; five wrong attempts lock a login for 15 minutes |
+| Admin panel (`/admin`) | The client signs in on the studio's address and edits their site on the page itself, as in the workspace: click any text or photo. Products and prices, services and opening hours, and their orders and bookings have their own tabs. Works on a phone |
+| What stays yours | Theme, pages, which sections there are, their layouts and order, payment and deposit settings, currency and time zone. A save that touches any of these is refused on the server |
+| Publishing | Nothing changes until the client presses Publish changes. It saves a new version and publishes it; a save on top of a newer version is refused, so nobody's edits are lost. Their changes appear in your workspace too |
+| Live sites | Deployed sites read their published content from the studio at most once a minute (with their built-in copy as a fallback), so client edits go live without a redeploy. Deploying publishes the deployed version. Product pages added later render on first visit |
+| Photos | Clients upload photos into the site's library through one-time upload tickets; nothing else can be written to storage |
+
+Notes:
+- Supabase needs `supabase/migrations/0011_site_admin.sql`.
+- Sites deployed before this phase pick up client edits after one more deploy (it adds the `SONO_SITE_API` setting).
+
+Not yet built (later phases): custom sections.
 
 ## Run it locally
 

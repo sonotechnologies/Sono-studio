@@ -26,6 +26,8 @@ import {
 import type { OrderRecord } from '@/lib/data/repo';
 import { OrdersCard } from './orders-card';
 import { BookingsCard } from './bookings-card';
+import { AdminCard } from './admin-card';
+import type { SiteAdmin } from '@/lib/data/repo';
 import type { BookingRecord } from '@/lib/data/repo';
 import { createStarterSiteAction, deleteProjectAction, updateClientAction, updateProjectAction } from '../actions';
 
@@ -49,6 +51,8 @@ export function ProjectDetails({
   copy,
   orders,
   bookings,
+  admins,
+  adminUrl,
 }: {
   project: Project;
   link: string;
@@ -63,6 +67,9 @@ export function ProjectDetails({
   orders: OrderRecord[] | null;
   /** Bookings from a week ago on, or null for a site without bookings. */
   bookings: { list: BookingRecord[]; timezone: string } | null;
+  /** Client logins for the admin panel; null before the project has a site. */
+  admins: SiteAdmin[] | null;
+  adminUrl: string;
   /** An unfinished generation for this project, if there is one. */
   setup: { jobId: string; status: JobStatus } | null;
 }) {
@@ -158,6 +165,7 @@ export function ProjectDetails({
           {website && <WebsiteCard p={p} info={website} now={now} onLive={() => router.refresh()} />}
           {bookings && <BookingsCard projectId={p.id} bookings={bookings.list} timezone={bookings.timezone} now={now} />}
           {orders && <OrdersCard projectId={p.id} orders={orders} now={now} />}
+          {admins && <AdminCard projectId={p.id} admins={admins} adminUrl={adminUrl} now={now} businessName={p.name} />}
           <ActivityCard p={p} now={now} events={events} />
         </div>
       </div>

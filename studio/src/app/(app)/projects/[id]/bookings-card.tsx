@@ -17,7 +17,19 @@ const STATUS: Record<BookingStatus, { label: string; tone: string }> = {
 };
 
 /** Upcoming and recent bookings: test ones from the pitch link and preview, live ones from the deployed site. */
-export function BookingsCard({ projectId, bookings: initial, timezone, now }: { projectId: string; bookings: BookingRecord[]; timezone: string; now: number }) {
+export function BookingsCard({
+  projectId,
+  bookings: initial,
+  timezone,
+  now,
+  onSetStatus,
+}: {
+  projectId: string;
+  bookings: BookingRecord[];
+  timezone: string;
+  now: number;
+  onSetStatus?: (id: string, status: BookingStatus) => Promise<unknown>;
+}) {
   const toast = useToast();
   const [list, setList] = useState(initial);
   const [open, setOpen] = useState<string | null>(null);
@@ -30,7 +42,7 @@ export function BookingsCard({ projectId, bookings: initial, timezone, now }: { 
     setList((l) => l.map((x) => (x.id === b.id ? { ...x, status } : x)));
     start(async () => {
       try {
-        await setBookingStatusAction(projectId, b.id, status);
+        await (onSetStatus ? onSetStatus(b.id, status) : setBookingStatusAction(projectId, b.id, status));
       } catch {
         setList((l) => l.map((x) => (x.id === b.id ? b : x)));
         toast('Couldn’t update the booking');

@@ -193,19 +193,43 @@ ${used.map((type) => `    case '${type}':\n      return <${COMPONENTS[type].name
   add('src/site/config.json', json(config));
   add(
     'src/site/page.tsx',
-    `import data from './config.json';
+    `import { notFound } from 'next/navigation';
+import data from './config.json';
+import type { RenderCtx } from './primitives';
 import { findPage, SitePageView } from './render';
-import type { SiteConfig } from './schema';
+import { siteConfigSchema, type SiteConfig } from './schema';
 ${server ? `import { ${[cards.length && 'checkoutCtx', deposits.length && 'bookingCtx'].filter(Boolean).join(', ')} } from '@/lib/payments';\n` : ''}
-/** All the site's content: edit config.json to change text, photos or colours. */
-export const site = data as unknown as SiteConfig;
+/** The site's content as built. Edit config.json to change text, photos or colours. */
+export const builtSite = data as unknown as SiteConfig;
 
-export const ctx = { link: (href: string) => href, editable: false${cards.length ? ', checkout: checkoutCtx(site)' : ''}${deposits.length ? ', booking: bookingCtx(site)' : ''} };
+/**
+ * The site's content: the version published from Sono Studio when it's
+ * connected (SONO_SITE_API), so the owner's edits in the admin panel go live
+ * without a rebuild, checked at most once a minute. Otherwise, or if the
+ * studio can't be reached, the built-in copy.
+ */
+export async function loadSite(): Promise<SiteConfig> {
+  const api = process.env.SONO_SITE_API;
+  if (!api) return builtSite;
+  try {
+    const res = await fetch(\`\${api}/config\`, { next: { revalidate: 60 } });
+    if (res.ok) {
+      const parsed = siteConfigSchema.safeParse(((await res.json()) as { config?: unknown }).config);
+      if (parsed.success) return parsed.data;
+    }
+  } catch {}
+  return builtSite;
+}
 
-export function SitePage({ path }: { path: string }) {
+export function ctxFor(site: SiteConfig): RenderCtx {
+  return { link: (href: string) => href, editable: false${cards.length ? ', checkout: checkoutCtx(site)' : ''}${deposits.length ? ', booking: bookingCtx(site)' : ''} };
+}
+
+export async function SitePage({ path }: { path: string }) {
+  const site = await loadSite();
   const page = findPage(site, path);
-  if (!page) return null;
-  return <SitePageView config={site} page={page} ctx={ctx} className="min-h-dvh" />;
+  if (!page) notFound();
+  return <SitePageView config={site} page={page} ctx={ctxFor(site)} className="min-h-dvh" />;
 }
 `,
   );
@@ -269,6 +293,8 @@ ${t.css.site}
 import { SitePage } from '@/site/page';
 
 export const metadata: Metadata = ${page.path === '/' ? '{}' : `{ title: ${str(page.title)} }`};
+// Picks up published edits within a minute.
+export const revalidate = 60;
 
 export default function Page() {
   return <SitePage path=${str(page.path)} />;
@@ -281,22 +307,25 @@ export default function Page() {
       'src/app/product/[id]/page.tsx',
       `import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { SitePage, site } from '@/site/page';
+import { SitePage, builtSite, loadSite } from '@/site/page';
+
+// Products added later are rendered when first visited; all pick up published edits within a minute.
+export const revalidate = 60;
 
 /** One page per product, built ahead of time. */
 export function generateStaticParams() {
-  return (site.store?.products ?? []).map((p) => ({ id: p.id }));
+  return (builtSite.store?.products ?? []).map((p) => ({ id: p.id }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const product = site.store?.products.find((p) => p.id === id);
+  const product = (await loadSite()).store?.products.find((p) => p.id === id);
   return product ? { title: product.name, description: product.description.slice(0, 160) } : {};
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!site.store?.products.some((p) => p.id === id)) notFound();
+  if (!(await loadSite()).store?.products.some((p) => p.id === id)) notFound();
   return <SitePage path={\`/product/\${id}\`} />;
 }
 `,
@@ -305,7 +334,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (server) addPayments(add, { cards: cards.length > 0, deposits: deposits.length > 0 });
   add(
     'src/app/not-found.tsx',
-    `import { site } from '@/site/page';
+    `import { builtSite as site } from '@/site/page';
 import { themeStyle } from '@/site/theme';
 
 export default function NotFound() {
@@ -355,7 +384,7 @@ export function checkoutCtx(site: SiteConfig): CheckoutCtx | undefined {
 
 /** Deposits switched on for bookings that have a key, when the studio keeps the booking calendar. */
 export function bookingCtx(site: SiteConfig): BookingCtx | undefined {
-  if (!process.env.SONO_SITE_API) return undefined;
+  if (!process.env.SONO_SITE_API || !process.env.SONO_ORDERS_KEY) return undefined;
   const providers = depositProviders(site.bookings).filter((p) => secretFor(p));
   if (!providers.length) return undefined;
   return { busyEndpoint: '/api/busy', bookEndpoint: '/api/book', providers, test: providers.every((p) => secretFor(p)!.startsWith('sk_test_')) };
@@ -427,12 +456,13 @@ export async function reportOrder(order: Order): Promise<void> {
     'src/app/api/checkout/route.ts',
     `import { secretFor } from '@/lib/payments';
 import { siteKey } from '@/site/render';
-import { site } from '@/site/page';
+import { loadSite } from '@/site/page';
 import { newReference, PaymentError, priceCart, startPayment } from '@/site/store/payments';
 
-/** Prices the cart from the product list and returns the payment page to send the customer to. */
+/** Prices the cart from the product list (as published) and returns the payment page to send the customer to. */
 export async function POST(req: Request) {
   try {
+    const site = await loadSite();
     if (!site.store) throw new PaymentError('This site has no shop.');
     const priced = priceCart(site.store, await req.json().catch(() => null));
     const secret = secretFor(priced.provider);
@@ -457,7 +487,7 @@ export async function POST(req: Request) {
 import { notFound } from 'next/navigation';
 import { reportOrder, secretFor } from '@/lib/payments';
 import { orderPage, siteKey, SitePageView } from '@/site/render';
-import { ctx, site } from '@/site/page';
+import { ctxFor, loadSite } from '@/site/page';
 import { OrderView } from '@/site/store/order-view';
 import { PaymentError, verifyPaystack, verifyStripe, type Verified } from '@/site/store/payments';
 
@@ -470,6 +500,8 @@ type Props = { params: Promise<{ ref: string }>; searchParams: Promise<{ session
 export default async function OrderPage({ params, searchParams }: Props) {
   const { ref } = await params;
   const { session_id } = await searchParams;
+  const site = await loadSite();
+  const ctx = ctxFor(site);
   if (!site.store || !/^[a-z0-9-]{6,80}$/.test(ref)) notFound();
   let verified: Verified | null = null;
   let error: string | undefined;
@@ -562,12 +594,13 @@ export async function GET(req: Request) {
       'src/app/api/book/route.ts',
       `import { busyTimes, holdBooking, secretFor } from '@/lib/payments';
 import { siteKey } from '@/site/render';
-import { site } from '@/site/page';
+import { loadSite } from '@/site/page';
 import { newReference, PaymentError, priceBooking, startPayment } from '@/site/store/payments';
 
 /** Checks the time is still free, holds it, and returns the deposit's payment page. */
 export async function POST(req: Request) {
   try {
+    const site = await loadSite();
     const b = site.bookings;
     if (!b) throw new PaymentError('Booking isn’t available here.');
     const body = await req.json().catch(() => null);
@@ -601,7 +634,7 @@ export async function POST(req: Request) {
 import { notFound } from 'next/navigation';
 import { confirmBooking, secretFor } from '@/lib/payments';
 import { orderPage, SitePageView } from '@/site/render';
-import { ctx, site } from '@/site/page';
+import { ctxFor, loadSite } from '@/site/page';
 import { BookingView } from '@/site/store/booking-view';
 import { PaymentError, verifyPaystack, verifyStripe, type Verified } from '@/site/store/payments';
 
@@ -614,6 +647,8 @@ type Props = { params: Promise<{ ref: string }>; searchParams: Promise<{ session
 export default async function BookingPage({ params, searchParams }: Props) {
   const { ref } = await params;
   const { session_id } = await searchParams;
+  const site = await loadSite();
+  const ctx = ctxFor(site);
   if (!site.bookings || !/^[a-z0-9-]{6,80}$/.test(ref)) notFound();
   let verified: Verified | null = null;
   let error: string | undefined;

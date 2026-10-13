@@ -28,6 +28,7 @@ export function ProductsPanel({
   onAddShop,
   onPreview,
   testKeys,
+  limited = false,
 }: {
   config: SiteConfig;
   /** The product being edited, or null for the list. */
@@ -40,6 +41,8 @@ export function ProductsPanel({
   onAddShop: (currency: string) => void;
   onPreview: (productId: string) => void;
   testKeys: { paystack: boolean; stripe: boolean };
+  /** The client admin: products and prices only, no shop settings or payment choices. */
+  limited?: boolean;
 }) {
   const store = config.store;
   const [currency, setCurrency] = useState('NGN');
@@ -112,7 +115,7 @@ export function ProductsPanel({
         <div className="flex gap-3">
           <label className="flex w-28 flex-col gap-1.5 text-[13px] font-medium">
             Currency
-            <select value={store.currency} onChange={(e) => setStore({ currency: e.target.value }, 'Currency')} className={`${field} h-[38px] cursor-pointer`}>
+            <select disabled={limited} value={store.currency} onChange={(e) => setStore({ currency: e.target.value }, 'Currency')} className={`${field} h-[38px] cursor-pointer disabled:cursor-default disabled:opacity-70`}>
               {[...new Set([store.currency, ...CURRENCIES])].map((c) => (
                 <option key={c}>{c}</option>
               ))}
@@ -137,7 +140,7 @@ export function ProductsPanel({
         {samples > 0 && <Warn>{samples === 1 ? 'One product is a sample' : `${samples} products are samples`}. Replace them with the client’s real products, or remove them.</Warn>}
       </div>
 
-      <Payments store={store} testKeys={testKeys} onChange={(payments) => setStore({ payments }, 'Payments')} />
+      {!limited && <Payments store={store} testKeys={testKeys} onChange={(payments) => setStore({ payments }, 'Payments')} />}
 
       <div className="flex flex-col gap-2">
         <span className="text-[13px] font-medium">

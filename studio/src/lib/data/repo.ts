@@ -105,6 +105,48 @@ export interface Repo {
   /** Soonest first, from `since` on. */
   listBookings(projectId: string, since: string, limit?: number): Promise<BookingRecord[]>;
   setBookingStatus(projectId: string, bookingId: string, status: BookingStatus): Promise<void>;
+
+  /* Client admin. You manage logins; the admin* methods work with a client's session token, without a studio account. */
+  listSiteAdmins(projectId: string): Promise<SiteAdmin[]>;
+  /** Creates a client login or sets a new password (which signs them out everywhere). Throws "email in use" or "password too short". */
+  setSiteAdmin(projectId: string, input: { email: string; name: string; password: string }): Promise<void>;
+  removeSiteAdmin(projectId: string, adminId: string): Promise<void>;
+  /** A session token, "locked" after too many wrong passwords, or null. */
+  adminSignIn(email: string, password: string): Promise<string | null>;
+  adminSignOut(token: string): Promise<void>;
+  adminMe(token: string): Promise<AdminView | null>;
+  /** Saves and publishes. Throws "changed meanwhile" if the site has a newer version than `baseVersion`. */
+  adminSave(token: string, baseVersion: number, config: SiteConfig, summary: string): Promise<number>;
+  adminOrders(token: string): Promise<OrderRecord[]>;
+  adminSetOrderStatus(token: string, orderId: string, status: OrderStatus): Promise<boolean>;
+  adminBookings(token: string, since: string): Promise<BookingRecord[]>;
+  adminSetBookingStatus(token: string, bookingId: string, status: BookingStatus): Promise<boolean>;
+  adminAssets(token: string): Promise<Asset[]>;
+  adminUpload(token: string, file: UploadFile, alt: string): Promise<Asset | null>;
+  /** What a deployed site shows: its published version's config, or null. Works without a signed-in user. */
+  publishedConfig(projectId: string): Promise<unknown | null>;
+  /** Marks a version as what the live site shows; never moves back to an older one. */
+  setPublishedVersion(projectId: string, version: number): Promise<void>;
+}
+
+export interface SiteAdmin {
+  id: string;
+  email: string;
+  name: string;
+  lastSignInAt: string | null;
+  createdAt: string;
+}
+
+/** What a signed-in client sees. */
+export interface AdminView {
+  name: string;
+  email: string;
+  projectId: string;
+  projectName: string;
+  liveUrl: string | null;
+  pitchSlug: string;
+  version: number;
+  config: unknown;
 }
 
 export interface Busy {

@@ -112,11 +112,13 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string,
   const previous = await repo.getLatestDeployment(projectId);
   const site = await exportProject(repo, projectId, origin);
   // A shop taking cards needs the business's keys, and reports paid orders back here with a fresh key.
-  let env: Record<string, string> | undefined;
+  // Generated sites read their published content from the studio, so client edits go live without a rebuild.
+  let env: Record<string, string> | undefined = site.framework === 'nextjs' ? { SONO_SITE_API: `${origin}/api/sites/${projectId}` } : undefined;
   if (site.payments.length) {
     const ordersKey = randomBytes(32).toString('hex');
     await repo.setOrdersKeyHash(projectId, sha256(ordersKey));
     env = {
+      ...env,
       ...paymentEnv(opts.paymentKeys),
       SONO_ORDERS_URL: `${origin}/api/sites/${projectId}/orders`,
       SONO_ORDERS_KEY: ordersKey,
@@ -202,6 +204,8 @@ export async function refreshDeploy(repo: Repo, projectId: string): Promise<Depl
     const note = isNote(d.error) ? d.error : null;
     await repo.updateDeployment(d.id, { status: 'ready', url, error: note });
     await repo.setProjectLinks(projectId, { liveUrl: url });
+    // The live site now shows this version (or a newer one a client has published since).
+    if (d.vercelProject && (await repo.getSiteVersion(projectId))) await repo.setPublishedVersion(projectId, d.version);
     const project = await repo.getProject(projectId);
     if (project && project.status !== 'live') await repo.updateProject(projectId, { status: 'live' });
     return { ...d, status: 'ready', url, error: note };

@@ -1,12 +1,12 @@
 import 'server-only';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Asset, GenerationJob } from '@/generate/brief';
 import type { MirrorMeta } from '@/mirror/copy';
 import { DEFAULT_SETTINGS, type Project, type StudioSettings } from '../types';
 import { devSeed, devSeedVersions } from './dev-seed';
-import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type BookingHold, type BookingRecord, type Busy, type OrderRecord, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
+import { byNewest, pitchExpiresAt, statusTimestamps, type ChatMessage, type CustomStyle, type Deployment, type AdminView, type BookingHold, type BookingRecord, type SiteAdmin, type Busy, type OrderRecord, type PitchEvent, type ProviderKeyRow, type Repo, type SiteVersion } from './repo';
 import type { Order } from '@/site/store/payments';
 
 /**
@@ -30,6 +30,10 @@ interface DevDb {
   /** Hash of each project's order key, for live sites reporting orders. */
   ordersKeys: Record<string, string>;
   bookings: (BookingRecord & { projectId: string; tokenHash: string | null })[];
+  admins: (SiteAdmin & { projectId: string; passwordHash: string; failed: number; lockedUntil: string | null })[];
+  adminSessions: { tokenHash: string; adminId: string; projectId: string; expiresAt: string }[];
+  /** The version each deployed project shows. */
+  published: Record<string, number>;
 }
 
 /** Uploaded files are kept under .data/uploads and served by /api/uploads. */
@@ -57,11 +61,14 @@ async function load(): Promise<DevDb> {
     db.orders ??= [];
     db.ordersKeys ??= {};
     db.bookings ??= [];
+    db.admins ??= [];
+    db.adminSessions ??= [];
+    db.published ??= {};
     return db;
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
     const projects = devSeed();
-    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {}, orders: [], ordersKeys: {}, bookings: [] };
+    const db: DevDb = { projects, settings: { ...DEFAULT_SETTINGS }, versions: devSeedVersions(projects), jobs: [], assets: [], keys: [], chat: [], pitchEvents: [], deployments: [], styles: [], copies: {}, orders: [], ordersKeys: {}, bookings: [], admins: [], adminSessions: [], published: {} };
     await save(db);
     return db;
   }
@@ -582,9 +589,177 @@ export const devRepo: Repo = {
       if (b) b.status = status;
     });
   },
+
+  async listSiteAdmins(projectId) {
+    return (await load()).admins.filter((a) => a.projectId === projectId).map(({ id, email, name, lastSignInAt, createdAt }) => ({ id, email, name, lastSignInAt, createdAt }));
+  },
+
+  setSiteAdmin(projectId, input) {
+    return mutate((db) => {
+      const email = input.email.trim().toLowerCase();
+      if (input.password.length < 10) throw new Error('password too short');
+      const existing = db.admins.find((a) => a.email === email);
+      if (existing && existing.projectId !== projectId) throw new Error('email in use');
+      if (existing) {
+        Object.assign(existing, { name: input.name.slice(0, 80), passwordHash: hashPassword(input.password), failed: 0, lockedUntil: null });
+        db.adminSessions = db.adminSessions.filter((s) => s.adminId !== existing.id);
+        return;
+      }
+      db.admins.push({ id: randomUUID(), projectId, email, name: input.name.slice(0, 80), passwordHash: hashPassword(input.password), failed: 0, lockedUntil: null, lastSignInAt: null, createdAt: new Date().toISOString() });
+    });
+  },
+
+  removeSiteAdmin(projectId, adminId) {
+    return mutate((db) => {
+      db.admins = db.admins.filter((a) => !(a.id === adminId && a.projectId === projectId));
+      db.adminSessions = db.adminSessions.filter((s) => s.adminId !== adminId);
+    });
+  },
+
+  async adminSignIn(email, password) {
+    let token: string | null = null;
+    await mutate((db) => {
+      const a = db.admins.find((x) => x.email === email.trim().toLowerCase());
+      if (!a) return;
+      if (a.lockedUntil && a.lockedUntil > new Date().toISOString()) {
+        token = 'locked';
+        return;
+      }
+      if (!passwordOk(password, a.passwordHash)) {
+        a.failed += 1;
+        if (a.failed >= 5) {
+          a.failed = 0;
+          a.lockedUntil = new Date(Date.now() + 15 * 60_000).toISOString();
+        }
+        return;
+      }
+      a.failed = 0;
+      a.lockedUntil = null;
+      a.lastSignInAt = new Date().toISOString();
+      token = randomBytes(32).toString('hex');
+      db.adminSessions.push({ tokenHash: sha256(token), adminId: a.id, projectId: a.projectId, expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString() });
+    });
+    return token;
+  },
+
+  adminSignOut(token) {
+    return mutate((db) => {
+      db.adminSessions = db.adminSessions.filter((s) => s.tokenHash !== sha256(token));
+    });
+  },
+
+  async adminMe(token) {
+    const db = await load();
+    const a = adminOf(db, token);
+    if (!a) return null;
+    const p = db.projects.find((x) => x.id === a.projectId)!;
+    const v = db.versions[p.id]?.at(-1);
+    return { name: a.name, email: a.email, projectId: p.id, projectName: p.name, liveUrl: p.liveUrl, pitchSlug: p.pitchSlug, version: v?.version ?? 0, config: v?.config ?? null } satisfies AdminView;
+  },
+
+  async adminSave(token, baseVersion, config, summary) {
+    let version = 0;
+    await mutate((db) => {
+      const a = adminOf(db, token);
+      if (!a) throw new Error('not signed in');
+      const list = (db.versions[a.projectId] ??= []);
+      if ((list.at(-1)?.version ?? 0) !== baseVersion) throw new Error('changed meanwhile');
+      version = baseVersion + 1;
+      list.push({ version, config, summary: summary.slice(0, 300) || 'Edited by the client', createdAt: new Date().toISOString() });
+      const p = db.projects.find((x) => x.id === a.projectId)!;
+      p.currentVersion = version;
+      db.published[a.projectId] = version;
+    });
+    return version;
+  },
+
+  async adminOrders(token) {
+    const db = await load();
+    const a = adminOf(db, token);
+    if (!a) return [];
+    return db.orders
+      .filter((o) => o.projectId === a.projectId && o.status !== 'pending' && o.status !== 'failed')
+      .reverse()
+      .map(({ projectId: _p, tokenHash: _t, ...o }) => o);
+  },
+
+  async adminSetOrderStatus(token, orderId, status) {
+    let ok = false;
+    await mutate((db) => {
+      const a = adminOf(db, token);
+      const o = a && db.orders.find((x) => x.id === orderId && x.projectId === a.projectId);
+      if (!o || !['paid', 'fulfilled', 'cancelled'].includes(status) || !['paid', 'fulfilled', 'cancelled'].includes(o.status)) return;
+      o.status = status;
+      ok = true;
+    });
+    return ok;
+  },
+
+  async adminBookings(token, since) {
+    const db = await load();
+    const a = adminOf(db, token);
+    if (!a) return [];
+    return db.bookings
+      .filter((b) => b.projectId === a.projectId && b.end >= since && b.status !== 'held')
+      .sort((x, y) => x.start.localeCompare(y.start))
+      .map(({ projectId: _p, tokenHash: _t, ...b }) => b);
+  },
+
+  async adminSetBookingStatus(token, bookingId, status) {
+    let ok = false;
+    await mutate((db) => {
+      const a = adminOf(db, token);
+      const b = a && db.bookings.find((x) => x.id === bookingId && x.projectId === a.projectId);
+      if (!b || b.status === 'held' || !['confirmed', 'done', 'no_show', 'cancelled'].includes(status)) return;
+      b.status = status;
+      ok = true;
+    });
+    return ok;
+  },
+
+  async adminAssets(token) {
+    const db = await load();
+    const a = adminOf(db, token);
+    return a ? db.assets.filter((x) => x.projectId === a.projectId && x.kind === 'photo').reverse() : [];
+  },
+
+  async adminUpload(token, file, alt) {
+    const a = adminOf(await load(), token);
+    if (!a) return null;
+    return devRepo.addAsset(a.projectId, { kind: 'photo', source: 'upload', alt, credit: '', width: null, height: null }, file);
+  },
+
+  async publishedConfig(projectId) {
+    const db = await load();
+    const v = db.published[projectId];
+    return v ? (db.versions[projectId]?.find((x) => x.version === v)?.config ?? null) : null;
+  },
+
+  setPublishedVersion(projectId, version) {
+    return mutate((db) => {
+      db.published[projectId] = Math.max(db.published[projectId] ?? 0, version);
+    });
+  },
 };
 
 const sha256 = (v: string) => createHash('sha256').update(v).digest('hex');
+
+/** scrypt for the dev store's client passwords (Supabase uses bcrypt in the database). */
+function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  return `${salt}:${scryptSync(password, salt, 32).toString('hex')}`;
+}
+
+function passwordOk(password: string, stored: string): boolean {
+  const [salt, hash] = stored.split(':');
+  const got = scryptSync(password, salt, 32);
+  return got.length === Buffer.from(hash, 'hex').length && timingSafeEqual(got, Buffer.from(hash, 'hex'));
+}
+
+function adminOf(db: DevDb, token: string) {
+  const s = db.adminSessions.find((x) => x.tokenHash === sha256(token) && x.expiresAt > new Date().toISOString());
+  return s ? (db.admins.find((a) => a.id === s.adminId) ?? null) : null;
+}
 
 const activeBooking = (b: BookingRecord) => b.status === 'confirmed' || (b.status === 'held' && !!b.holdUntil && Date.parse(b.holdUntil) > Date.now());
 

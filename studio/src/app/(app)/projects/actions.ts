@@ -65,3 +65,34 @@ export async function setBookingStatusAction(projectId: string, bookingId: strin
   await (await getRepo()).setBookingStatus(projectId, bookingId, status as (typeof BOOKING_STATUSES)[number]);
   revalidatePath(`/projects/${projectId}`);
 }
+
+/** A password that's easy to read out or type: three groups of five letters and digits, no look-alikes. */
+function readablePassword(): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(15));
+  const s = Array.from(bytes, (b) => chars[b % chars.length]).join('');
+  return `${s.slice(0, 5)}-${s.slice(5, 10)}-${s.slice(10, 15)}`;
+}
+
+/** Creates a client login (or a new password for one) and returns the password, shown once. */
+export async function setSiteAdminAction(projectId: string, input: { name: string; email: string }): Promise<{ password?: string; error?: string }> {
+  await requireUser();
+  const email = input.email.trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Enter the client’s email address.' };
+  const password = readablePassword();
+  try {
+    await (await getRepo()).setSiteAdmin(projectId, { email, name: input.name.trim().slice(0, 80), password });
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (/email in use/.test(msg)) return { error: 'That email already signs in to another site. Use a different email for this one.' };
+    throw err;
+  }
+  revalidatePath(`/projects/${projectId}`);
+  return { password };
+}
+
+export async function removeSiteAdminAction(projectId: string, adminId: string): Promise<void> {
+  await requireUser();
+  await (await getRepo()).removeSiteAdmin(projectId, adminId);
+  revalidatePath(`/projects/${projectId}`);
+}

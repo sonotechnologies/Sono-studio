@@ -17,7 +17,7 @@ const STATUS: Record<OrderStatus, { label: string; tone: string }> = {
 };
 
 /** Orders paid on the shop: test orders from the pitch link and preview, and live ones from the deployed site. */
-export function OrdersCard({ projectId, orders: initial, now }: { projectId: string; orders: OrderRecord[]; now: number }) {
+export function OrdersCard({ projectId, orders: initial, now, onSetStatus }: { projectId: string; orders: OrderRecord[]; now: number; onSetStatus?: (id: string, status: OrderStatus) => Promise<unknown> }) {
   const toast = useToast();
   const [orders, setOrders] = useState(initial);
   const [open, setOpen] = useState<string | null>(null);
@@ -33,7 +33,7 @@ export function OrdersCard({ projectId, orders: initial, now }: { projectId: str
     setOrders((list) => list.map((x) => (x.id === o.id ? { ...x, status } : x)));
     start(async () => {
       try {
-        await setOrderStatusAction(projectId, o.id, status);
+        await (onSetStatus ? onSetStatus(o.id, status) : setOrderStatusAction(projectId, o.id, status));
       } catch {
         setOrders((list) => list.map((x) => (x.id === o.id ? o : x)));
         toast('Couldn’t update the order');

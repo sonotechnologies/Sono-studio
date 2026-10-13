@@ -34,11 +34,14 @@ export function BookingsPanel({
   onChange,
   onAdd,
   testKeys,
+  limited = false,
 }: {
   config: SiteConfig;
   onChange: (next: SiteConfig, summary: string, coalesce?: string) => void;
   onAdd: (opts: { currency: string; timezone: string }) => void;
   testKeys: { paystack: boolean; stripe: boolean };
+  /** The client admin: services, hours and rules, but not the deposit, payments, currency or time zone. */
+  limited?: boolean;
 }) {
   const b = config.bookings;
   const [openId, setOpenId] = useState<string | null>(null);
@@ -257,6 +260,7 @@ export function BookingsPanel({
 
       <ClosedDates dates={b.closed} onChange={(closed) => set({ closed }, 'Closed days')} />
 
+      {!limited && (
       <div className="flex flex-col gap-3">
         <span className="text-[13px] font-medium">Deposit and payment</span>
         <Select
@@ -282,13 +286,14 @@ export function BookingsPanel({
         />
         {b.depositPercent === 0 && (b.payments.paystack || b.payments.stripe) && <span className="text-[12px] text-warn">Card payments only apply once a deposit is chosen.</span>}
       </div>
+      )}
 
       <div className="flex flex-col gap-3">
         <span className="text-[13px] font-medium">Business details</span>
         <div className="flex gap-3">
           <label className="flex w-28 flex-col gap-1.5 text-[13px] font-medium">
             Currency
-            <select value={b.currency} onChange={(e) => set({ currency: e.target.value }, 'Currency')} className={`${field} h-[38px] cursor-pointer`}>
+            <select disabled={limited} value={b.currency} onChange={(e) => set({ currency: e.target.value }, 'Currency')} className={`${field} h-[38px] cursor-pointer`}>
               {[...new Set([b.currency, ...CURRENCIES])].map((c) => (
                 <option key={c}>{c}</option>
               ))}
@@ -298,7 +303,7 @@ export function BookingsPanel({
         </div>
         <label className="flex flex-col gap-1.5 text-[13px] font-medium">
           Time zone
-          <select value={b.timezone} onChange={(e) => set({ timezone: e.target.value }, 'Time zone')} className={`${field} h-[38px] cursor-pointer`}>
+          <select disabled={limited} value={b.timezone} onChange={(e) => set({ timezone: e.target.value }, 'Time zone')} className={`${field} h-[38px] cursor-pointer`}>
             {[...new Set([b.timezone, ...TIMEZONES])].map((z) => (
               <option key={z}>{z}</option>
             ))}
