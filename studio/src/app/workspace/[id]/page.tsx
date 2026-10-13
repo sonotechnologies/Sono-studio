@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { notFound, redirect } from 'next/navigation';
 import { loadStock } from '@/ai/service';
 import { ToastProvider } from '@/components/ui';
@@ -12,9 +13,12 @@ type Props = { params: Promise<{ id: string }> };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Shared by the title and the page, so the project is read once. */
+const loadProject = cache(async (id: string) => (UUID.test(id) ? (await getRepo()).getProject(id) : null));
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const project = UUID.test(id) ? await (await getRepo()).getProject(id) : null;
+  const project = await loadProject(id);
   return { title: project ? `${project.name} · Workspace` : 'Workspace' };
 }
 
@@ -23,9 +27,8 @@ export default async function WorkspacePage({ params }: Props) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
   const repo = await getRepo();
-  const project = await repo.getProject(id);
+  const [project, version] = await Promise.all([loadProject(id), repo.getSiteVersion(id)]);
   if (!project) notFound();
-  const version = await repo.getSiteVersion(id);
   if (!version) redirect(`/projects/${id}`);
   const parsed = siteConfigSchema.safeParse(version.config);
   if (!parsed.success) redirect(`/preview/${id}`);

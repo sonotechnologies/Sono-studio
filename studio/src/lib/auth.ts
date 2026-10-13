@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { cookies } from 'next/headers';
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { isDevStore } from './env';
 import { createSupabaseServerClient } from './supabase/server';
@@ -32,7 +33,11 @@ export interface SessionUser {
   email: string;
 }
 
-export async function getUser(): Promise<SessionUser | null> {
+/**
+ * The signed-in user, checked once per request: the layout, the page and its
+ * actions share the answer instead of each asking Supabase again.
+ */
+export const getUser = cache(async (): Promise<SessionUser | null> => {
   // Read cookies first: it marks the route as dynamic, so nothing signed-in is prerendered at build time.
   const store = await cookies();
   if (isDevStore()) {
@@ -40,9 +45,11 @@ export async function getUser(): Promise<SessionUser | null> {
     return token && safeEqual(token, devToken()) ? { email: devCredentials().email } : null;
   }
   const db = await createSupabaseServerClient();
-  const { data } = await db.auth.getUser();
-  return data.user ? { email: data.user.email ?? '' } : null;
-}
+  // Verifies the session's signature locally (with Supabase's cached public keys) instead of a round trip
+  // to the Auth server; projects still on the older shared secret fall back to asking the server.
+  const { data } = await db.auth.getClaims();
+  return data?.claims ? { email: (data.claims.email as string | undefined) ?? '' } : null;
+});
 
 /** Use at the top of every signed-in page and action. */
 export async function requireUser(): Promise<SessionUser> {

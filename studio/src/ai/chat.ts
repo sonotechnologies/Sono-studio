@@ -56,6 +56,7 @@ export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string
       'Never invent facts about the business (prices, amenities, hours, addresses, reviews, numbers). If the request needs facts you do not have, make the change with neutral wording and say in the reply what the owner should confirm.',
       'Image src values must stay as they are or be "" (empty). Never write image URLs.',
       'Only use fields that exist in the content schemas below. If the request needs something the site cannot do, return no operations and say plainly in the reply that it is not possible yet. Never say you changed something unless an operation does it.',
+      'Write replies for a business owner, not a developer: never mention schemas, fields, JSON, operations or code. When something is not possible, say so in everyday words and, if one exists, suggest the closest thing you can do (for example a custom section from the + menu).',
     ].join(' '),
     prompt: `Business: ${config.meta.businessName} (${businessType || 'local business'}).
 Change requested: """${message.slice(0, 1500)}"""

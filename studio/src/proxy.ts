@@ -31,8 +31,9 @@ export async function proxy(request: NextRequest) {
       },
     },
   });
-  const { data } = await supabase.auth.getUser();
-  if (!data.user && !isPublic) {
+  // Refreshes the session if needed and verifies it locally where the project's signing keys allow.
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
   return response;

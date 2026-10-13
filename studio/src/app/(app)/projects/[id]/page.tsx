@@ -36,13 +36,17 @@ export default async function ProjectPage({ params }: Props) {
     repo.getLatestDeployment(project.id),
   ]);
   const shop = !!(version && (version.config as { store?: unknown }).store);
-  const admins = version ? await repo.listSiteAdmins(project.id) : null;
-  const orders = shop ? await repo.listOrders(project.id, 100) : null;
-  const copy = version ? null : await repo.getSiteCopyMeta(project.id);
   const parsed = version ? siteConfigSchema.safeParse(version.config) : null;
   const bookingsConfig = parsed?.success ? parsed.data.bookings : undefined;
-  // From a week ago, so recent ones can be marked done or no-show.
-  const bookings = bookingsConfig ? { list: await repo.listBookings(project.id, new Date(Date.now() - 7 * 86_400_000).toISOString(), 200), timezone: bookingsConfig.timezone } : null;
+  // These depend only on what the site has, so they load together.
+  const [admins, orders, copy, bookingList] = await Promise.all([
+    version ? repo.listSiteAdmins(project.id) : null,
+    shop ? repo.listOrders(project.id, 100) : null,
+    version ? null : repo.getSiteCopyMeta(project.id),
+    // From a week ago, so recent ones can be marked done or no-show.
+    bookingsConfig ? repo.listBookings(project.id, new Date(Date.now() - 7 * 86_400_000).toISOString(), 200) : null,
+  ]);
+  const bookings = bookingsConfig && bookingList ? { list: bookingList, timezone: bookingsConfig.timezone } : null;
   const website = parsed?.success
     ? {
         version: version!.version,

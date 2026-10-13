@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { Menu } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import type { SectionOf } from '../schema';
 import { Container, SiteA, SiteButton, edit, type RenderCtx } from '../primitives';
 
@@ -26,9 +26,11 @@ function PhoneMenu({ section, ctx }: { section: SectionOf<'navbar'>; ctx: Render
     <details className="group @3xl:hidden">
       <summary
         aria-label="Menu"
-        className="flex size-11 cursor-pointer items-center justify-center rounded-site-button border border-current/20"
+        className="flex size-11 cursor-pointer list-none items-center justify-center rounded-site-button border border-current/20 [&::-webkit-details-marker]:hidden"
       >
-        <Menu size={20} strokeWidth={2} aria-hidden />
+        {/* A close (×) button while the menu is open. */}
+        <Menu size={20} strokeWidth={2} aria-hidden className="group-open:hidden" />
+        <X size={20} strokeWidth={2} aria-hidden className="hidden group-open:block" />
       </summary>
       <div className="absolute inset-x-0 top-full z-30 border-b border-current/10 bg-site-bg px-5 pt-2 pb-5 shadow-[0_12px_24px_rgba(0,0,0,.08)]">
         <nav className="flex flex-col">
