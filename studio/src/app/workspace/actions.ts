@@ -68,7 +68,7 @@ export async function chatAction(projectId: string, input: { message: string; sc
   const parsed = siteConfigSchema.safeParse(input.config);
   if (!parsed.success) return { error: 'The site has an unsaved problem; undo the last edit and try again.' };
   const repo = await getRepo();
-  const providers = await loadProviders(repo);
+  const providers = await loadProviders(repo, { projectId });
   const userMsg = await repo.addChatMessage(projectId, { role: 'user', text: message, scope: input.scope.kind, change: '', version: null });
   try {
     const r = await runJson(
@@ -138,7 +138,7 @@ export async function writeCustomAction(
   if (!(await repo.getProject(projectId))) return { error: 'Project not found' };
   try {
     const r = await runJson(
-      await loadProviders(repo),
+      await loadProviders(repo, { projectId }),
       {
         task: 'custom',
         ...customPrompt({

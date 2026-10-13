@@ -6,6 +6,7 @@ import { demoAllowed, demoClient } from './demo';
 import { pickModels } from './models';
 import { listModels, makeClient } from './providers';
 import type { RouterHooks } from './router';
+import { withRecording } from '@/sono-ai';
 import { AI_PROVIDERS, PROVIDER_INFO, type AiProviderId, type ProviderClient } from './types';
 
 export function isAiProvider(p: string): p is AiProviderId {
@@ -25,7 +26,11 @@ export function availability(row: ProviderKeyRow, now = new Date()): ProviderAva
  * demo provider stands in during development so the flow can be tried; in
  * production generation asks for a key instead.
  */
-export async function loadProviders(repo: Repo): Promise<ProviderClient[]> {
+export async function loadProviders(repo: Repo, opts: { projectId?: string } = {}): Promise<ProviderClient[]> {
+  return withRecording(await chooseProviders(repo), repo, opts.projectId ?? null);
+}
+
+async function chooseProviders(repo: Repo): Promise<ProviderClient[]> {
   const rows = (await repo.listProviderKeys()).filter((r) => isAiProvider(r.provider));
   const clients = rows
     .filter((r) => availability(r) === 'ready')

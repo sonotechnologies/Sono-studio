@@ -80,11 +80,13 @@ export function geminiClient(apiKey: string, models: Record<Tier, string>, f: Fe
       const data = (await res.json()) as {
         candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
         promptFeedback?: { blockReason?: string };
+        usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
       };
       if (data.promptFeedback?.blockReason) throw new ProviderError(`Gemini blocked the request: ${data.promptFeedback.blockReason}`, 'bad_request');
       const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
       if (!text) throw new ProviderError(`Gemini returned no text (${data.candidates?.[0]?.finishReason ?? 'unknown'})`, 'server');
-      return { text, model };
+      const u = data.usageMetadata;
+      return { text, model, ...(u ? { usage: { input: u.promptTokenCount ?? 0, output: u.candidatesTokenCount ?? 0 } } : {}) };
     },
   };
 }
@@ -138,12 +140,16 @@ export function openAiCompatClient(
       cfg.name,
     );
     if (!res.ok) throw await errorFrom(res, cfg.name);
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; error?: { message?: string; code?: number } };
+    const data = (await res.json()) as {
+      choices?: { message?: { content?: string } }[];
+      error?: { message?: string; code?: number };
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
     // OpenRouter can report upstream failures with a 200 status.
     if (data.error) throw new ProviderError(`${cfg.name}: ${data.error.message ?? 'error'}`, data.error.code === 429 ? 'rate_limit' : 'server');
     const text = data.choices?.[0]?.message?.content ?? '';
     if (!text) throw new ProviderError(`${cfg.name} returned no text`, 'server');
-    return { text, model };
+    return { text, model, ...(data.usage ? { usage: { input: data.usage.prompt_tokens ?? 0, output: data.usage.completion_tokens ?? 0 } } : {}) };
   };
   return {
     id,

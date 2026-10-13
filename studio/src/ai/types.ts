@@ -43,6 +43,8 @@ export interface ChatRequest {
 export interface ChatResult {
   text: string;
   model: string;
+  /** Tokens used, when the provider reports them. */
+  usage?: { input: number; output: number };
 }
 
 export type ProviderErrorKind = 'rate_limit' | 'auth' | 'bad_request' | 'server' | 'network';

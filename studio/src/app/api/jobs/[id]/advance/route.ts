@@ -17,7 +17,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (job.status !== 'running') return NextResponse.json({ job });
 
-  const providers = await loadProviders(repo);
+  const providers = await loadProviders(repo, { projectId: job.projectId });
   if (!providers.length) {
     const rows = (await repo.listProviderKeys()).filter((r) => isAiProvider(r.provider));
     const message = rows.length
@@ -49,7 +49,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     if (!found.length) break;
     retired.push(...found);
     if (!(await healModels(repo, retired))) break;
-    result = await run(await loadProviders(repo));
+    result = await run(await loadProviders(repo, { projectId: job.projectId }));
   }
   await repo.saveJob(result.job);
   if (result.job.status === 'done' && result.job.extracted?.tagline) {

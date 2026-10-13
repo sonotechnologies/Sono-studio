@@ -219,6 +219,24 @@ Notes:
 Notes:
 - No migration needed: custom sections live in the site's config.
 
+## Sono AI (experimental)
+
+An assistant that grows beside the studio, built one stage at a time from the Sono AI brief. It's off unless `SONO_AI_ENABLED=true`; off, the studio works exactly as before. Its code lives in `src/sono-ai/` and its data in its own tables; it only reads studio data.
+
+### Stage 1, Record
+
+| Built | Notes |
+| --- | --- |
+| Recording | Every AI request (generation, chat edits, custom sections) and its answer is copied to the knowledge bank after the response is sent: task, provider, model, time, tokens, errors and limits, project and site type. The request itself goes to the provider unchanged, and if recording fails the request still goes through |
+| Redaction | Before anything is stored, the business name, owner's name, phone numbers, emails, @handles and address are swapped for placeholders ("Client A", "Person 1", "Phone 1"). The placeholder table is kept per project and only you can read it |
+| History | `/sono-ai` → Import past history brings in earlier generations and chat edits (redacted) and links results to what came of them: kept, edited (with the version holding your edit), undone, regenerated, pitch opened, approved, live. Running it again adds only what's new, and also links outcomes for requests recorded since |
+| Deleting | Deleting a project deletes its requests, outcomes and placeholders |
+
+Notes:
+- Supabase needs `supabase/migrations/0012_sono_ai.sql`.
+- Requests are stored redacted but still sent to the AI providers as they are, since the site's copy needs the real business name. Redacting what is sent is for the assistant's own requests in stage 3.
+- Generation jobs keep only the latest run per project, so the import covers each project's latest generation plus all chat edits.
+
 ## Run it locally
 
 ```bash
@@ -266,6 +284,7 @@ src/
   ai/                      provider adapters, router, demo provider
   generate/                brief, plan, copy, photos, products, assembly, pipeline
   workspace/               pure edit functions for the workspace (sections, products, shop)
+  sono-ai/                 Sono AI (experimental): recorder, redaction, knowledge bank, history import
   lib/
     auth.ts                session + picks the data store
     data/                  Repo interface, Supabase and dev-store implementations
