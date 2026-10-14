@@ -32,6 +32,12 @@ export interface AskResult {
   error?: string;
 }
 
+/** The latest studio conversation, for catching up when a reply didn't arrive. */
+export async function recentMessagesAction(): Promise<Message[]> {
+  if (await guard()) return [];
+  return (await assistStore()).messages('studio', 60);
+}
+
 /** One message to Sono AI, from the full-page chat or the workspace tab. */
 export async function askAction(text: string, opts: { mode?: Mode | 'auto'; projectId?: string | null } = {}): Promise<AskResult> {
   const off = await guard();

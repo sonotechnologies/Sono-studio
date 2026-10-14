@@ -11,6 +11,9 @@ import { sonoAiEnabled } from '@/sono-ai';
 import { assistStore } from '@/sono-ai/assist/store';
 import { Workspace } from '../workspace';
 
+// Server actions here call AI providers (and sometimes web search), which can take a while.
+export const maxDuration = 60;
+
 type Props = { params: Promise<{ id: string }> };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

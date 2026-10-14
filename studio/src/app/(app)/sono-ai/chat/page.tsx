@@ -7,6 +7,9 @@ import { assistStore } from '@/sono-ai/assist/store';
 import { SonoAiNav } from '../nav';
 import { SonoAiChat } from '../sono-ai-chat';
 
+// Server actions here call AI providers (and sometimes web search), which can take a while.
+export const maxDuration = 60;
+
 export const metadata: Metadata = { title: 'Sono AI' };
 
 export default async function SonoAiChatPage() {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Logo } from '@/components/logo';
 import type { Message, Mode } from '@/sono-ai/assist/types';
-import { askAction, confirmRuleAction, feedbackAction } from './assist-actions';
+import { askAction, confirmRuleAction, feedbackAction, recentMessagesAction } from './assist-actions';
 
 const MODES: { id: Mode | 'auto'; label: string; hint: string }[] = [
   { id: 'auto', label: 'Auto', hint: 'Sono AI picks for each message' },
@@ -42,10 +42,31 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
     const temp: Message = { id: `temp-${Date.now()}`, projectId, channel: 'studio', role: 'user', text: t, mode: null, sources: [], createdAt: new Date().toISOString() };
     setMessages((m) => [...m, temp]);
     start(async () => {
-      const r = await askAction(t, { mode, projectId });
-      setMessages((m) => [...m.filter((x) => x.id !== temp.id), ...(r.messages ?? [{ ...temp, id: `err-${Date.now()}`, role: 'assistant', text: r.error ?? 'Something went wrong.' }])]);
-      if (r.ruleId && r.messages) setRules((x) => ({ ...x, [r.messages!.at(-1)!.id]: r.ruleId! }));
+      try {
+        const r = await askAction(t, { mode, projectId });
+        setMessages((m) => [...m.filter((x) => x.id !== temp.id), ...(r.messages ?? [{ ...temp, id: `err-${Date.now()}`, role: 'assistant', text: r.error ?? 'Something went wrong.' }])]);
+        if (r.ruleId && r.messages) setRules((x) => ({ ...x, [r.messages!.at(-1)!.id]: r.ruleId! }));
+      } catch {
+        // The reply took too long or the connection dropped. The answer is usually saved anyway: fetch it.
+        await catchUp(temp);
+      }
     });
+  };
+
+  const catchUp = async (temp: Message) => {
+    for (const wait of [0, 4000, 8000]) {
+      await new Promise((r) => setTimeout(r, wait));
+      const latest = await recentMessagesAction().catch(() => null);
+      if (latest && latest.at(-1)?.role === 'assistant' && latest.some((m) => m.role === 'user' && m.text === temp.text)) {
+        setMessages(latest);
+        return;
+      }
+    }
+    setMessages((m) => [
+      ...m.filter((x) => x.id !== temp.id),
+      temp,
+      { ...temp, id: `err-${Date.now()}`, role: 'assistant', text: 'That took too long to come back. Try again in a moment.' },
+    ]);
   };
 
   const rate = (id: string, rating: 1 | -1) => {

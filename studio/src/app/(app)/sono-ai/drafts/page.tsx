@@ -10,6 +10,9 @@ import { draftAction } from '../assist-actions';
 import { SonoAiNav } from '../nav';
 import { DraftCard, ProjectDraft } from './draft-card';
 
+// Server actions here call AI providers (and sometimes web search), which can take a while.
+export const maxDuration = 60;
+
 export const metadata: Metadata = { title: 'Drafts · Sono AI' };
 
 export default async function DraftsPage() {
