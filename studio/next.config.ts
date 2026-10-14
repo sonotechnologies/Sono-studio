@@ -2,9 +2,9 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  // Every push deploys a new version. A page still open from the previous one then does a full
-  // reload when you click a link, instead of asking the new server for files it no longer has.
-  deploymentId: process.env.VERCEL_DEPLOYMENT_ID || undefined,
+  // No deploymentId here: with Turbopack it adds a ?dpl= query to next/font's Google font files and the
+  // build fails ("next/font/google queries have exactly one entry"). A page left open across a deploy
+  // reloads itself through app/global-error.tsx instead.
 };
 
 export default nextConfig;
