@@ -84,7 +84,9 @@ export function clearCart(site: string) {
 
 /** Empties the cart once an order is paid (on the order page). */
 export function ClearCart({ site }: { site: string }) {
-  useEffect(() => clearCart(site), [site]);
+  useEffect(() => {
+    clearCart(site);
+  }, [site]);
   return null;
 }
 

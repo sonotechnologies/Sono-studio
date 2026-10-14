@@ -60,7 +60,9 @@ export function BookingWidget({ bookings: b, business, category, live }: { booki
 
   const slots = useMemo(() => (service && date ? slotsFor(b, service, date, busy) : []), [b, service, date, busy]);
   const slot = slots.find((s) => s.start === start);
-  useEffect(() => setStart(''), [serviceId, date]);
+  useEffect(() => {
+    setStart('');
+  }, [serviceId, date]);
 
   if (!service) return <p className="m-0 text-site-muted">Services and booking times appear here once they’re added.</p>;
 

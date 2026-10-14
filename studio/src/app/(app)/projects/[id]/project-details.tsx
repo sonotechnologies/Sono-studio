@@ -80,7 +80,9 @@ export function ProjectDetails({
   const [deleting, startDelete] = useTransition();
   const [creating, startCreate] = useTransition();
 
-  useEffect(() => setP(project), [project]);
+  useEffect(() => {
+    setP(project);
+  }, [project]);
 
   /** Optimistic update; rolls back and says so if the save fails. */
   const patch = (change: ProjectPatch) => {
@@ -566,7 +568,9 @@ export interface WebsiteInfo {
 function WebsiteCard({ p, info, now, onLive }: { p: Project; info: WebsiteInfo; now: number; onLive: () => void }) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState(info.latest);
-  useEffect(() => setD(info.latest), [info.latest]);
+  useEffect(() => {
+    setD(info.latest);
+  }, [info.latest]);
   // Keep checking while a build runs, even with the dialog closed.
   const building = d?.status === 'building' && !open;
   useEffect(() => {

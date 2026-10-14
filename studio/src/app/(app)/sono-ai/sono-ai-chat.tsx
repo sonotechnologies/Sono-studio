@@ -33,7 +33,10 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
   const [saved, setSaved] = useState<Record<string, string>>({});
   const [rated, setRated] = useState<Record<string, 1 | -1>>({});
   const list = useRef<HTMLDivElement>(null);
-  useEffect(() => list.current?.scrollTo({ top: list.current.scrollHeight }), [messages.length, pending]);
+  // Braces matter: newer Chrome returns a promise from scrollTo, and React would treat a returned value as a cleanup function.
+  useEffect(() => {
+    list.current?.scrollTo({ top: list.current.scrollHeight });
+  }, [messages.length, pending]);
 
   const send = (text = draft) => {
     const t = text.trim();
