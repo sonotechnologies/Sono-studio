@@ -3,6 +3,7 @@ import { BottomTabs, Sidebar } from '@/components/shell';
 import { ToastProvider } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { SIDEBAR_COOKIE } from '@/lib/constants';
+import { sonoAiEnabled } from '@/sono-ai';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   await requireUser();
@@ -10,10 +11,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <ToastProvider>
       <div className="flex h-dvh overflow-hidden">
-        <Sidebar initialOpen={sidebarOpen} />
+        <Sidebar initialOpen={sidebarOpen} sonoAi={sonoAiEnabled()} />
         <div className="flex min-w-0 flex-1 flex-col">
           {children}
-          <BottomTabs />
+          <BottomTabs sonoAi={sonoAiEnabled()} />
         </div>
       </div>
     </ToastProvider>

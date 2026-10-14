@@ -52,6 +52,11 @@ export class Redactor {
 
   constructor(existing: Redaction[] = [], client: ClientDetails = {}) {
     this.entries = [...existing];
+    this.add(client);
+  }
+
+  /** Adds a client's details; several clients get their own placeholders ("Client A", "Client B"). */
+  add(client: ClientDetails): void {
     // Names, and their distinctive words on their own ("Kora", "Amara"), when they aren't everyday words.
     for (const [kind, name] of [['business', client.businessName], ['person', client.ownerName]] as const) {
       if (!name?.trim()) continue;

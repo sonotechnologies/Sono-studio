@@ -91,6 +91,16 @@ export interface SonoAiStore {
   saveChunks(rows: NewChunk[]): Promise<void>;
   deleteChunks(ids: string[]): Promise<void>;
   setEmbedding(id: string, embedding: number[]): Promise<void>;
+  /** The chunks closest in meaning to a question's embedding, optionally for one project. */
+  matchChunks(embedding: number[], count: number, projectId: string | null): Promise<ChunkHit[]>;
+}
+
+export interface ChunkHit {
+  projectId: string | null;
+  source: string;
+  sourceId: string;
+  content: string;
+  similarity: number;
 }
 
 /* ---------- Supabase ---------- */
@@ -207,6 +217,13 @@ export function supabaseStore(db: SupabaseClient): SonoAiStore {
       const { error } = await db.from('knowledge_chunks').update({ embedding: JSON.stringify(embedding) }).eq('id', id);
       check(error);
     },
+    async matchChunks(embedding, count, projectId) {
+      const { data, error } = await db.rpc('match_knowledge', { p_query: JSON.stringify(embedding), p_count: count, p_project: projectId });
+      check(error);
+      return ((data ?? []) as { project_id: string | null; source: string; source_id: string; content: string; similarity: number }[]).map((r) => ({
+        projectId: r.project_id, source: r.source, sourceId: r.source_id, content: r.content, similarity: r.similarity,
+      }));
+    },
     async firstLive() {
       const { data, error } = await db.from('ai_interactions').select('created_at').eq('source', 'live').order('created_at').limit(1);
       check(error);
@@ -246,6 +263,16 @@ function change(fn: (bank: DevBank) => void): Promise<void> {
   });
   queue = next.catch(() => {});
   return next;
+}
+
+export function cosine(a: number[], b: number[]): number {
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na && nb ? dot / Math.sqrt(na * nb) : 0;
 }
 
 export const devStore: SonoAiStore = {
@@ -301,6 +328,13 @@ export const devStore: SonoAiStore = {
       const c = (bank.chunks ?? []).find((x) => x.id === id);
       if (c) c.embedding = embedding;
     }),
+  async matchChunks(embedding, count, projectId) {
+    return ((await load()).chunks ?? [])
+      .filter((c) => c.embedding && (!projectId || c.projectId === projectId))
+      .map((c) => ({ projectId: c.projectId, source: c.source, sourceId: c.sourceId, content: c.content, similarity: cosine(embedding, c.embedding!) }))
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, count);
+  },
   async firstLive() {
     const live = (await load()).interactions.filter((i) => i.source === 'live').map((i) => i.createdAt).sort();
     return live[0] ?? null;

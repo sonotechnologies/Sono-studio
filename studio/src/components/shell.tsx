@@ -1,6 +1,6 @@
 'use client';
 
-import { Folder, LayoutGrid, Palette, PanelLeft, Plus, Search, SlidersHorizontal } from 'lucide-react';
+import { Folder, LayoutGrid, Palette, PanelLeft, Plus, Search, SlidersHorizontal, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useSyncExternalStore } from 'react';
@@ -17,12 +17,17 @@ export const NAV = [
   { href: '/settings', name: 'Settings', Icon: SlidersHorizontal },
 ] as const;
 
-function useActive() {
-  const path = usePathname();
-  return (href: string) => (href === '/' ? path === '/' || path.startsWith('/projects') : path.startsWith(href));
+/** The main links, with Sono AI before Settings when it's switched on. */
+function navItems(sonoAi: boolean) {
+  return sonoAi ? [...NAV.slice(0, 3), { href: '/sono-ai/chat', name: 'Sono AI', Icon: Sparkles }, NAV[3]] : [...NAV];
 }
 
-export function Sidebar({ initialOpen }: { initialOpen: boolean }) {
+function useActive() {
+  const path = usePathname();
+  return (href: string) => (href === '/' ? path === '/' || path.startsWith('/projects') : path.startsWith(href.startsWith('/sono-ai') ? '/sono-ai' : href));
+}
+
+export function Sidebar({ initialOpen, sonoAi = false }: { initialOpen: boolean; sonoAi?: boolean }) {
   const [open, setOpen] = useState(initialOpen);
   const isActive = useActive();
   const toggle = () => {
@@ -47,7 +52,7 @@ export function Sidebar({ initialOpen }: { initialOpen: boolean }) {
           <Logo kind="mark" alt="Sono" className="h-[18px] w-auto" />
         )}
       </Link>
-      {NAV.map(({ href, name, Icon }) => {
+      {navItems(sonoAi).map(({ href, name, Icon }) => {
         const on = isActive(href);
         return (
           <Link
@@ -79,11 +84,11 @@ export function Sidebar({ initialOpen }: { initialOpen: boolean }) {
   );
 }
 
-export function BottomTabs() {
+export function BottomTabs({ sonoAi = false }: { sonoAi?: boolean }) {
   const isActive = useActive();
   return (
     <nav aria-label="Main" className="flex flex-none border-t border-border bg-bg px-2 pt-1 pb-2.5 md:hidden">
-      {NAV.map(({ href, name, Icon }) => {
+      {navItems(sonoAi).map(({ href, name, Icon }) => {
         const on = isActive(href);
         return (
           <Link

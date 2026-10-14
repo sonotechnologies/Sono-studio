@@ -7,6 +7,8 @@ import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl } from '@/lib/format';
 import { siteConfigSchema } from '@/site/schema';
 import { aiMode } from '../../new/ai-mode';
+import { sonoAiEnabled } from '@/sono-ai';
+import { assistStore } from '@/sono-ai/assist/store';
 import { Workspace } from '../workspace';
 
 type Props = { params: Promise<{ id: string }> };
@@ -42,6 +44,7 @@ export default async function WorkspacePage({ params }: Props) {
     repo.getLatestDeployment(id),
     repo.listStyles(),
   ]);
+  const sonoAi = sonoAiEnabled() ? { messages: await (await assistStore()).messages('studio', 40).catch(() => []) } : null;
 
   return (
     <ToastProvider>
@@ -57,6 +60,7 @@ export default async function WorkspacePage({ params }: Props) {
         styles={styles}
         deploy={{ hasVercel: keys.some((k) => k.provider === 'vercel'), hasGithub: keys.some((k) => k.provider === 'github'), latest }}
         testKeys={{ paystack: keys.some((k) => k.provider === 'paystack'), stripe: keys.some((k) => k.provider === 'stripe') }}
+        sonoAi={sonoAi}
       />
     </ToastProvider>
   );

@@ -103,10 +103,19 @@ describe('the Telegram bot', () => {
     expect(state.chat).toBe(42);
     expect(sent[0].html).toMatch(/^✅ Connected/);
 
-    await handleUpdate(msg(99, 'what is up'), bot, store);
+    // Only your chat reaches the assistant (here with nothing stored, so it says no provider is free).
+    const assistedBy: number[] = [];
+    const backend = () => ({
+      state: async () => ({ providers: [], rules: [], history: [], editingDraft: null, voice: [], pendingFollowUps: [], followUpDays: 3, projects: [], scorecards: [], redactions: [] }),
+      write: async () => (assistedBy.push(1), { id: '00000000-0000-4000-8000-000000000001' }) as never,
+      match: async () => [],
+    });
+    await handleUpdate(msg(99, 'what is up'), bot, store, backend);
     expect(sent).toHaveLength(1);
-    await handleUpdate(msg(42, 'what is up'), bot, store);
+    expect(assistedBy).toHaveLength(0);
+    await handleUpdate(msg(42, 'what is up'), bot, store, backend);
     expect(sent).toHaveLength(2);
+    expect(sent[1].html).toMatch(/quota for site builds/);
 
     // Thumbs-down from your chat mutes that kind; from another chat it does nothing.
     await handleUpdate({ callback_query: { id: 'q1', data: 'mute:stuck_draft', message: { chat: { id: 99 } } } }, bot, store);

@@ -253,6 +253,24 @@ Notes:
 - The follow-up threshold is set on `/sono-ai` (3 days to start). The summary shows on `/sono-ai` rather than the studio dashboard, so the dashboard stays untouched.
 - Embeddings use your Gemini key from Settings → AI providers; without one, chunks wait and are embedded once a key is added.
 
+### Stage 3, Assist
+
+| Built | Notes |
+| --- | --- |
+| Sono AI chat | **Sono AI** in the sidebar (a full-page chat) and a **Sono AI** tab in the workspace, where it knows which project you're looking at. Also on Telegram: just message the bot |
+| Three kinds of answer | Picked per message (or choose Auto, My studio, Web or Chat): everyday conversation; questions about your work, answered from studio data, model scorecards and the knowledge search index, with links to what it used, and a plain "the bank has nothing on that" instead of guessing; and live web answers through Gemini's Google Search grounding, with the pages it used |
+| Privacy | Before any assistant request leaves the studio, every client's names, numbers, emails, handles and addresses are swapped for placeholders, and swapped back in the reply. Web searches are redacted the same way |
+| Quota | The assistant uses the light model and stops using a provider once 70% of its daily limit is used, so builds always have the rest |
+| Drafts | "Draft follow-ups" (chat, Telegram or the Drafts page) writes a WhatsApp or Instagram message for each pitch with no reply, in your voice: the drafts you edited before approving are its examples. Quotes are priced from the site's pages and modules and your past approved quotes; handover checklists list what a site needs before going live. Each has Approve, Edit and Skip, in the studio and on Telegram. Approve opens WhatsApp with the message filled in (Instagram: copied, then the chat opens); Sono AI never sends anything itself |
+| Rules | Say "always…", "never…", "from now on…" or "remember that…": Sono AI repeats the rule back and saves it when you confirm. The Rulebook lists every rule with an on/off switch and delete; rules apply to every answer and draft |
+| Feedback | 👍/👎 on every answer and draft, in the studio and on Telegram |
+| Scorecards | Per task, provider and model: requests, failures, kept, edited after, undone, regenerated and the keep rate, from the knowledge bank, recalculated daily or on request |
+
+Notes:
+- Supabase needs `supabase/migrations/0014_sono_ai_assist.sql`.
+- Web search and knowledge search need a Gemini key in Settings → AI providers (Gemini's free tier). Without one, studio answers still use studio data and scorecards.
+- Conversations are stored as you wrote them (they're yours, behind your login); what goes to AI providers, and the request log, is redacted.
+
 ## Run it locally
 
 ```bash

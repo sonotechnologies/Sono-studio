@@ -16,7 +16,8 @@ export type DemoContext =
   | { kind: 'plan'; brief: Brief }
   | { kind: 'fill'; brief: Brief; extracted: Extracted | null; page: PlanPage }
   | { kind: 'chat' }
-  | { kind: 'custom'; purpose: string };
+  | { kind: 'custom'; purpose: string }
+  | { kind: 'assistant'; task: 'answer' | 'follow_up' | 'quote' };
 
 export function demoAllowed(): boolean {
   return process.env.NODE_ENV !== 'production' || process.env.SONO_DEMO_AI === '1';
@@ -173,6 +174,13 @@ export function demoClient(): ProviderClient {
           },
           code: TIMELINE_CODE,
         };
+      else if (ctx.kind === 'assistant')
+        body =
+          ctx.task === 'follow_up'
+            ? { message: 'Hi! Just checking you had a chance to look at the site I made for you. Happy to change anything. [PITCH LINK]' }
+            : ctx.task === 'quote'
+              ? { price: 250000, currency: 'NGN', scope: ['Design and build of the pages shown in the pitch', 'Hosting setup and handover'], message: 'Here is a quote for your new website.' }
+              : { reply: 'Demo mode can’t answer questions. Add an AI key in Settings → AI providers to talk to Sono AI.', sources: [] };
       else if (ctx.kind === 'chat')
         body = { reply: 'Demo mode can’t follow instructions, so nothing changed. Add an AI key in Settings → AI providers to edit by chat.', ops: [] };
       else body = { sections: ctx.page.sections.map((s) => ({ id: s.id, content: demoContent(s.type, ctx.brief, ctx.extracted, ctx.page.title) })) };

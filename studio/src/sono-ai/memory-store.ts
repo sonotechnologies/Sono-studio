@@ -44,6 +44,14 @@ export function memoryStore(): SonoAiStore & { rows: Interaction[]; outcomes: Ou
       const c = s.chunks.find((x) => x.id === id);
       if (c) c.embedding = embedding;
     },
+    async matchChunks(embedding: number[], count: number, projectId: string | null) {
+      const dot = (a: number[], b: number[]) => a.reduce((n, x, i) => n + x * (b[i] ?? 0), 0);
+      return s.chunks
+        .filter((c) => c.embedding && (!projectId || c.projectId === projectId))
+        .map((c) => ({ projectId: c.projectId, source: c.source, sourceId: c.sourceId, content: c.content, similarity: dot(embedding, c.embedding!) }))
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, count);
+    },
     async firstLive() {
       return s.rows.filter((r) => r.source === 'live').map((r) => r.createdAt).sort()[0] ?? null;
     },

@@ -65,6 +65,8 @@ import { addShop, saveProduct } from '@/workspace/store';
 import type { AiMode } from '../new/setup-flow';
 import { chatAction, restoreVersionAction, saveSiteAction, writeCustomAction } from './actions';
 import { ChatPanel, type ChatView } from './chat-panel';
+import { SonoAiChat } from '../(app)/sono-ai/sono-ai-chat';
+import type { Message as SonoMessage } from '@/sono-ai/assist/types';
 import { HistoryDialog, MediaDialog } from './dialogs';
 import type { FieldCtx } from './fields';
 import { EditPanel, ThemePanel } from './panels';
@@ -73,7 +75,7 @@ import { BookingsPanel } from './bookings-panel';
 import { addBookings } from '@/workspace/bookings';
 import { Stage, type Device } from './stage';
 
-type Tab = 'chat' | 'edit' | 'theme' | 'products' | 'bookings';
+type Tab = 'chat' | 'edit' | 'theme' | 'products' | 'bookings' | 'sono';
 type SaveState = 'saved' | 'unsaved' | 'saving' | 'error';
 type ScopeKind = ChatScope['kind'];
 
@@ -100,6 +102,7 @@ export function Workspace({
   deploy,
   styles: initialStyles,
   testKeys,
+  sonoAi = null,
 }: {
   project: Project;
   initialConfig: SiteConfig;
@@ -113,6 +116,8 @@ export function Workspace({
   styles: CustomStyle[];
   /** Which of your test payment keys are set, for the Products tab. */
   testKeys: { paystack: boolean; stripe: boolean };
+  /** Sono AI's conversation, when Sono AI is switched on: a tab beside Chat. */
+  sonoAi?: { messages: SonoMessage[] } | null;
 }) {
   const toast = useToast();
   const projectId = project.id;
@@ -765,7 +770,7 @@ export function Workspace({
           <span className="h-1 w-10 rounded-full bg-border" />
         </button>
         <div role="tablist" className="flex flex-none gap-3.5 overflow-x-auto border-b border-border px-4 [scrollbar-width:none]">
-          {(['chat', 'edit', 'theme', 'products', 'bookings'] as const).map((t) => (
+          {(['chat', 'edit', 'theme', 'products', 'bookings', ...(sonoAi ? (['sono'] as const) : [])] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -778,7 +783,7 @@ export function Workspace({
               }}
               className={`flex h-[50px] flex-none cursor-pointer items-center text-[14px] font-medium capitalize ${tab === t ? 'text-accent-text shadow-[inset_0_-2px_0_#B4502E]' : 'text-muted hover:text-text'}`}
             >
-              {t}
+              {t === 'sono' ? 'Sono AI' : t}
             </button>
           ))}
           {selected && (tab === 'chat' || tab === 'theme') && (
@@ -790,6 +795,7 @@ export function Workspace({
             </span>
           )}
         </div>
+        {tab === 'sono' && sonoAi && <SonoAiChat initial={sonoAi.messages} projectId={projectId} compact />}
         {tab === 'chat' && (
           <ChatPanel
             messages={chatView}

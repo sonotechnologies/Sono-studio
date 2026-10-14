@@ -8,6 +8,7 @@ import { getStore } from '@/sono-ai/store';
 import { SUMMARY_KINDS, summaryItems, type SummaryKind } from '@/sono-ai/summary';
 import { telegramToken } from '@/sono-ai/telegram';
 import { ImportButton } from './import-button';
+import { SonoAiNav } from './nav';
 import { ActionButton, ConnectTelegram, FollowUpDays } from './notify-controls';
 import { disconnectTelegramAction, rebuildIndexAction, sendSummaryNowAction, testTelegramAction, unmuteAction } from './notify-actions';
 
@@ -40,6 +41,7 @@ export default async function SonoAiPage() {
 
   return (
     <Page title="Sono AI" newSite={false}>
+      <SonoAiNav current="/sono-ai" />
       <p className="m-0 max-w-[680px] text-[16px] leading-normal text-muted">
         Experimental. Sono AI records every AI request and answer with client details swapped for placeholders, and links each result to what came of it. It
         changes nothing about how sites are built.

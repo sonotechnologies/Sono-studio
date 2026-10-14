@@ -8,9 +8,9 @@ export type StockProviderId = (typeof STOCK_PROVIDERS)[number];
 /** Strongest model for planning and custom code; light and fast for copy, chat edits and parsing. */
 export type Tier = 'strong' | 'light';
 
-export type AiTask = 'plan' | 'fill' | 'parse' | 'chat' | 'custom';
+export type AiTask = 'plan' | 'fill' | 'parse' | 'chat' | 'custom' | 'assistant';
 
-export const TASK_TIER: Record<AiTask, Tier> = { plan: 'strong', fill: 'light', parse: 'light', chat: 'light', custom: 'strong' };
+export const TASK_TIER: Record<AiTask, Tier> = { plan: 'strong', fill: 'light', parse: 'light', chat: 'light', custom: 'strong', assistant: 'light' };
 
 export const PROVIDER_INFO: Record<AiProviderId, { name: string; keyUrl: string; defaults: Record<Tier, string> }> = {
   gemini: {

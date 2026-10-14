@@ -170,14 +170,20 @@ export async function buildIndex(studio: IndexReader, store: SonoAiStore, embed:
 }
 
 /** Gemini's free embedding model, 768 dimensions to match the index. */
-export function geminiEmbedder(apiKey: string, f: typeof fetch = fetch, base = process.env.SONO_GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta'): Embedder {
+export function geminiEmbedder(
+  apiKey: string,
+  f: typeof fetch = fetch,
+  base = process.env.SONO_GEMINI_API_URL || 'https://generativelanguage.googleapis.com/v1beta',
+  /** Documents are indexed with RETRIEVAL_DOCUMENT; questions are embedded with RETRIEVAL_QUERY. */
+  taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' = 'RETRIEVAL_DOCUMENT',
+): Embedder {
   const model = 'gemini-embedding-001';
   return async (texts) => {
     const res = await f(`${base}/models/${model}:batchEmbedContents`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
       body: JSON.stringify({
-        requests: texts.map((text) => ({ model: `models/${model}`, content: { parts: [{ text }] }, taskType: 'RETRIEVAL_DOCUMENT', outputDimensionality: EMBED_DIMENSIONS })),
+        requests: texts.map((text) => ({ model: `models/${model}`, content: { parts: [{ text }] }, taskType, outputDimensionality: EMBED_DIMENSIONS })),
       }),
       signal: AbortSignal.timeout(30_000),
     });
