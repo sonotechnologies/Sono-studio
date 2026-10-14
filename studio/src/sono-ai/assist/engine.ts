@@ -56,6 +56,8 @@ const RELEVANT = 0.5;
 const HISTORY = 8;
 
 const replySchema = z.object({ reply: z.string().min(1).max(4000), sources: z.array(z.number().int()).max(12).optional() });
+/** Everyday chat may hand a question over to web search when it needs current facts. */
+const casualSchema = z.object({ reply: z.string().max(4000).optional(), search: z.boolean().optional() }).refine((v) => v.search || !!v.reply?.trim(), 'Give a reply, or {"search": true}');
 
 export function redactorFor(s: Snapshot): Redactor {
   const r = new Redactor();
@@ -84,13 +86,14 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
     .join('\n');
   const question = redactor.redact(message);
 
-  if (mode === 'search') {
+  const webAnswer = async (): Promise<Answer> => {
+    const mode = 'search' as const;
     if (!deps.web) return { kind: 'reply', mode, reply: 'Web search needs a Gemini key. Add one in Settings → AI providers and ask again.', sources: [] };
     const started = Date.now();
     try {
       const r = await deps.web(
         `${past ? `Conversation so far:\n${past}\n\n` : ''}Question: ${question}`,
-        `You answer the owner of a small web studio with current information from the web. Be brief and concrete; give numbers and dates where they matter. Client names appear as placeholders: keep them as written.${voiceRules(rules.map((x) => redactor.redact(x)))}`,
+        `You answer the owner of a small web studio with current information from the web. Short follow-ups ("check", "it does", "what about season 2?") refer to the conversation so far: work out the actual question from it, search for that, and correct any earlier wrong answer plainly. Be brief and concrete; give numbers and dates where they matter. Client names appear as placeholders: keep them as written.${voiceRules(rules.map((x) => redactor.redact(x)))}`,
       );
       deps.logWeb?.({ request: question, answer: r.text, model: r.model, ms: Date.now() - started, status: 'ok', error: null, inputTokens: r.inputTokens, outputTokens: r.outputTokens });
       return { kind: 'reply', mode, reply: redactor.restore(r.text), sources: r.sources };
@@ -99,22 +102,28 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
       deps.logWeb?.({ request: question, answer: null, model: '', ms: Date.now() - started, status: limit ? 'limit' : 'error', error: (err as Error).message, inputTokens: null, outputTokens: null });
       return { kind: 'reply', mode, reply: (err as Error).message, sources: [] };
     }
-  }
+  };
+
+  if (mode === 'search') return webAnswer();
 
   if (mode === 'casual') {
     const r = await runJson(
       deps.providers,
       {
         task: 'assistant',
-        system: `${BASE} This is everyday conversation: answer like a helpful friend. Don't bring up the studio unless asked.${voiceRules(rules.map((x) => redactor.redact(x)))}\n\nReply as {"reply": "..."}.`,
+        system: `${BASE} This is everyday conversation: answer like a helpful friend. Don't bring up the studio unless asked.
+If an honest answer depends on current or recent facts you may not know (releases, episodes and seasons, news, prices, schedules, results, anything that changes), or the owner asks you to check or look something up, don't guess: reply {"search": true} and the question goes to a live web search instead. Never say you'll look something up or do something later; you can't.${voiceRules(rules.map((x) => redactor.redact(x)))}
+
+Reply as {"reply": "..."} or {"search": true}.`,
         prompt: `${past ? `${past}\n` : ''}Owner: ${question}`,
         temperature: 0.7,
         maxTokens: 1200,
         demo: { kind: 'assistant', task: 'answer' },
       },
-      replySchema,
+      casualSchema,
       deps.hooks,
     );
+    if (r.data.search || !r.data.reply) return webAnswer();
     return { kind: 'reply', mode, reply: redactor.restore(r.data.reply), sources: [] };
   }
 

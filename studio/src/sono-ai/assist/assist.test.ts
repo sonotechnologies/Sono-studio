@@ -65,6 +65,9 @@ describe('picking how to answer', () => {
     expect(pickMode('how is Maison Lune doing', ['Maison Lune'])).toBe('studio');
     expect(pickMode('tell me a joke about pasta')).toBe('casual');
     expect(pickMode('what is the dollar to naira rate today, currently?')).toBe('search');
+    expect(pickMode('has black clover season 2 been released')).toBe('search');
+    expect(pickMode('check, it does')).toBe('search');
+    expect(pickMode('check which pitches were opened')).toBe('studio');
   });
 });
 
@@ -134,6 +137,15 @@ describe('answers', () => {
     expect(queries[0]).not.toContain('Kora');
     expect(web).toMatchObject({ kind: 'reply', mode: 'search', reply: 'Kora Kitchen’s rivals charge ₦20,000.', sources: [{ label: 'example.com' }] });
     expect(logged).toHaveLength(1);
+  });
+
+  it('hands everyday questions that need current facts over to web search instead of guessing', async () => {
+    const p = provider(() => ({ search: true }));
+    const asked: string[] = [];
+    const a = await answer('is the new iPhone any good', deps({ providers: [p.client], web: async (q) => (asked.push(q), { text: 'Reviews are positive.', sources: [], model: 'g', inputTokens: null, outputTokens: null }) }));
+    expect(a).toMatchObject({ kind: 'reply', mode: 'search', reply: 'Reviews are positive.' });
+    expect(asked[0]).toContain('Conversation so far'); // follow-ups are understood from the conversation
+    expect(p.asked[0].system).toContain('{"search": true}');
   });
 
   it('repeats a rule back before saving it, and hands draft requests on', async () => {

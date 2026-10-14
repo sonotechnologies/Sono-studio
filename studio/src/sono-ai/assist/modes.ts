@@ -33,7 +33,9 @@ export function draftAsk(message: string): DraftAsk | null {
 // Clearly about the web, whatever else the message says.
 const SEARCH = /\b(search|look up|google|news|price of|exchange rate|weather|release notes)\b|https?:\/\//i;
 // About something current, unless the message is plainly about your own work.
-const CURRENT = /\b(latest|today['’]?s|right now|currently|this (?:week|month|year)|how much (?:is|does|do)|what['’]?s new)\b/i;
+// Includes anything that changes over time (releases, episodes, seasons, scores, schedules) and "check" or "look it up".
+const CURRENT =
+  /\b(latest|today['’]?s|right now|currently|recently|this (?:week|month|year)|how much (?:is|does|do)|what['’]?s new|(?:been |was |is |get )?released|release date|come out|came out|coming out|out yet|new season|season \d+|(?:second|third|next|last) season|seasons?|episodes?|ep \d+|airing|premiere|who won|scores?|fixtures|schedule|upcoming|when (?:is|does|will|did)|check|verify|look (?:it|that) up|find out|is (?:it|that) true)\b/i;
 const STUDIO =
   /\b(pitch(?:es)?|projects?|clients?|sites?|websites?|quotes?|drafts?|follow[- ]?ups?|leads?|models?|providers?|summary|deploy(?:ed|s)?|bookings?|orders?|studio|sent|opened|approved|live|scorecards?|rules?|keep rate|my work)\b/i;
 

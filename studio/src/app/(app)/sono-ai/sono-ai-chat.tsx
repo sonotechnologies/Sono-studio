@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Logo } from '@/components/logo';
 import type { Message, Mode } from '@/sono-ai/assist/types';
-import { askAction, confirmRuleAction, feedbackAction, recentMessagesAction } from './assist-actions';
+import { confirmRuleAction, feedbackAction, type AskResult } from './assist-actions';
 
 const MODES: { id: Mode | 'auto'; label: string; hint: string }[] = [
   { id: 'auto', label: 'Auto', hint: 'Sono AI picks for each message' },
@@ -43,7 +43,13 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
     setMessages((m) => [...m, temp]);
     start(async () => {
       try {
-        const r = await askAction(t, { mode, projectId });
+        const res = await fetch('/api/assistant/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: t, mode, projectId }) });
+        if (res.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+        if (!res.ok && res.status !== 400) throw new Error(`HTTP ${res.status}`);
+        const r = (await res.json()) as AskResult;
         setMessages((m) => [...m.filter((x) => x.id !== temp.id), ...(r.messages ?? [{ ...temp, id: `err-${Date.now()}`, role: 'assistant', text: r.error ?? 'Something went wrong.' }])]);
         if (r.ruleId && r.messages) setRules((x) => ({ ...x, [r.messages!.at(-1)!.id]: r.ruleId! }));
       } catch {
@@ -56,7 +62,10 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
   const catchUp = async (temp: Message) => {
     for (const wait of [0, 4000, 8000]) {
       await new Promise((r) => setTimeout(r, wait));
-      const latest = await recentMessagesAction().catch(() => null);
+      const latest = await fetch('/api/assistant/ask')
+        .then((r) => (r.ok ? (r.json() as Promise<{ messages: Message[] }>) : null))
+        .then((r) => r?.messages ?? null)
+        .catch(() => null);
       if (latest && latest.at(-1)?.role === 'assistant' && latest.some((m) => m.role === 'user' && m.text === temp.text)) {
         setMessages(latest);
         return;
@@ -71,7 +80,7 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
 
   const rate = (id: string, rating: 1 | -1) => {
     setRated((r) => ({ ...r, [id]: rating }));
-    void feedbackAction('reply', id, rating);
+    feedbackAction('reply', id, rating).catch(() => {});
   };
 
   return (
@@ -123,7 +132,7 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
                     <button
                       type="button"
                       onClick={async () => {
-                        const r = await confirmRuleAction(rules[m.id]);
+                        const r = await confirmRuleAction(rules[m.id]).catch(() => ({ ok: undefined, error: 'Couldn’t save it. Try again.' }));
                         setSaved((x) => ({ ...x, [m.id]: r.ok ?? r.error ?? '' }));
                       }}
                       className="cursor-pointer rounded-full bg-text px-3 py-1 text-[12px] font-semibold text-bg"
