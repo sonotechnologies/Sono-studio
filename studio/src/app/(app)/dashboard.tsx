@@ -9,7 +9,8 @@ import { STATUS_STYLE, StatusPill, Switch, btn } from '@/components/ui';
 import { needsFollowUp, seenLine } from '@/lib/format';
 import { PROJECT_STATUSES, STATUS_LABELS, type Project, type ProjectStatus } from '@/lib/types';
 
-export function Dashboard({ projects, now }: { projects: Project[]; now: number }) {
+export function Dashboard({ projects, now, sonoStarted = [] }: { projects: Project[]; now: number; /** Projects Sono AI started, labelled as such. */ sonoStarted?: string[] }) {
+  const bySono = new Set(sonoStarted);
   const [q, setQ] = useQueryParam('q');
   const [statusParam, setStatus] = useQueryParam('status');
   const [type, setType] = useQueryParam('type');
@@ -127,6 +128,7 @@ export function Dashboard({ projects, now }: { projects: Project[]; now: number 
                   <StatusPill status={p.status} />
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-[13px] text-muted">
+                  {bySono.has(p.id) && <span className="text-accent-text">Started by Sono AI ·</span>}
                   <span>{p.businessType}</span>
                   <span>·</span>
                   <span className={followUps.has(p.id) ? 'text-warn' : undefined}>{seenLine(p, now)}</span>

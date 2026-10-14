@@ -3,6 +3,7 @@ import Link from 'next/link';
 const TABS = [
   { href: '/sono-ai/chat', label: 'Chat' },
   { href: '/sono-ai/drafts', label: 'Drafts' },
+  { href: '/sono-ai/builds', label: 'Builds' },
   { href: '/sono-ai/rules', label: 'Rulebook' },
   { href: '/sono-ai/scorecards', label: 'Scorecards' },
   { href: '/sono-ai', label: 'Setup and history' },

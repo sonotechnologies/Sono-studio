@@ -13,7 +13,7 @@ const MODES: { id: Mode | 'auto'; label: string; hint: string }[] = [
   { id: 'search', label: 'Web', hint: 'Live web search with links' },
   { id: 'casual', label: 'Chat', hint: 'Everyday conversation' },
 ];
-const MODE_NOTE: Record<string, string> = { studio: 'From your studio', search: 'From the web', casual: '', rule: 'Rule', draft: '' };
+const MODE_NOTE: Record<string, string> = { studio: 'From your studio', search: 'From the web', casual: '', rule: 'Rule', draft: '', build: '' };
 
 const SUGGESTIONS = [
   'Which pitches need a follow-up?',
@@ -21,6 +21,7 @@ const SUGGESTIONS = [
   'Which kind of business should I pitch next?',
   'Which model writes the best copy?',
   'Always quote in dollars for UK clients',
+  'Build a pitch site for a bakery called Crumbs in Yaba',
 ];
 
 /** Sono AI's chat: the full page under the sidebar, and the workspace tab (with the project as context). */

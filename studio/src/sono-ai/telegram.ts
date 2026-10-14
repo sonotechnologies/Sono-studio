@@ -6,10 +6,8 @@
 
 type Fetch = typeof fetch;
 
-export interface Button {
-  text: string;
-  data: string;
-}
+/** A button that sends `data` back to the bot, or opens `url`. */
+export type Button = { text: string; data: string; url?: undefined } | { text: string; url: string; data?: undefined };
 
 export interface Telegram {
   send(chatId: number, html: string, buttons?: Button[][]): Promise<void>;
@@ -48,7 +46,7 @@ export function telegram(token: string, f: Fetch = fetch, base = process.env.SON
         text: html,
         parse_mode: 'HTML',
         link_preview_options: { is_disabled: true },
-        ...(buttons?.length ? { reply_markup: { inline_keyboard: buttons.map((row) => row.map((b) => ({ text: b.text, callback_data: b.data }))) } } : {}),
+        ...(buttons?.length ? { reply_markup: { inline_keyboard: buttons.map((row) => row.map((b) => (b.url ? { text: b.text, url: b.url } : { text: b.text, callback_data: b.data }))) } } : {}),
       });
     },
     async answerCallback(id, text) {

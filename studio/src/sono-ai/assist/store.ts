@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isDevStore } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import type { BuildBrief, BuildRequest } from './build';
 import type { Draft, DraftDecision, Message, NewDraft, NewMessage, Rule, ScoreRow } from './types';
 
 /*
@@ -28,6 +29,11 @@ export interface AssistStore {
   deleteRule(id: string): Promise<void>;
   scorecards(): Promise<(ScoreRow & { updatedAt: string })[]>;
   saveScorecards(rows: ScoreRow[]): Promise<void>;
+  builds(): Promise<BuildRequest[]>;
+  addBuild(b: { request: string; channel: BuildRequest['channel']; brief: BuildBrief }): Promise<BuildRequest>;
+  /** Marks a request started, with the project and job it created. */
+  startBuild(id: string, projectId: string, jobId: string): Promise<void>;
+  discardBuild(id: string): Promise<void>;
 }
 
 /* ---------- Supabase ---------- */
@@ -39,6 +45,8 @@ type DraftRow = {
 };
 type RuleRow = { id: string; text: string; enabled: boolean; confirmed: boolean; source: Rule['source']; created_at: string };
 
+type BuildRow = { id: string; request: string; channel: BuildRequest['channel']; brief: BuildBrief; status: BuildRequest['status']; project_id: string | null; job_id: string | null; created_at: string; started_at: string | null };
+const build = (r: BuildRow): BuildRequest => ({ id: r.id, request: r.request, channel: r.channel, brief: r.brief, status: r.status, projectId: r.project_id, jobId: r.job_id, createdAt: r.created_at, startedAt: r.started_at });
 const message = (r: MessageRow): Message => ({ id: r.id, projectId: r.project_id, channel: r.channel, role: r.role, text: r.text, mode: r.mode, sources: r.sources ?? [], createdAt: r.created_at });
 const draft = (r: DraftRow): Draft => ({
   id: r.id, projectId: r.project_id, kind: r.kind, channel: r.channel, recipient: r.recipient, title: r.title, why: r.why, body: r.body,
@@ -119,6 +127,18 @@ function supabaseAssist(db: SupabaseClient): AssistStore {
       check(await db.from('scorecards').delete().gte('requests', 0));
       if (rows.length) check(await db.from('scorecards').insert(rows.map((r) => ({ ...r, updated_at: new Date().toISOString() }))));
     },
+    async builds() {
+      return (check(await db.from('sono_ai_builds').select('*').order('created_at', { ascending: false }).limit(100)) as BuildRow[]).map(build);
+    },
+    async addBuild(b) {
+      return build(check(await db.from('sono_ai_builds').insert({ request: b.request.slice(0, 2000), channel: b.channel, brief: b.brief }).select('*').single()) as BuildRow);
+    },
+    async startBuild(id, projectId, jobId) {
+      check(await db.from('sono_ai_builds').update({ status: 'started', project_id: projectId, job_id: jobId, started_at: new Date().toISOString() }).eq('id', id));
+    },
+    async discardBuild(id) {
+      check(await db.from('sono_ai_builds').update({ status: 'discarded' }).eq('id', id).eq('status', 'requested'));
+    },
   };
 }
 
@@ -130,6 +150,7 @@ interface DevAssist {
   feedback: { kind: 'reply' | 'draft'; id: string; rating: 1 | -1 }[];
   rules: Rule[];
   scorecards: (ScoreRow & { updatedAt: string })[];
+  builds?: BuildRequest[];
 }
 const FILE = path.join(process.cwd(), '.data', 'sono-ai-assist.json');
 let queue: Promise<unknown> = Promise.resolve();
@@ -198,6 +219,23 @@ export const devAssist: AssistStore = {
   deleteRule: (id) => change((d) => void (d.rules = d.rules.filter((r) => r.id !== id))),
   scorecards: async () => (await load()).scorecards,
   saveScorecards: (rows) => change((d) => void (d.scorecards = rows.map((r) => ({ ...r, updatedAt: now() })))),
+  builds: async () => [...((await load()).builds ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  addBuild: (b) =>
+    change((d) => {
+      const row: BuildRequest = { ...b, id: randomUUID(), status: 'requested', projectId: null, jobId: null, createdAt: now(), startedAt: null };
+      (d.builds ??= []).push(row);
+      return row;
+    }),
+  startBuild: (id, projectId, jobId) =>
+    change((d) => {
+      const r = d.builds?.find((x) => x.id === id);
+      if (r) Object.assign(r, { status: 'started', projectId, jobId, startedAt: now() });
+    }),
+  discardBuild: (id) =>
+    change((d) => {
+      const r = d.builds?.find((x) => x.id === id && x.status === 'requested');
+      if (r) r.status = 'discarded';
+    }),
 };
 
 export async function assistStore(): Promise<AssistStore> {

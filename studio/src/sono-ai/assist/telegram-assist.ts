@@ -13,6 +13,7 @@ import { settingsStore, sonoAiKey } from '../notify-store';
 import { recorded } from '../record';
 import type { Redaction } from '../redact';
 import { devStore, type ChunkHit, type NewInteraction, type SonoAiStore } from '../store';
+import type { BuildBrief } from './build';
 import type { Snapshot, SnapshotProject } from './context';
 import type { DraftDeps } from './drafts';
 import type { AssistDeps } from './engine';
@@ -49,7 +50,9 @@ export type TgOp =
   | { op: 'add_drafts'; args: { rows: NewDraft[] } }
   | { op: 'log'; args: { rows: Partial<NewInteraction>[] } }
   | { op: 'usage'; args: { provider: string } }
-  | { op: 'cooldown'; args: { provider: string; until: string } };
+  | { op: 'cooldown'; args: { provider: string; until: string } }
+  /** Files a build request (returns its id); planning starts when it's opened in the studio. */
+  | { op: 'build'; args: { request: string; brief: BuildBrief } };
 
 export interface TgBackend {
   state(): Promise<TgState | null>;
@@ -73,7 +76,10 @@ function supabaseTg(): TgBackend {
   };
   return {
     state: () => rpc<TgState | null>('sono_ai_tg_state', {}),
-    write: <T>(w: TgOp) => rpc<T | null>('sono_ai_tg_write', { p_op: w.op, p_args: w.args }),
+    write: <T>(w: TgOp) =>
+      w.op === 'build'
+        ? rpc<T | null>('sono_ai_tg_build', { p_request: w.args.request, p_brief: w.args.brief })
+        : rpc<T | null>('sono_ai_tg_write', { p_op: w.op, p_args: w.args }),
     async match(embedding, count) {
       const rows = await rpc<{ project_id: string | null; source: string; source_id: string; content: string; similarity: number }[]>('sono_ai_tg_match', { p_query: JSON.stringify(embedding), p_count: count });
       return (rows ?? []).map((r) => ({ projectId: r.project_id, source: r.source, sourceId: r.source_id, content: r.content, similarity: r.similarity }));
@@ -131,6 +137,8 @@ const devTg: TgBackend = {
         }
         case 'add_drafts':
           return (await devAssist.addDrafts(w.args.rows)).map(toRow);
+        case 'build':
+          return (await devAssist.addBuild({ request: w.args.request, channel: 'telegram', brief: w.args.brief })).id;
         case 'log':
           return devStore.addInteractions(w.args.rows.map((r) => ({ projectId: null, siteType: null, source: 'live', sourceRef: null, ...r }) as NewInteraction)).then(() => ({ ok: true }));
         default:

@@ -5,6 +5,7 @@ import type { Embedder } from '../knowledge';
 import { Redactor, type Redaction } from '../redact';
 import type { ChunkHit } from '../store';
 import { factsText, scorecardText, type Snapshot } from './context';
+import { buildAsk } from './build';
 import { draftAsk, pickMode, ruleIn, type DraftAsk } from './modes';
 import type { Mode, ScoreRow, Source } from './types';
 import { WebSearchError, type WebSearch } from './web';
@@ -49,7 +50,8 @@ export interface AnswerOptions {
 export type Answer =
   | { kind: 'reply'; mode: Mode; reply: string; sources: Source[] }
   | { kind: 'rule'; rule: string; reply: string }
-  | { kind: 'draft'; ask: DraftAsk };
+  | { kind: 'draft'; ask: DraftAsk }
+  | { kind: 'build' };
 
 /** Keeps the knowledge chunks that are actually about the question. */
 const RELEVANT = 0.5;
@@ -75,6 +77,7 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
   if (rule) return { kind: 'rule', rule, reply: `I’ll remember this: “${rule}”. Save it to your rulebook?` };
   const ask = draftAsk(message);
   if (ask) return { kind: 'draft', ask };
+  if (buildAsk(message)) return { kind: 'build' };
 
   const snapshot = await deps.snapshot();
   const redactor = redactorFor(snapshot);

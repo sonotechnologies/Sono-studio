@@ -5,6 +5,8 @@ import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl, siteUrl } from '@/lib/format';
 import { handoverChecklist } from '@/export/checklist';
 import { cardProviders, depositProviders } from '@/site/store/payments-info';
+import { sonoAiEnabled } from '@/sono-ai';
+import { assistStore } from '@/sono-ai/assist/store';
 import { siteConfigSchema } from '@/site/schema';
 import { copyChecklist } from '@/mirror/checklist';
 import { ProjectDetails } from './project-details';
@@ -28,6 +30,7 @@ export default async function ProjectPage({ params }: Props) {
   const project = await load((await params).id);
   if (!project) notFound();
   const repo = await getRepo();
+  const startedBy = sonoAiEnabled() ? ((await assistStore().then((a) => a.builds()).catch(() => [])).find((b) => b.projectId === project.id) ?? null) : null;
   const [job, events, version, keys, latest] = await Promise.all([
     repo.getLatestJob(project.id),
     repo.listPitchEvents(project.id, 50),
@@ -68,6 +71,11 @@ export default async function ProjectPage({ params }: Props) {
   const setup = job && job.status !== 'done' ? { jobId: job.id, status: job.status } : null;
   return (
     <Page title={project.name} width={1200}>
+      {startedBy && (
+        <p className="m-0 -mb-3 text-[14px] text-muted">
+          <span className="font-medium text-accent-text">Started by Sono AI</span> from “{startedBy.request.slice(0, 160)}”. Sending the pitch is still up to you.
+        </p>
+      )}
       <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} bookings={bookings} admins={admins} adminUrl={`${siteUrl()}/admin`} />
     </Page>
   );

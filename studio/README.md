@@ -271,6 +271,20 @@ Notes:
 - Web search and knowledge search need a Gemini key in Settings → AI providers (Gemini's free tier). Without one, studio answers still use studio data and scorecards.
 - Conversations are stored as you wrote them (they're yours, behind your login); what goes to AI providers, and the request log, is redacted.
 
+### Stage 4, Build
+
+| Built | Notes |
+| --- | --- |
+| Asking | In the Sono AI chat or on Telegram: "build a pitch site for Mama's Kitchen, a restaurant in Lekki, owner Ada, WhatsApp 0803…". Sono AI reads the brief from the request (business, type, pages, details, client contacts) without inventing anything, and files it under **Sono AI → Builds** |
+| Plan it | Nothing is created until you open the request and press **Plan it**. That makes an ordinary project and generation job, exactly as the New site wizard does, and opens the wizard, which plans the pages and stops at its own plan review. Nothing is built until you approve the plan there (you can edit the plan or go back to the brief first). There is no separate builder |
+| Choices from the knowledge bank | The style is the preset your approved or live sites of that kind used most (else the usual one for that kind); a rule naming a preset wins. Your rules go into the brief's notes, which the planner and writer follow |
+| Labels | Projects it started say **Started by Sono AI** on the dashboard and the project page. They're normal projects you can edit; the pitch link is never sent for you |
+| Trust | The Builds page shows how many drafts you've approved without edits, the brief's measure for relying on Sono AI |
+
+Notes:
+- Supabase needs `supabase/migrations/0015_sono_ai_build.sql`.
+- On Telegram the bot files the request and gives you a button that opens it in the studio to plan.
+
 ## Run it locally
 
 ```bash

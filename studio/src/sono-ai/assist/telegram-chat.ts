@@ -2,6 +2,7 @@ import 'server-only';
 import { AllProvidersFailed } from '@/ai/router';
 import { escapeHtml, type Button, type Telegram } from '../telegram';
 import { approveHref, followUpDrafts } from './drafts';
+import { briefSummary, extractBuild } from './build';
 import { answer } from './engine';
 import { QUOTA_NOTE } from './reserve';
 import { draftButtons, draftMessage } from './telegram-drafts';
@@ -67,6 +68,15 @@ export async function ownerMessage(chatId: number, text: string, bot: Telegram, 
       await say(`Here ${saved.length === 1 ? 'is a follow-up' : `are ${saved.length} follow-ups`} to approve, edit or skip.`, 'draft');
       for (const d of saved.map(draftFromRow)) await bot.send(chatId, clip(draftMessage(d)), draftButtons(d));
       return;
+    }
+    if (a.kind === 'build') {
+      const brief = await extractBuild(text, state.history, deps);
+      if ('missing' in brief) return say(brief.missing, 'build');
+      const id = await backend.write<string>({ op: 'build', args: { request: text, brief } });
+      if (!id) return say('I couldn’t save that build request. Try again in the studio.', 'build');
+      return say(`Here’s the brief I’d start from:\n\n${briefSummary(brief)}\n\nNothing is built yet. Open it in the studio to plan the site; you’ll review the plan before anything is built.`, 'build', () => [
+        [{ text: '🧭 Plan it in the studio', url: `${deps.studioUrl}/sono-ai/builds/${id}` }],
+      ]);
     }
     return say(a.reply, a.mode, (id) => [[{ text: '👍', data: `fb:u:${id}` }, { text: '👎', data: `fb:d:${id}` }]], a.sources);
   } catch (err) {

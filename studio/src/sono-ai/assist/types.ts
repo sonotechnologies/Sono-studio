@@ -14,7 +14,7 @@ export interface Message {
   channel: Channel;
   role: 'user' | 'assistant';
   text: string;
-  mode: Mode | 'rule' | 'draft' | null;
+  mode: Mode | 'rule' | 'draft' | 'build' | null;
   sources: Source[];
   createdAt: string;
 }
