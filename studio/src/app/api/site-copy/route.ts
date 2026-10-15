@@ -31,6 +31,9 @@ export async function POST(req: Request) {
   let projectId = body.projectId ?? '';
   if (projectId) {
     if (!(await repo.getProject(projectId))) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    // Edits made in the editor carry over; any whose spot changed on the site are left out when applied.
+    const before = await repo.getSiteCopyMeta(projectId);
+    if (before?.edits?.length) Object.assign(copy.meta, { edits: before.edits, editedAt: before.editedAt });
   } else {
     const name = (String(body.name ?? '').trim() || new URL(copy.meta.sourceUrl).hostname.replace(/^www\./, '')).slice(0, 80);
     const settings = await repo.getSettings();

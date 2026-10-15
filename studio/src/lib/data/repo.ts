@@ -3,6 +3,7 @@ import type { Asset, Brief, GenerationJob } from '@/generate/brief';
 import type { PaymentProvider, SiteConfig, SiteTheme } from '@/site/schema';
 import type { Order } from '@/site/store/payments';
 import type { MirrorMeta } from '@/mirror/copy';
+import type { CopyEdit } from '@/mirror/edit';
 import type {
   ClientPatch,
   DeployProviderId,
@@ -61,6 +62,8 @@ export interface Repo {
   getSiteCopyMeta(projectId: string): Promise<MirrorMeta | null>;
   getSiteCopy(projectId: string): Promise<{ meta: MirrorMeta; zip: Uint8Array } | null>;
   saveSiteCopy(projectId: string, meta: MirrorMeta, zip: Uint8Array): Promise<void>;
+  /** Saves the editor's changes to a copy (kept in its meta). */
+  saveSiteCopyEdits(projectId: string, edits: CopyEdit[]): Promise<MirrorMeta | null>;
   /** Your own styles, newest first. */
   listStyles(): Promise<CustomStyle[]>;
   getStyle(id: string): Promise<CustomStyle | null>;

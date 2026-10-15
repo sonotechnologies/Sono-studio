@@ -1,5 +1,6 @@
 import 'server-only';
 import { fetchBytes, LinkError, checkUrl } from '@/style/link';
+import type { CopyEdit } from './edit';
 import {
   assetPath,
   baseOf,
@@ -44,6 +45,9 @@ export interface MirrorMeta {
   missing: string[];
   /** Plain warnings for the handover. Older copies stored plain strings. */
   notes: (CopyNote | string)[];
+  /** Changes made in the studio's editor, applied over the copied pages. */
+  edits?: CopyEdit[];
+  editedAt?: string;
 }
 
 export interface MirrorResult {

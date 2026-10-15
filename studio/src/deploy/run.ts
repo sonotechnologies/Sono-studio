@@ -3,11 +3,14 @@ import { randomBytes } from 'node:crypto';
 import { decryptSecret } from '@/lib/crypto';
 import type { Deployment, Repo } from '@/lib/data/repo';
 import { exportSite, packageName, type ExportResult, type ImageLoader } from '@/export/generate';
+import template from '@/export/template.generated.json';
 import { siteConfigSchema, type PaymentProvider } from '@/site/schema';
 import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { sha256 } from '@/site/store/payments';
 import { unzipSync } from 'fflate';
 import { copyChecklist } from '@/mirror/checklist';
+import { applyEdits } from '@/mirror/edit';
+import { copyToNext } from '@/mirror/to-next';
 import { DeployError, pushToGitHub } from './github';
 import { deployToVercel, deploymentState, projectUrl } from './vercel';
 
@@ -75,13 +78,15 @@ export async function tokens(repo: Repo): Promise<{ github: string | null; verce
 export interface ProjectExport extends ExportResult {
   name: string;
   version: number;
-  /** "nextjs" for generated sites; null for an exact copy, which Vercel serves as plain files. */
+  /** "nextjs" for generated sites and converted copies; null for a copy exported as plain files. */
   framework: 'nextjs' | null;
+  /** An exact copy of the client's own site, rather than a site built here. */
+  copy: boolean;
   /** Card payments the shop takes, which need keys on the hosting. */
   payments: PaymentProvider[];
 }
 
-export async function exportProject(repo: Repo, projectId: string, origin: string): Promise<ProjectExport> {
+export async function exportProject(repo: Repo, projectId: string, origin: string, opts: { plain?: boolean } = {}): Promise<ProjectExport> {
   const project = await repo.getProject(projectId);
   if (!project) throw new DeployError('This project no longer exists.');
   const version = await repo.getSiteVersion(projectId);
@@ -89,20 +94,57 @@ export async function exportProject(repo: Repo, projectId: string, origin: strin
     // A project made by copying a client's site as it is.
     const copy = await repo.getSiteCopy(projectId);
     if (!copy) throw new DeployError('This project has no site yet.');
-    const checklist = copyChecklist(copy.meta);
-    const files = Object.entries(unzipSync(copy.zip)).map(([path, data]) => ({ path, data }));
-    files.push({ path: 'vercel.json', data: new TextEncoder().encode(`${JSON.stringify({ cleanUrls: true, trailingSlash: false }, null, 2)}\n`) });
+    const { meta } = copy;
+    const edits = meta.edits ?? [];
+    const checklist = copyChecklist(meta);
+    const unzipped = unzipSync(copy.zip);
+    const when = meta.copiedAt.slice(0, 10);
+    const todo = `## Before it replaces the original\n\n${checklist.map((c) => `- [ ] **${c.title}.** ${c.detail}`).join('\n')}\n`;
+    const name = packageName(project.name);
+    if (opts.plain) {
+      // The copy as plain HTML files, with the editor's changes in.
+      const files = Object.entries(unzipped).map(([path, data]) => ({
+        path,
+        data: path.endsWith('.html') && edits.length ? applyEdits(path, new TextDecoder().decode(data), edits).html : data,
+      }));
+      files.push({ path: 'vercel.json', data: `${JSON.stringify({ cleanUrls: true, trailingSlash: false }, null, 2)}\n` });
+      files.push({
+        path: 'HANDOVER.md',
+        data: `# ${project.name}\n\nAn exact copy of ${meta.sourceUrl}, made ${when}: ${meta.pages.length} pages, ${meta.files} files. Static files: open index.html, or deploy the folder to any static host.\n\n${todo}`,
+      });
+      return { files, checklist, name, version: 1, framework: null, copy: true, payments: [] };
+    }
+    const files = await copyToNext(
+      { files: unzipped, pages: meta.pages, edits, name, version: 1, sourceUrl: meta.sourceUrl, loadImage: imageLoader(origin) },
+      (template as { versions: Record<string, string> }).versions,
+    );
     files.push({
-      path: 'HANDOVER.md',
-      data: new TextEncoder().encode(
-        `# ${project.name}\n\nAn exact copy of ${copy.meta.sourceUrl}, made ${copy.meta.copiedAt.slice(0, 10)}: ${copy.meta.pages.length} pages, ${copy.meta.files} files. Static files: open index.html, or deploy the folder to any static host.\n\n## Before it replaces the original\n\n${checklist.map((c) => `- [ ] **${c.title}.** ${c.detail}`).join('\n')}\n`,
-      ),
+      path: 'README.md',
+      data: `# ${project.name}
+
+The site from ${meta.sourceUrl} (copied ${when}), as a Next.js project in TypeScript with Tailwind CSS. It looks and behaves exactly like the original.
+
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+
+## How it's put together
+
+- **Pages**: each page of the original site is a route in \`src/app/\` (\`about.html\` → \`src/app/about/page.tsx\`), its markup written as JSX. Edit the words and pictures there.
+- **Styles**: the original CSS files are in \`public/\` and still style the pages, exactly as before.
+- **Tailwind**: set up without its reset and with a \`tw:\` prefix so it can't clash with the original CSS. Use it for new work: \`className="tw:flex tw:gap-4"\`. The original CSS wins where both style the same thing; add \`!\` to win instead (\`tw:mt-4!\`).
+- **Scripts**: the original JavaScript files are in \`public/\` and run in their original order once a page loads (\`src/components/legacy-scripts.tsx\`). Inline handlers like \`onclick\` are kept as \`data-legacy-onclick\`.
+- **Old addresses**: \`about.html\` and the original paths redirect to the new pages (\`next.config.ts\`).
+- **Head**: each page's title and description are its \`metadata\`; its other tags are rendered at the top of the page and placed in \`<head>\` by React.
+
+${todo}`,
     });
-    return { files, checklist, name: packageName(project.name), version: 1, framework: null, payments: [] };
+    return { files, checklist, name, version: 1, framework: 'nextjs', copy: true, payments: [] };
   }
   const config = siteConfigSchema.parse(version.config);
   const result = await exportSite({ config, projectName: project.name, version: version.version, loadImage: imageLoader(origin) });
-  return { ...result, name: packageName(project.name), version: version.version, framework: 'nextjs', payments: [...new Set([...cardProviders(config.store), ...depositProviders(config.bookings)])] };
+  return { ...result, name: packageName(project.name), version: version.version, framework: 'nextjs', copy: false, payments: [...new Set([...cardProviders(config.store), ...depositProviders(config.bookings)])] };
 }
 
 export async function startDeploy(repo: Repo, projectId: string, origin: string, opts: { paymentKeys?: PaymentKeys } = {}): Promise<Deployment> {
@@ -113,7 +155,7 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string,
   const site = await exportProject(repo, projectId, origin);
   // A shop taking cards needs the business's keys, and reports paid orders back here with a fresh key.
   // Generated sites read their published content from the studio, so client edits go live without a rebuild.
-  let env: Record<string, string> | undefined = site.framework === 'nextjs' ? { SONO_SITE_API: `${origin}/api/sites/${projectId}` } : undefined;
+  let env: Record<string, string> | undefined = site.copy ? undefined : { SONO_SITE_API: `${origin}/api/sites/${projectId}` };
   if (site.payments.length) {
     const ordersKey = randomBytes(32).toString('hex');
     await repo.setOrdersKeyHash(projectId, sha256(ordersKey));

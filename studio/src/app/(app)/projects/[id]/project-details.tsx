@@ -124,10 +124,16 @@ export function ProjectDetails({
             Delete
           </button>
 {copy && p.currentVersion === null ? (
-            <a href={`/copy/${p.id}/index.html`} target="_blank" rel="noreferrer" className={`${btn.primary} h-11 px-5 text-[15px]`}>
-              Open the copy
-              <ExternalLink size={16} strokeWidth={2} />
-            </a>
+            <>
+              <a href={`/copy/${p.id}/index.html`} target="_blank" rel="noreferrer" className={`${btn.secondary} h-11 px-4 text-[14px]`}>
+                Open the copy
+                <ExternalLink size={15} strokeWidth={2} />
+              </a>
+              <Link href={`/copy-editor/${p.id}`} className={`${btn.primary} h-11 px-5 text-[15px]`}>
+                Edit the copy
+                <ArrowRight size={16} strokeWidth={2} />
+              </Link>
+            </>
           ) : p.currentVersion !== null ? (
             <>
               <Link href={`/preview/${p.id}`} className={`${btn.secondary} h-11 px-4 text-[14px]`}>
@@ -522,6 +528,7 @@ function CopyCard({ p, copy, now }: { p: Project; copy: MirrorMeta; now: number 
         </span>
         <span className="text-[13px] text-muted">
           {copy.pages.length} page{copy.pages.length === 1 ? '' : 's'} · {copy.files} files · {mb} MB · copied {compactWhen(copy.copiedAt, now)}
+          {copy.edits?.length ? ` · ${copy.edits.length} change${copy.edits.length === 1 ? '' : 's'}${copy.editedAt ? `, last ${compactWhen(copy.editedAt, now)}` : ''}` : ''}
         </span>
       </div>
       <details className="group">
@@ -541,6 +548,9 @@ function CopyCard({ p, copy, now }: { p: Project; copy: MirrorMeta; now: number 
         </ul>
       </details>
       <div className="flex flex-wrap gap-2">
+        <Link href={`/copy-editor/${p.id}`} className={`${btn.secondary} h-10 px-4 text-[14px]`}>
+          Edit the copy
+        </Link>
         <a href={`/copy/${p.id}/index.html`} target="_blank" rel="noreferrer" className={`${btn.secondary} h-10 px-4 text-[14px]`}>
           Open the copy
         </a>
@@ -549,7 +559,9 @@ function CopyCard({ p, copy, now }: { p: Project; copy: MirrorMeta; now: number 
           {busy ? 'Copying… (up to 3 minutes)' : 'Copy again'}
         </button>
       </div>
-      <p className="m-0 text-[12px] text-muted">The copy is the client’s site as visitors see it. It can’t be edited in the workspace; forms and anything their old host ran on its server don’t come across.</p>
+      <p className="m-0 text-[12px] text-muted">
+        The copy is the client’s site as visitors see it. Edit its words, pictures and links here; the layout stays exactly as copied. Export and Deploy turn it into a Next.js project (TypeScript, Tailwind) that looks the same. Forms and anything their old host ran on its server don’t come across. Copying again keeps your changes where the site still says the same thing.
+      </p>
     </section>
   );
 }
@@ -623,6 +635,11 @@ function WebsiteCard({ p, info, now, onLive }: { p: Project; info: WebsiteInfo; 
         <a href={`/api/projects/${p.id}/export`} className={`${btn.secondary} h-10 px-4 text-[14px]`}>
           Export zip
         </a>
+        {p.currentVersion === null && (
+          <a href={`/api/projects/${p.id}/export?format=plain`} title="The copy as plain HTML files, without Next.js" className={`${btn.ghost} h-10 px-3 text-[13px]`}>
+            Plain HTML zip
+          </a>
+        )}
         <button type="button" onClick={() => setOpen(true)} className={`${btn.primary} h-10 px-4 text-[14px]`}>
           {d?.status === 'building' ? 'See progress' : live ? 'Redeploy' : 'Deploy'}
         </button>

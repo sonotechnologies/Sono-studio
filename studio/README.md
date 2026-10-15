@@ -140,10 +140,23 @@ Notes:
 | Project page | An "Exact copy" card: the source, pages, size, "Open the copy" and "Copy again". The usual Export zip and Deploy buttons work on it; Vercel serves it as static files with clean URLs |
 | Preview | The copy opens inside the studio with its scripts switched off, so its code can't act as your signed-in session. Styles, images, fonts and CSS animations show exactly; JavaScript effects show once deployed or opened from the export |
 | Checklist | Generated from what was found: forms that still post to the old server, the old site's analytics codes, pages that are built by JavaScript, site-builder features that don't come across, files that couldn't be copied |
-| Limits | Only what browsers receive can be copied: forms, bookings, shops, logins and CMS editing stay with the old host. A copy can't be edited in the workspace |
+| Limits | Only what browsers receive can be copied: forms, bookings, shops, logins and CMS editing stay with the old host. A copy isn't edited in the workspace, but in its own editor (below) |
 
 Notes:
 - Supabase needs `supabase/migrations/0008_site_copies.sql`.
+
+### Editing a copy, and exporting it as Next.js
+
+| Built | Notes |
+| --- | --- |
+| Edit the copy (`/copy-editor/[id]`) | The copy with its scripts off and every text, picture and link marked. Click one to change it in the side panel; the page updates as you type and saves a moment later. Text can be changed on every page at once (a phone number in the footer); pictures are replaced by upload, with their description; links take a page of the site, a web address, mailto:, tel: or a WhatsApp link. Each change can be undone from the list. Phone and desktop sizes |
+| How edits work (`src/mirror/edit.ts`) | A spot is found by its place in the page (the 5th text, the 2nd picture) and an edit replaces just those characters in the original HTML, so the layout can't change. Each edit remembers what it replaced: after "Copy again", edits whose spot changed are left out and listed in the editor to clear. Edits are kept in the copy's meta (no migration). Replaced pictures also drop the old srcset, `<source>` sizes and lazy-load attributes so the new one shows |
+| Preview | The copy's preview and "Open the copy" show the edits. Pages are checked for changes on every view; files stay cached for an hour |
+| Export and Deploy (`src/mirror/to-next.ts`) | A copy now exports and deploys as a Next.js project in TypeScript with Tailwind, looking exactly like the original. Each page is a route with its markup as JSX, its title and description as metadata and its stylesheets in their original order; the CSS, scripts, fonts and images go in `public/` unchanged. The original scripts run in order once the page loads, then the page's load events fire again for code waiting on them; inline handlers (`onclick`) are put back. Links between pages are full page loads, as before. Pages with different `<html>`/`<body>` attributes get their own root layout. `about.html` and the original paths redirect to the new routes. Pictures from edits are downloaded into `public/edits/`. The project's README explains the layout |
+| Tailwind | Set up without its reset (preflight) and with a `tw:` prefix, so it can't restyle anything the original CSS styles or clash with the site's own class names (`.container`, `.hidden`). New work: `className="tw:flex tw:gap-4"` |
+| Plain HTML | "Plain HTML zip" on the project page still downloads the copy as static files (with the edits in) |
+| Checked | A sample site (jQuery, DOMContentLoaded and load handlers, onclick, inline styles, SVG, tables, forms, `<pre>`, old tags like `<center>` and `<font>`, per-page body classes, no viewport tag on some pages) builds with `next build` and its pages are pixel-identical to the original at desktop and phone widths, with every script running |
+| Limits | Scripts that use `document.write`, or expect to run before the page has finished loading, may behave differently. Pictures set in CSS (backgrounds) can't be swapped in the editor |
 
 ### Phase 8.1, Online stores with WhatsApp ordering
 

@@ -405,6 +405,14 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       check(await db.from('site_copies').upsert({ project_id: projectId, meta, storage_path: storagePath }));
     },
 
+    async saveSiteCopyEdits(projectId, edits) {
+      const row = check(await db.from('site_copies').select('meta').eq('project_id', projectId).maybeSingle()) as { meta: MirrorMeta } | null;
+      if (!row) return null;
+      const meta = { ...row.meta, edits, editedAt: new Date().toISOString() };
+      check(await db.from('site_copies').update({ meta }).eq('project_id', projectId));
+      return meta;
+    },
+
     async listStyles() {
       const rows = check(await db.from('style_presets').select('*').order('created_at', { ascending: false })) as StyleRow[];
       return rows.map(toStyle);

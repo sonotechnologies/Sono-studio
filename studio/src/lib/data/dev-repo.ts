@@ -283,6 +283,15 @@ export const devRepo: Repo = {
     });
   },
 
+  async saveSiteCopyEdits(projectId, edits) {
+    let out: MirrorMeta | null = null;
+    await mutate((db) => {
+      const meta = db.copies[projectId];
+      if (meta) out = db.copies[projectId] = { ...meta, edits, editedAt: new Date().toISOString() };
+    });
+    return out;
+  },
+
   async listStyles() {
     return [...(await load()).styles].reverse();
   },
