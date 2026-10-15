@@ -4,6 +4,7 @@ import { ArrowRight, Check, ChevronDown, ChevronLeft, Copy, ExternalLink, Eye, M
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
+import { LiveThumb, thumbSrc } from '@/components/live-thumb';
 import { SiteThumb } from '@/components/site-thumb';
 import { ConfirmDialog, STATUS_STYLE, Segmented, StatusPill, Switch, btn, inputClass, useToast } from '@/components/ui';
 import type { JobStatus } from '@/generate/brief';
@@ -109,7 +110,12 @@ export function ProjectDetails({
       </Link>
 
       <div className="flex flex-wrap items-center gap-6">
-        <SiteThumb preset={p.preset} name={p.name} headline={p.headline} size="detail" />
+        <LiveThumb
+          src={thumbSrc(p, copy ? { home: copy.pages[0]?.path ?? 'index.html', version: `${copy.copiedAt}|${copy.editedAt ?? ''}` } : undefined)}
+          className="h-32 w-[200px] flex-none rounded-card border border-border"
+        >
+          <SiteThumb preset={p.preset} name={p.name} headline={p.headline} size="detail" />
+        </LiveThumb>
         <div className="flex min-w-[240px] flex-1 flex-col gap-2">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-[28px] font-semibold tracking-[-0.02em]">{p.name}</span>

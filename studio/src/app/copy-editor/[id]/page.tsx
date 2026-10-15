@@ -3,7 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ToastProvider } from '@/components/ui';
 import { getRepo, requireUser } from '@/lib/auth';
 import { applyEdits } from '@/mirror/edit';
-import { filesOf } from '@/mirror/zip-files';
+import { copyPages } from '@/mirror/files';
 import { CopyEditor } from '../editor';
 
 export const metadata: Metadata = { title: 'Edit the copy' };
@@ -24,21 +24,10 @@ export default async function CopyEditorPage({ params, searchParams }: { params:
   // Changes whose spot says something else since the site was copied again.
   let stale: number[] = [];
   if (edits.length) {
-    const files = await filesOf(`${id}:${meta.copiedAt}`, async () => (await repo.getSiteCopy(id))?.zip ?? null);
-    const skipped = new Set(
-      Object.entries(files ?? {})
-        .filter(([p]) => p.endsWith('.html'))
-        .flatMap(([p, data]) => applyEdits(p, new TextDecoder().decode(data), edits).skipped),
-    );
+    const pages = Object.entries(await copyPages(id, meta.copiedAt, async () => (await repo.getSiteCopy(id))?.zip ?? null));
+    const skipped = new Set(pages.flatMap(([p, html]) => applyEdits(p, html, edits).skipped));
     // An "every page" change only counts as stale when it applied nowhere.
-    const applied = new Set(
-      Object.entries(files ?? {})
-        .filter(([p]) => p.endsWith('.html'))
-        .flatMap(([p, data]) => {
-          const html = new TextDecoder().decode(data);
-          return edits.filter((e) => e.page === '*' && applyEdits(p, html, [e]).html !== html);
-        }),
-    );
+    const applied = new Set(pages.flatMap(([p, html]) => edits.filter((e) => e.page === '*' && applyEdits(p, html, [e]).html !== html)));
     stale = edits.flatMap((e, i) => ((e.page === '*' ? !applied.has(e) : skipped.has(e)) ? [i] : []));
   }
 

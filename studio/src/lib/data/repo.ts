@@ -62,6 +62,8 @@ export interface Repo {
   getSiteCopyMeta(projectId: string): Promise<MirrorMeta | null>;
   getSiteCopy(projectId: string): Promise<{ meta: MirrorMeta; zip: Uint8Array } | null>;
   saveSiteCopy(projectId: string, meta: MirrorMeta, zip: Uint8Array): Promise<void>;
+  /** For thumbnails: each copied project's home page and a key that changes when it's copied again or edited. */
+  listSiteCopyThumbs(): Promise<Record<string, { home: string; version: string }>>;
   /** Saves the editor's changes to a copy (kept in its meta). */
   saveSiteCopyEdits(projectId: string, edits: CopyEdit[]): Promise<MirrorMeta | null>;
   /** Your own styles, newest first. */

@@ -17,7 +17,8 @@ export type DemoContext =
   | { kind: 'fill'; brief: Brief; extracted: Extracted | null; page: PlanPage }
   | { kind: 'chat' }
   | { kind: 'custom'; purpose: string }
-  | { kind: 'assistant'; task: 'answer' | 'follow_up' | 'quote' | 'build' };
+  | { kind: 'assistant'; task: 'answer' | 'follow_up' | 'quote' | 'build' }
+  | { kind: 'copy' };
 
 export function demoAllowed(): boolean {
   return process.env.NODE_ENV !== 'production' || process.env.SONO_DEMO_AI === '1';
@@ -183,10 +184,24 @@ export function demoClient(): ProviderClient {
             : ctx.task === 'quote'
               ? { price: 250000, currency: 'NGN', scope: ['Design and build of the pages shown in the pitch', 'Hosting setup and handover'], message: 'Here is a quote for your new website.' }
               : { reply: 'Demo mode can’t answer questions. Add an AI key in Settings → AI providers to talk to Sono AI.', sources: [] };
+      else if (ctx.kind === 'copy') body = demoCopy(req.prompt);
       else if (ctx.kind === 'chat')
         body = { reply: 'Demo mode can’t follow instructions, so nothing changed. Add an AI key in Settings → AI providers to edit by chat.', ops: [] };
       else body = { sections: ctx.page.sections.map((s) => ({ id: s.id, content: demoContent(s.type, ctx.brief, ctx.extracted, ctx.page.title) })) };
       return { text: JSON.stringify(body), model: 'demo-templates' };
     },
   };
+}
+
+/** Copy editor: follows "change X to Y" (add "everywhere" for every page), so the flow can be tried without a key. */
+function demoCopy(prompt: string): unknown {
+  const request = /\nRequest: ([\s\S]*)$/.exec(prompt)?.[1].trim() ?? '';
+  const m = /^change\s+["“]?(.+?)["”]?\s+to\s+["“]?(.+?)["”]?(\s+everywhere)?\.?$/i.exec(request);
+  if (!m) return { reply: 'Demo mode only follows “change X to Y”. Add an AI key in Settings → AI providers for anything else.', changes: [] };
+  const [, from, to, everywhere] = m;
+  const changes = [...prompt.matchAll(/^T(\d+)(?: \(selected\))?: (".*")$/gm)]
+    .map(([, id, text]) => ({ id: Number(id), text: JSON.parse(text) as string }))
+    .filter((t) => t.text.includes(from))
+    .map((t) => ({ kind: 'text', id: t.id, to: t.text.split(from).join(to), ...(everywhere ? { everywhere: true } : {}) }));
+  return { reply: changes.length ? `Changed “${from}” to “${to}” in ${changes.length} place${changes.length === 1 ? '' : 's'}.` : `I couldn’t find “${from}” on this page.`, changes };
 }

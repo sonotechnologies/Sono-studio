@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ExternalLink, ImagePlus, Link2, MousePointerClick, RotateCcw, Type } from 'lucide-react';
+import { ArrowLeft, ExternalLink, ImagePlus, Link2, MousePointerClick, RotateCcw, Sparkles, Type } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MiniSpin } from '@/components/orbit';
@@ -9,6 +9,7 @@ import type { Asset } from '@/generate/brief';
 import { prepareUpload } from '@/generate/browser-images';
 import { tidy, type CopyEdit } from '@/mirror/edit';
 import { pagesWithTextAction, saveCopyEditsAction } from './actions';
+import { CopyAiPanel } from './ai-panel';
 
 /*
  * The copy shown with its scripts off (as in the preview), each text, picture
@@ -47,6 +48,7 @@ export function CopyEditor({ projectId, name, pages, initialEdits, stale, startP
   const [frameKey, setFrameKey] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [others, setOthers] = useState<Record<number, string[]>>({});
+  const [tab, setTab] = useState<'edit' | 'ai'>('edit');
   const frame = useRef<HTMLIFrameElement>(null);
   const editsRef = useRef(edits);
   editsRef.current = edits;
@@ -241,6 +243,22 @@ export function CopyEditor({ projectId, name, pages, initialEdits, stale, startP
     setFrameKey((k) => k + 1);
   };
 
+  /** Waits for any change still being saved. */
+  const flush = async () => {
+    if (timer.current) await save();
+    while (inFlight.current) await inFlight.current;
+  };
+
+  /** Changes from the AI (already saved), or its changes undone (saved here); the page reloads to show them. */
+  const fromAi = async (next: CopyEdit[], persist: boolean) => {
+    setEdits(next);
+    editsRef.current = next;
+    if (persist) await save();
+    else setSaving('saved');
+    setSel(null);
+    setFrameKey((k) => k + 1);
+  };
+
   const goTo = async (p: string) => {
     if (timer.current) await save();
     setPage(p);
@@ -319,8 +337,37 @@ export function CopyEditor({ projectId, name, pages, initialEdits, stale, startP
           />
         </main>
 
-        <aside className="flex max-h-[45dvh] flex-none flex-col overflow-y-auto border-t border-border md:max-h-none md:w-[360px] md:border-t-0 md:border-l">
-          <div className="flex flex-col gap-5 p-4">
+        <aside className="flex max-h-[50dvh] flex-none flex-col border-t border-border md:max-h-none md:w-[360px] md:border-t-0 md:border-l">
+          <div role="tablist" aria-label="Panel" className="flex flex-none gap-1 border-b border-border px-3 py-2">
+            {(
+              [
+                ['edit', 'Edit', MousePointerClick],
+                ['ai', 'Ask AI', Sparkles],
+              ] as const
+            ).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-full px-3 text-[13px] font-medium ${tab === id ? 'bg-sel text-text' : 'text-muted hover:bg-hover'}`}
+              >
+                <Icon size={14} /> {label}
+              </button>
+            ))}
+          </div>
+          <CopyAiPanel
+            projectId={projectId}
+            page={page}
+            pageTitle={pageTitle(page)}
+            selected={sel?.page === page ? sel.texts.map((t) => t.index) : []}
+            hidden={tab !== 'ai'}
+            getEdits={() => editsRef.current}
+            flush={flush}
+            onEdits={fromAi}
+          />
+          <div className={`flex min-h-0 flex-col gap-5 overflow-y-auto p-4 ${tab === 'edit' ? '' : 'hidden'}`}>
             {!sel ? (
               <div className="flex flex-col gap-2 text-[14px] text-muted">
                 <p className="m-0 flex items-center gap-2 font-semibold text-text">

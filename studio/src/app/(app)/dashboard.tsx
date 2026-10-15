@@ -4,12 +4,25 @@ import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
 import { Logo } from '@/components/logo';
 import { useQueryParam } from '@/components/shell';
+import { LiveThumb, thumbSrc } from '@/components/live-thumb';
 import { SiteThumb } from '@/components/site-thumb';
 import { STATUS_STYLE, StatusPill, Switch, btn } from '@/components/ui';
 import { needsFollowUp, seenLine } from '@/lib/format';
 import { PROJECT_STATUSES, STATUS_LABELS, type Project, type ProjectStatus } from '@/lib/types';
 
-export function Dashboard({ projects, now, sonoStarted = [] }: { projects: Project[]; now: number; /** Projects Sono AI started, labelled as such. */ sonoStarted?: string[] }) {
+export function Dashboard({
+  projects,
+  now,
+  sonoStarted = [],
+  copies = {},
+}: {
+  projects: Project[];
+  now: number;
+  /** Projects Sono AI started, labelled as such. */
+  sonoStarted?: string[];
+  /** Copied sites, for their thumbnails. */
+  copies?: Record<string, { home: string; version: string }>;
+}) {
   const bySono = new Set(sonoStarted);
   const [q, setQ] = useQueryParam('q');
   const [statusParam, setStatus] = useQueryParam('status');
@@ -121,7 +134,9 @@ export function Dashboard({ projects, now, sonoStarted = [] }: { projects: Proje
               href={`/projects/${p.id}`}
               className="flex flex-col overflow-hidden rounded-dialog border border-border bg-surface transition-[transform,box-shadow] duration-[180ms] ease-out hover:-translate-y-0.5 hover:shadow-raised"
             >
-              <SiteThumb preset={p.preset} name={p.name} headline={p.headline} />
+              <LiveThumb src={thumbSrc(p, copies[p.id])} className="h-[170px] flex-none">
+                <SiteThumb preset={p.preset} name={p.name} headline={p.headline} />
+              </LiveThumb>
               <div className="flex flex-col gap-1.5 px-4 pt-3.5 pb-4">
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-[16px] font-semibold">{p.name}</span>

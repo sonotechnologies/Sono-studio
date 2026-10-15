@@ -1,12 +1,15 @@
 import { createHash } from 'node:crypto';
 import { getRepo, getUser } from '@/lib/auth';
 import { applyEdits } from '@/mirror/edit';
-import { fileFor, filesOf, mimeOf } from '@/mirror/zip-files';
+import { copyFile } from '@/mirror/files';
+import { mimeOf } from '@/mirror/zip-files';
 
 /** Private (signed in only), kept for an hour, then checked against the copy's date. */
 const CACHE = 'private, max-age=3600, must-revalidate';
 /** Pages change when they're edited, so the browser checks each time (a quick "not modified" when they haven't). */
 const PAGE_CACHE = 'private, no-cache';
+/** A thumbnail's address names the copy's version, so it never needs checking. */
+const THUMB_CACHE = 'private, max-age=31536000, immutable';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -27,21 +30,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const repo = await getRepo();
   const meta = await repo.getSiteCopyMeta(id);
   if (!meta) return new Response('This project has no site copy', { status: 404 });
+  const query = new URL(req.url).searchParams;
   // In the editor, each text, picture and link is marked so it can be clicked and changed.
-  const editing = new URL(req.url).searchParams.get('edit') === '1';
+  const editing = query.get('edit') === '1';
+  // On project cards: the page as it is, without the preview note.
+  const thumb = query.get('thumb') === '1';
   // The copy changes when it's made again or edited, so those dates identify this version of every file.
-  const etag = `"${createHash('sha256').update(`${id}:${meta.copiedAt}:${meta.editedAt ?? ''}:${editing}:${path.join('/')}`).digest('hex').slice(0, 32)}"`;
-  const cache = /\.html?$/i.test(path.at(-1) ?? '') || !/\.[a-z0-9]+$/i.test(path.at(-1) ?? '') ? PAGE_CACHE : CACHE;
+  const etag = `"${createHash('sha256').update(`${id}:${meta.copiedAt}:${meta.editedAt ?? ''}:${editing}:${thumb}:${path.join('/')}`).digest('hex').slice(0, 32)}"`;
+  const pageCache = thumb && query.get('v') ? THUMB_CACHE : PAGE_CACHE;
+  const cache = /\.html?$/i.test(path.at(-1) ?? '') || !/\.[a-z0-9]+$/i.test(path.at(-1) ?? '') ? pageCache : CACHE;
   if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers: { etag, 'cache-control': cache } });
-  const files = await filesOf(`${id}:${meta.copiedAt}`, async () => (await repo.getSiteCopy(id))?.zip ?? null);
-  if (!files) return new Response('The site copy is missing', { status: 404 });
-  const file = fileFor(files, (path ?? []).map(decodeURIComponent).join('/'));
-  if (!file) return new Response('Not in the copy', { status: 404 });
+  const found = await copyFile(id, meta.copiedAt, (path ?? []).map(decodeURIComponent).join('/'), async () => (await repo.getSiteCopy(id))?.zip ?? null);
+  if (!found) return new Response('The site copy is missing', { status: 404 });
+  if (found === 'missing') return new Response('Not in the copy', { status: 404 });
+  const file = found.path;
   const isHtml = file.endsWith('.html');
-  let body: string | Uint8Array = files[file];
+  let body: string | Uint8Array = found.data;
   if (isHtml) {
-    const html = applyEdits(file, new TextDecoder().decode(files[file]), meta.edits ?? [], { mark: editing }).html;
-    body = editing ? html : html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${NOTE}</body>`);
+    const html = applyEdits(file, new TextDecoder().decode(found.data), meta.edits ?? [], { mark: editing }).html;
+    body = editing || thumb ? html : html.replace(/<\/body>(?![\s\S]*<\/body>)/i, `${NOTE}</body>`);
   }
   return new Response(body as unknown as BodyInit, {
     headers: {
@@ -50,7 +57,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       'content-security-policy': "sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox; script-src 'none'; object-src 'none'; base-uri 'none'",
       'x-content-type-options': 'nosniff',
       // Your browser keeps each file and only asks whether it changed, instead of downloading it again.
-      'cache-control': isHtml ? PAGE_CACHE : CACHE,
+      'cache-control': isHtml ? pageCache : CACHE,
       etag,
     },
   });

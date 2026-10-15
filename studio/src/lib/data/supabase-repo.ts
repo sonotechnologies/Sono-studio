@@ -405,6 +405,17 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       check(await db.from('site_copies').upsert({ project_id: projectId, meta, storage_path: storagePath }));
     },
 
+    async listSiteCopyThumbs() {
+      // Just these fields from the meta, not the whole of it.
+      const rows = check(await db.from('site_copies').select('project_id, home:meta->pages->0->>path, copied:meta->>copiedAt, edited:meta->>editedAt')) as {
+        project_id: string;
+        home: string | null;
+        copied: string | null;
+        edited: string | null;
+      }[];
+      return Object.fromEntries(rows.map((r) => [r.project_id, { home: r.home || 'index.html', version: `${r.copied ?? ''}|${r.edited ?? ''}` }]));
+    },
+
     async saveSiteCopyEdits(projectId, edits) {
       const row = check(await db.from('site_copies').select('meta').eq('project_id', projectId).maybeSingle()) as { meta: MirrorMeta } | null;
       if (!row) return null;

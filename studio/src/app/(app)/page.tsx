@@ -6,13 +6,15 @@ import { Dashboard } from './dashboard';
 
 export default async function DashboardPage() {
   await requireUser();
-  const [projects, builds] = await Promise.all([
-    (await getRepo()).listProjects(),
+  const repo = await getRepo();
+  const [projects, copies, builds] = await Promise.all([
+    repo.listProjects(),
+    repo.listSiteCopyThumbs().catch(() => ({})),
     sonoAiEnabled() ? assistStore().then((a) => a.builds()).catch(() => []) : Promise.resolve([]),
   ]);
   return (
     <Page title="Projects">
-      <Dashboard projects={projects} now={Date.now()} sonoStarted={builds.flatMap((b) => (b.projectId ? [b.projectId] : []))} />
+      <Dashboard projects={projects} copies={copies} now={Date.now()} sonoStarted={builds.flatMap((b) => (b.projectId ? [b.projectId] : []))} />
     </Page>
   );
 }

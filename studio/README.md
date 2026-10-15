@@ -157,6 +157,16 @@ Notes:
 | Plain HTML | "Plain HTML zip" on the project page still downloads the copy as static files (with the edits in) |
 | Checked | A sample site (jQuery, DOMContentLoaded and load handlers, onclick, inline styles, SVG, tables, forms, `<pre>`, old tags like `<center>` and `<font>`, per-page body classes, no viewport tag on some pages) builds with `next build` and its pages are pixel-identical to the original at desktop and phone widths, with every script running |
 | Limits | Scripts that use `document.write`, or expect to run before the page has finished loading, may behave differently. Pictures set in CSS (backgrounds) can't be swapped in the editor |
+| Ask AI (`src/mirror/ai.ts`) | A tab in the copy editor. The model sees the open page as numbered texts, links and picture descriptions (with changes already made, selected text first) and answers with changes to those numbers: text (on this page or every page with the same text), link addresses and picture descriptions. They become ordinary editor edits, saved at once, shown in the page and the change list, and undone together from the chat. It's told not to invent facts and to keep the length and style of each piece. Uses the studio's AI providers (light tier); the demo provider follows "change X to Y" |
+| Cached files (`src/mirror/files.ts`) | The preview, editor and AI read a copy's files from the hosting's shared cache (in pieces under its 2 MB limit, keyed by the copy's date) instead of each cold server downloading the whole zip from Supabase Storage |
+
+### Live thumbnails
+
+| Built | Notes |
+| --- | --- |
+| Project cards and project page | Each card shows the site's real home page, scaled down in a frame with scripts off, loaded when the card comes into view; the preset placeholder shows until then and for projects without a site yet |
+| Built sites (`/thumb/[id]?v=`) | The home page of a version, rendered from its content. A version never changes, so its content is read once and kept in the hosting's cache, not on every dashboard view |
+| Copies | The copy's home page with its edits (`/copy/[id]/…?thumb=1&v=`); the address names the copy's version, so browsers keep it until it's copied again or edited |
 
 ### Phase 8.1, Online stores with WhatsApp ordering
 

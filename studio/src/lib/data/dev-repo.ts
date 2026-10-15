@@ -283,6 +283,11 @@ export const devRepo: Repo = {
     });
   },
 
+  async listSiteCopyThumbs() {
+    const copies = (await load()).copies;
+    return Object.fromEntries(Object.entries(copies).map(([id, m]) => [id, { home: m.pages[0]?.path ?? 'index.html', version: `${m.copiedAt}|${m.editedAt ?? ''}` }]));
+  },
+
   async saveSiteCopyEdits(projectId, edits) {
     let out: MirrorMeta | null = null;
     await mutate((db) => {
