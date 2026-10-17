@@ -17,8 +17,18 @@ export interface Message {
   mode: Mode | 'rule' | 'draft' | 'build' | null;
   sources: Source[];
   createdAt: string;
+  /** The chat it's in (studio messages); Telegram is one running conversation. */
+  threadId?: string | null;
 }
 export type NewMessage = Omit<Message, 'id' | 'createdAt'>;
+
+/** A chat with Sono AI in the studio. */
+export interface Thread {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Draft {
   id: string;

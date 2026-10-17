@@ -10,9 +10,9 @@ import { briefSummary, extractBuild } from '@/sono-ai/assist/build';
 import { answer, type AnswerOptions } from '@/sono-ai/assist/engine';
 import { QUOTA_NOTE } from '@/sono-ai/assist/reserve';
 import { recalcScorecards, sessionAssist } from '@/sono-ai/assist/session';
-import { assistStore, type AssistStore } from '@/sono-ai/assist/store';
+import { assistStore, threadTitle, type AssistStore } from '@/sono-ai/assist/store';
 import { pushDrafts } from '@/sono-ai/assist/telegram-drafts';
-import type { Draft, DraftDecision, Message, Mode } from '@/sono-ai/assist/types';
+import type { Draft, DraftDecision, Message, Mode, Thread } from '@/sono-ai/assist/types';
 
 type Off = { error: string };
 
@@ -28,48 +28,82 @@ function problem(err: unknown): string {
 
 export interface AskResult {
   messages?: Message[];
+  /** The chat the messages went into (made for the first message of a new chat). */
+  thread?: Thread;
   /** A rule waiting for you to confirm it. */
   ruleId?: string;
   error?: string;
 }
 
-/** The latest studio conversation, for catching up when a reply didn't arrive. */
-export async function recentMessagesAction(): Promise<Message[]> {
-  if (await guard()) return [];
-  return (await assistStore()).messages('studio', 60);
+/** A chat's latest messages (the most recent chat when none is given), to switch chats or catch up. */
+export async function recentMessagesAction(threadId?: string | null): Promise<{ thread: Thread | null; messages: Message[] }> {
+  if (await guard()) return { thread: null, messages: [] };
+  const assist = await assistStore();
+  const threads = await assist.threads();
+  const thread = (threadId ? threads.find((t) => t.id === threadId) : threads[0]) ?? null;
+  return { thread, messages: thread ? await assist.messages('studio', 80, thread.id) : [] };
+}
+
+export async function deleteMessageAction(id: string): Promise<{ error?: string }> {
+  const off = await guard();
+  if (off) return off;
+  await (await assistStore()).deleteMessage(id);
+  return {};
+}
+
+export async function renameThreadAction(id: string, title: string): Promise<{ thread?: Thread; error?: string }> {
+  const off = await guard();
+  if (off) return off;
+  const t = title.replace(/\s+/g, ' ').trim();
+  if (!t) return { error: 'Give the chat a name.' };
+  const thread = await (await assistStore()).renameThread(id, t);
+  return thread ? { thread } : { error: 'That chat is gone.' };
+}
+
+export async function deleteThreadAction(id: string): Promise<{ error?: string }> {
+  const off = await guard();
+  if (off) return off;
+  await (await assistStore()).deleteThread(id);
+  return {};
 }
 
 /** One message to Sono AI, from the full-page chat or the workspace tab. */
-export async function askAction(text: string, opts: { mode?: Mode | 'auto'; projectId?: string | null } = {}): Promise<AskResult> {
+export async function askAction(text: string, opts: { mode?: Mode | 'auto'; projectId?: string | null; threadId?: string | null } = {}): Promise<AskResult> {
   const off = await guard();
   if (off) return off;
   const message = text.trim().slice(0, 2000);
   if (!message) return { error: 'Type a message first.' };
   const repo = await getRepo();
-  const { deps, draftDeps, assist, snapshot } = await sessionAssist(repo, opts.projectId ?? null);
+  const store = await assistStore();
+  // A new chat is made with its first message, and named after it.
+  const known = opts.threadId ? (await store.threads()).find((t) => t.id === opts.threadId) : undefined;
+  const thread = known ?? (await store.createThread(threadTitle(message)));
+  const { deps, draftDeps, assist, snapshot } = await sessionAssist(repo, opts.projectId ?? null, thread.id);
   const projectId = opts.projectId ?? null;
-  const asked = await assist.addMessage({ projectId, channel: 'studio', role: 'user', text: message, mode: null, sources: [] });
-  const reply = (text: string, mode: Message['mode'], sources: Message['sources'] = []) => assist.addMessage({ projectId, channel: 'studio', role: 'assistant', text, mode, sources });
+  const threadId = thread.id;
+  const asked = await assist.addMessage({ projectId, channel: 'studio', role: 'user', text: message, mode: null, sources: [], threadId });
+  const reply = (text: string, mode: Message['mode'], sources: Message['sources'] = []) => assist.addMessage({ projectId, channel: 'studio', role: 'assistant', text, mode, sources, threadId });
+  const withThread = (r: AskResult): AskResult => ({ ...r, thread });
 
   try {
     const a = await answer(message, deps, opts as AnswerOptions);
     if (a.kind === 'rule') {
       const rule = await assist.addRule(a.rule, 'studio');
-      return { messages: [asked, await reply(a.reply, 'rule')], ruleId: rule.id };
+      return withThread({ messages: [asked, await reply(a.reply, 'rule')], ruleId: rule.id });
     }
     if (a.kind === 'draft') {
       const snap = await snapshot();
       const named = snap.projects.find((p) => message.toLowerCase().includes(p.name.toLowerCase())) ?? snap.projects.find((p) => p.id === projectId);
       const drafts = await makeDrafts(a.ask.kind, named?.id ?? null, draftDeps, assist);
-      if ('error' in drafts) return { messages: [asked, await reply(drafts.error, 'draft')] };
+      if ('error' in drafts) return withThread({ messages: [asked, await reply(drafts.error, 'draft')] });
       const note = drafts.list.length
         ? `${drafts.list.length === 1 ? `Drafted: “${drafts.list[0].title}”.` : `I drafted ${drafts.list.length} ${a.ask.kind === 'follow_up' ? 'follow-ups' : 'drafts'}.`} Review ${drafts.list.length === 1 ? 'it' : 'them'} and approve, edit or skip.`
         : 'No pitch needs a follow-up right now, or one is already waiting for you.';
-      return { messages: [asked, await reply(note, 'draft', drafts.list.length ? [{ label: 'Drafts', href: '/sono-ai/drafts' }] : [])] };
+      return withThread({ messages: [asked, await reply(note, 'draft', drafts.list.length ? [{ label: 'Drafts', href: '/sono-ai/drafts' }] : [])] });
     }
     if (a.kind === 'build') {
       const brief = await extractBuild(message, await deps.history(), deps);
-      if ('missing' in brief) return { messages: [asked, await reply(brief.missing, 'build')] };
+      if ('missing' in brief) return withThread({ messages: [asked, await reply(brief.missing, 'build')] });
       const b = await assist.addBuild({ request: message, channel: 'studio', brief });
       return {
         messages: [
@@ -80,9 +114,9 @@ export async function askAction(text: string, opts: { mode?: Mode | 'auto'; proj
         ],
       };
     }
-    return { messages: [asked, await reply(a.reply, a.mode, a.sources)] };
+    return withThread({ messages: [asked, await reply(a.reply, a.mode, a.sources)] });
   } catch (err) {
-    return { messages: [asked, await reply(problem(err), null)] };
+    return withThread({ messages: [asked, await reply(problem(err), null)] });
   }
 }
 

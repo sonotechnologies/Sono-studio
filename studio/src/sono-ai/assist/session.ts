@@ -46,7 +46,7 @@ export async function scorecardsOf(assist: AssistStore): Promise<ScoreRow[]> {
 }
 
 /** Everything the assistant needs, for the signed-in owner. */
-export async function sessionAssist(repo: Repo, projectId: string | null) {
+export async function sessionAssist(repo: Repo, projectId: string | null, threadId: string | null = null) {
   const [assist, bank, keys, all] = await Promise.all([assistStore(), getStore(), repo.listProviderKeys(), loadProviders(repo, { projectId: projectId ?? undefined })]);
   const today = new Date().toISOString().slice(0, 10);
   const providers = forAssistant(all, keys.map((k) => ({ provider: k.provider, dailyLimit: k.dailyLimit, used: k.usageDay === today ? k.usageCount : 0 })));
@@ -63,7 +63,8 @@ export async function sessionAssist(repo: Repo, projectId: string | null) {
     hooks: routerHooks(repo),
     snapshot,
     rules,
-    history: async () => (await assist.messages('studio', 16)).map((m) => ({ role: m.role, text: m.text })),
+    // Only this chat: a new chat starts with nothing remembered from the others.
+    history: async () => (threadId ? (await assist.messages('studio', 16, threadId)).map((m) => ({ role: m.role, text: m.text })) : []),
     scorecards: () => scorecardsOf(assist),
     embedQuery: geminiKey ? geminiEmbedder(geminiKey, fetch, undefined, 'RETRIEVAL_QUERY') : null,
     match: (v, n, p) => bank.matchChunks(v, n, p),

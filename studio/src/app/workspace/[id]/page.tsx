@@ -47,7 +47,14 @@ export default async function WorkspacePage({ params }: Props) {
     repo.getLatestDeployment(id),
     repo.listStyles(),
   ]);
-  const sonoAi = sonoAiEnabled() ? { messages: await (await assistStore()).messages('studio', 40).catch(() => []) } : null;
+  // The Sono AI tab carries on your most recent chat.
+  const sonoAi = sonoAiEnabled()
+    ? await (async () => {
+        const assist = await assistStore();
+        const thread = (await assist.threads().catch(() => []))[0] ?? null;
+        return { threadId: thread?.id ?? null, messages: thread ? await assist.messages('studio', 40, thread.id).catch(() => []) : [] };
+      })()
+    : null;
 
   return (
     <ToastProvider>

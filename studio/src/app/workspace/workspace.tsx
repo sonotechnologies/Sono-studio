@@ -117,7 +117,7 @@ export function Workspace({
   /** Which of your test payment keys are set, for the Products tab. */
   testKeys: { paystack: boolean; stripe: boolean };
   /** Sono AI's conversation, when Sono AI is switched on: a tab beside Chat. */
-  sonoAi?: { messages: SonoMessage[] } | null;
+  sonoAi?: { threadId: string | null; messages: SonoMessage[] } | null;
 }) {
   const toast = useToast();
   const projectId = project.id;
@@ -795,7 +795,7 @@ export function Workspace({
             </span>
           )}
         </div>
-        {tab === 'sono' && sonoAi && <SonoAiChat initial={sonoAi.messages} projectId={projectId} compact />}
+        {tab === 'sono' && sonoAi && <SonoAiChat initial={sonoAi.messages} threadId={sonoAi.threadId} projectId={projectId} compact />}
         {tab === 'chat' && (
           <ChatPanel
             messages={chatView}

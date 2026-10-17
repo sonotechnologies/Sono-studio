@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isDevStore } from '@/lib/env';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import type { BuildBrief, BuildRequest } from './build';
-import type { Draft, DraftDecision, Message, NewDraft, NewMessage, Rule, ScoreRow } from './types';
+import type { Draft, DraftDecision, Message, NewDraft, NewMessage, Rule, ScoreRow, Thread } from './types';
 
 /*
  * Stage 3 storage, for the signed-in owner: conversations with Sono AI, its
@@ -14,8 +14,15 @@ import type { Draft, DraftDecision, Message, NewDraft, NewMessage, Rule, ScoreRo
  */
 
 export interface AssistStore {
-  messages(channel: Message['channel'], limit?: number): Promise<Message[]>;
+  /** The latest messages: of one chat when a thread is given, otherwise of the whole channel. */
+  messages(channel: Message['channel'], limit?: number, threadId?: string): Promise<Message[]>;
   addMessage(m: NewMessage): Promise<Message>;
+  deleteMessage(id: string): Promise<void>;
+  /** Your chats, most recently used first. */
+  threads(): Promise<Thread[]>;
+  createThread(title: string): Promise<Thread>;
+  renameThread(id: string, title: string): Promise<Thread | null>;
+  deleteThread(id: string): Promise<void>;
   drafts(status?: Draft['status']): Promise<Draft[]>;
   addDrafts(rows: NewDraft[]): Promise<Draft[]>;
   decideDraft(id: string, decision: DraftDecision, body?: string): Promise<Draft | null>;
@@ -38,7 +45,14 @@ export interface AssistStore {
 
 /* ---------- Supabase ---------- */
 
-type MessageRow = { id: string; project_id: string | null; channel: Message['channel']; role: Message['role']; text: string; mode: Message['mode']; sources: Message['sources']; created_at: string };
+type MessageRow = { id: string; project_id: string | null; channel: Message['channel']; role: Message['role']; text: string; mode: Message['mode']; sources: Message['sources']; created_at: string; thread_id?: string | null };
+type ThreadRow = { id: string; title: string; created_at: string; updated_at: string };
+const thread = (r: ThreadRow): Thread => ({ id: r.id, title: r.title, createdAt: r.created_at, updatedAt: r.updated_at });
+/** A chat's name from its first message. */
+export const threadTitle = (text: string) => {
+  const t = text.replace(/\s+/g, ' ').trim();
+  return (t.length > 60 ? `${t.slice(0, 57).trimEnd()}…` : t) || 'New chat';
+};
 type DraftRow = {
   id: string; project_id: string | null; kind: Draft['kind']; channel: Draft['channel']; recipient: string; title: string; why: string; body: string;
   final_body: string | null; status: Draft['status']; created_at: string; decided_at: string | null;
@@ -47,7 +61,7 @@ type RuleRow = { id: string; text: string; enabled: boolean; confirmed: boolean;
 
 type BuildRow = { id: string; request: string; channel: BuildRequest['channel']; brief: BuildBrief; status: BuildRequest['status']; project_id: string | null; job_id: string | null; created_at: string; started_at: string | null };
 const build = (r: BuildRow): BuildRequest => ({ id: r.id, request: r.request, channel: r.channel, brief: r.brief, status: r.status, projectId: r.project_id, jobId: r.job_id, createdAt: r.created_at, startedAt: r.started_at });
-const message = (r: MessageRow): Message => ({ id: r.id, projectId: r.project_id, channel: r.channel, role: r.role, text: r.text, mode: r.mode, sources: r.sources ?? [], createdAt: r.created_at });
+const message = (r: MessageRow): Message => ({ id: r.id, projectId: r.project_id, channel: r.channel, role: r.role, text: r.text, mode: r.mode, sources: r.sources ?? [], createdAt: r.created_at, threadId: r.thread_id ?? null });
 const draft = (r: DraftRow): Draft => ({
   id: r.id, projectId: r.project_id, kind: r.kind, channel: r.channel, recipient: r.recipient, title: r.title, why: r.why, body: r.body,
   finalBody: r.final_body, status: r.status, createdAt: r.created_at, decidedAt: r.decided_at,
@@ -60,15 +74,37 @@ function supabaseAssist(db: SupabaseClient): AssistStore {
     return res.data;
   };
   return {
-    async messages(channel, limit = 40) {
-      const rows = check(await db.from('conversations').select('*').eq('channel', channel).order('created_at', { ascending: false }).limit(limit)) as MessageRow[];
+    async messages(channel, limit = 40, threadId) {
+      let q = db.from('conversations').select('*').eq('channel', channel);
+      if (threadId) q = q.eq('thread_id', threadId);
+      const rows = check(await q.order('created_at', { ascending: false }).limit(limit)) as MessageRow[];
       return rows.reverse().map(message);
     },
     async addMessage(m) {
       const row = check(
-        await db.from('conversations').insert({ project_id: m.projectId, channel: m.channel, role: m.role, text: m.text.slice(0, 8000), mode: m.mode, sources: m.sources }).select('*').single(),
+        await db
+          .from('conversations')
+          .insert({ project_id: m.projectId, channel: m.channel, role: m.role, text: m.text.slice(0, 8000), mode: m.mode, sources: m.sources, ...(m.threadId ? { thread_id: m.threadId } : {}) })
+          .select('*')
+          .single(),
       ) as MessageRow;
       return message(row);
+    },
+    async deleteMessage(id) {
+      check(await db.from('conversations').delete().eq('id', id));
+    },
+    async threads() {
+      return (check(await db.from('chat_threads').select('*').order('updated_at', { ascending: false }).limit(100)) as ThreadRow[]).map(thread);
+    },
+    async createThread(title) {
+      return thread(check(await db.from('chat_threads').insert({ title: title.slice(0, 120) || 'New chat' }).select('*').single()) as ThreadRow);
+    },
+    async renameThread(id, title) {
+      const rows = check(await db.from('chat_threads').update({ title: title.slice(0, 120) }).eq('id', id).select('*')) as ThreadRow[];
+      return rows[0] ? thread(rows[0]) : null;
+    },
+    async deleteThread(id) {
+      check(await db.from('chat_threads').delete().eq('id', id));
     },
     async drafts(status) {
       let q = db.from('assistant_drafts').select('*').order('created_at', { ascending: false }).limit(100);
@@ -146,6 +182,7 @@ function supabaseAssist(db: SupabaseClient): AssistStore {
 
 interface DevAssist {
   messages: Message[];
+  threads?: Thread[];
   drafts: Draft[];
   feedback: { kind: 'reply' | 'draft'; id: string; rating: 1 | -1 }[];
   rules: Rule[];
@@ -176,11 +213,44 @@ function change<T>(fn: (d: DevAssist) => T): Promise<T> {
 const now = () => new Date().toISOString();
 
 export const devAssist: AssistStore = {
-  messages: async (channel, limit = 40) => (await load()).messages.filter((m) => m.channel === channel).slice(-limit),
+  messages: async (channel, limit = 40, threadId) => (await load()).messages.filter((m) => m.channel === channel && (!threadId || m.threadId === threadId)).slice(-limit),
   addMessage: (m) => change((d) => {
     const row = { ...m, id: randomUUID(), createdAt: now() };
     d.messages.push(row);
+    const t = m.threadId ? d.threads?.find((x) => x.id === m.threadId) : undefined;
+    if (t) t.updatedAt = row.createdAt;
     return row;
+  }),
+  deleteMessage: (id) => change((d) => {
+    d.messages = d.messages.filter((m) => m.id !== id);
+  }),
+  threads: async () => {
+    const d = await load();
+    // Messages from before chats existed show as one chat.
+    const loose = d.messages.filter((m) => m.channel === 'studio' && !m.threadId);
+    if (loose.length) {
+      return change((x) => {
+        const t: Thread = { id: randomUUID(), title: 'Earlier chat', createdAt: loose[0].createdAt, updatedAt: loose.at(-1)!.createdAt };
+        x.threads = [...(x.threads ?? []), t];
+        for (const m of x.messages) if (m.channel === 'studio' && !m.threadId) m.threadId = t.id;
+        return [...x.threads].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+      });
+    }
+    return [...(d.threads ?? [])].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  },
+  createThread: (title) => change((d) => {
+    const t: Thread = { id: randomUUID(), title: title.slice(0, 120) || 'New chat', createdAt: now(), updatedAt: now() };
+    d.threads = [...(d.threads ?? []), t];
+    return t;
+  }),
+  renameThread: (id, title) => change((d) => {
+    const t = d.threads?.find((x) => x.id === id);
+    if (t) t.title = title.slice(0, 120);
+    return t ?? null;
+  }),
+  deleteThread: (id) => change((d) => {
+    d.threads = (d.threads ?? []).filter((t) => t.id !== id);
+    d.messages = d.messages.filter((m) => m.threadId !== id);
   }),
   drafts: async (status) => (await load()).drafts.filter((x) => !status || x.status === status).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
   addDrafts: (rows) => change((d) => {

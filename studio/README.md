@@ -160,6 +160,17 @@ Notes:
 | Ask AI (`src/mirror/ai.ts`) | A tab in the copy editor. The model sees the open page as numbered texts, links and picture descriptions (with changes already made, selected text first) and answers with changes to those numbers: text (on this page or every page with the same text), link addresses and picture descriptions. They become ordinary editor edits, saved at once, shown in the page and the change list, and undone together from the chat. It's told not to invent facts and to keep the length and style of each piece. Uses the studio's AI providers (light tier); the demo provider follows "change X to Y" |
 | Cached files (`src/mirror/files.ts`) | The preview, editor and AI read a copy's files from the hosting's shared cache (in pieces under its 2 MB limit, keyed by the copy's date) instead of each cold server downloading the whole zip from Supabase Storage |
 
+### Sono AI chats
+
+| Built | Notes |
+| --- | --- |
+| Chats (`/sono-ai/chat`) | Separate chats: New chat, a list to switch between (beside the chat on wide screens, behind the chat's name on phones), rename and delete (with its messages). A chat is made with its first message and named after it; each chat only remembers its own messages. The page opens the most recent chat (`?t=` a given one, `?new=1` a new one); the workspace's Sono AI tab carries on the most recent chat |
+| Messages | Tap your message (or use the icons under a reply) to copy or delete it; deleting takes a second tap |
+| Storage | `chat_threads`, and `conversations.thread_id`; a message can only go into one of your own chats. Studio messages from before become one chat, "Earlier chat". Telegram stays one running conversation |
+
+Notes:
+- Supabase needs `supabase/migrations/0016_sono_ai_chats.sql`.
+
 ### Live thumbnails
 
 | Built | Notes |

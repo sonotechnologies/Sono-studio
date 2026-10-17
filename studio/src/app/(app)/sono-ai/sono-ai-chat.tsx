@@ -1,11 +1,11 @@
 'use client';
 
-import { ArrowUp, ExternalLink, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ArrowUp, Check, Copy, ExternalLink, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { Logo } from '@/components/logo';
-import type { Message, Mode } from '@/sono-ai/assist/types';
-import { confirmRuleAction, feedbackAction, type AskResult } from './assist-actions';
+import type { Message, Mode, Thread } from '@/sono-ai/assist/types';
+import { confirmRuleAction, deleteMessageAction, feedbackAction, type AskResult } from './assist-actions';
 
 const MODES: { id: Mode | 'auto'; label: string; hint: string }[] = [
   { id: 'auto', label: 'Auto', hint: 'Sono AI picks for each message' },
@@ -25,8 +25,28 @@ const SUGGESTIONS = [
 ];
 
 /** Sono AI's chat: the full page under the sidebar, and the workspace tab (with the project as context). */
-export function SonoAiChat({ initial, projectId = null, compact = false }: { initial: Message[]; projectId?: string | null; compact?: boolean }) {
+export function SonoAiChat({
+  initial,
+  threadId = null,
+  onThread,
+  projectId = null,
+  compact = false,
+  header,
+}: {
+  initial: Message[];
+  /** The chat these messages are in; null for a new chat, made with its first message. */
+  threadId?: string | null;
+  /** The chat was made (first message) or moved up the list (any message). */
+  onThread?: (t: Thread) => void;
+  projectId?: string | null;
+  compact?: boolean;
+  header?: React.ReactNode;
+}) {
   const [messages, setMessages] = useState(initial);
+  const thread = useRef(threadId);
+  const [actions, setActions] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [mode, setMode] = useState<Mode | 'auto'>('auto');
   const [pending, start] = useTransition();
@@ -47,13 +67,17 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
     setMessages((m) => [...m, temp]);
     start(async () => {
       try {
-        const res = await fetch('/api/assistant/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: t, mode, projectId }) });
+        const res = await fetch('/api/assistant/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text: t, mode, projectId, threadId: thread.current }) });
         if (res.status === 401) {
           window.location.href = '/login';
           return;
         }
         if (!res.ok && res.status !== 400) throw new Error(`HTTP ${res.status}`);
         const r = (await res.json()) as AskResult;
+        if (r.thread) {
+          thread.current = r.thread.id;
+          onThread?.({ ...r.thread, updatedAt: new Date().toISOString() });
+        }
         setMessages((m) => [...m.filter((x) => x.id !== temp.id), ...(r.messages ?? [{ ...temp, id: `err-${Date.now()}`, role: 'assistant', text: r.error ?? 'Something went wrong.' }])]);
         if (r.ruleId && r.messages) setRules((x) => ({ ...x, [r.messages!.at(-1)!.id]: r.ruleId! }));
       } catch {
@@ -66,11 +90,16 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
   const catchUp = async (temp: Message) => {
     for (const wait of [0, 4000, 8000]) {
       await new Promise((r) => setTimeout(r, wait));
-      const latest = await fetch('/api/assistant/ask')
-        .then((r) => (r.ok ? (r.json() as Promise<{ messages: Message[] }>) : null))
-        .then((r) => r?.messages ?? null)
+      const got = await fetch(`/api/assistant/ask${thread.current ? `?t=${thread.current}` : ''}`)
+        .then((r) => (r.ok ? (r.json() as Promise<{ thread: Thread | null; messages: Message[] }>) : null))
         .catch(() => null);
+      const latest = got?.messages ?? null;
       if (latest && latest.at(-1)?.role === 'assistant' && latest.some((m) => m.role === 'user' && m.text === temp.text)) {
+        // A new chat was made on the server even though its reply didn't arrive.
+        if (!thread.current && got?.thread) {
+          thread.current = got.thread.id;
+          onThread?.(got.thread);
+        }
         setMessages(latest);
         return;
       }
@@ -82,6 +111,36 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
     ]);
   };
 
+  /** Deleting takes two taps: the bin, then "Delete". Messages not saved yet (temp-, err-) just go. */
+  const remove = async (id: string) => {
+    if (confirming !== id) return setConfirming(id);
+    setConfirming(null);
+    setActions(null);
+    const before = messages;
+    setMessages((m) => m.filter((x) => x.id !== id));
+    if (/^(temp|err)-/.test(id)) return;
+    const r = await deleteMessageAction(id).catch(() => ({ error: 'x' }));
+    if (r.error) setMessages(before);
+  };
+
+  const copy = async (m: Message) => {
+    await navigator.clipboard?.writeText(m.text).catch(() => {});
+    setCopied(m.id);
+    setTimeout(() => setCopied((c) => (c === m.id ? null : c)), 1500);
+  };
+
+  const binButton = (m: Message) => (
+    <button
+      type="button"
+      onClick={() => void remove(m.id)}
+      aria-label={confirming === m.id ? 'Confirm delete' : 'Delete message'}
+      className={`inline-flex cursor-pointer items-center gap-1 rounded p-1 hover:bg-hover ${confirming === m.id ? 'px-2 font-semibold text-danger' : ''}`}
+    >
+      <Trash2 size={13} />
+      {confirming === m.id ? 'Delete' : null}
+    </button>
+  );
+
   const rate = (id: string, rating: 1 | -1) => {
     setRated((r) => ({ ...r, [id]: rating }));
     feedbackAction('reply', id, rating).catch(() => {});
@@ -89,6 +148,7 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col ${compact ? '' : 'rounded-card border border-border bg-surface'}`}>
+      {header}
       <div ref={list} className="flex flex-1 flex-col gap-[18px] overflow-auto p-5" aria-live="polite">
         {messages.length === 0 && (
           <div className="flex flex-col gap-2 text-[14px] leading-normal text-muted">
@@ -106,8 +166,26 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
         )}
         {messages.map((m) =>
           m.role === 'user' ? (
-            <div key={m.id} className="max-w-[85%] self-end rounded-[14px_14px_4px_14px] border border-border bg-raised px-3.5 py-2.5 text-[14px] leading-[1.45] whitespace-pre-wrap">
-              {m.text}
+            <div key={m.id} className="flex max-w-[85%] flex-col items-end gap-1 self-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setActions((a) => (a === m.id ? null : m.id));
+                  setConfirming(null);
+                }}
+                aria-expanded={actions === m.id}
+                className="cursor-pointer rounded-[14px_14px_4px_14px] border border-border bg-raised px-3.5 py-2.5 text-left text-[14px] leading-[1.45] whitespace-pre-wrap text-text"
+              >
+                {m.text}
+              </button>
+              {actions === m.id && (
+                <div className="flex items-center gap-1 text-[12px] text-muted">
+                  <button type="button" onClick={() => void copy(m)} aria-label="Copy message" className="cursor-pointer rounded p-1 hover:bg-hover">
+                    {copied === m.id ? <Check size={13} /> : <Copy size={13} />}
+                  </button>
+                  {binButton(m)}
+                </div>
+              )}
             </div>
           ) : (
             <div key={m.id} className="flex gap-2.5">
@@ -152,6 +230,12 @@ export function SonoAiChat({ initial, projectId = null, compact = false }: { ini
                       </Link>
                     </span>
                   )}
+                  <span className="flex gap-1">
+                    <button type="button" onClick={() => void copy(m)} aria-label="Copy message" className="cursor-pointer rounded p-1 hover:bg-hover">
+                      {copied === m.id ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
+                    {binButton(m)}
+                  </span>
                   {(m.mode === 'casual' || m.mode === 'studio' || m.mode === 'search') && (
                     <span className="flex gap-1">
                       <button type="button" aria-label="Good answer" aria-pressed={rated[m.id] === 1} onClick={() => rate(m.id, 1)} className={`cursor-pointer rounded p-1 hover:bg-hover ${rated[m.id] === 1 ? 'text-text' : ''}`}>
