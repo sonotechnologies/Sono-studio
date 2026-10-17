@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, ProviderClient } from '@/ai/types';
 import { briefSchema } from '@/generate/brief';
 import type { Telegram } from '../telegram';
-import { briefSummary, buildAsk, buildFollowUp, extractBuild, presetFor, toBrief } from './build';
+import { briefSummary, buildAsk, buildFollowUp, extractBuild, MISSING_NAME, PLACEHOLDER_NAME, presetFor, toBrief } from './build';
 import { answer } from './engine';
 import type { TgBackend, TgOp } from './telegram-assist';
 import { ownerMessage } from './telegram-chat';
@@ -68,6 +68,22 @@ describe('build requests', () => {
     expect(p.asked[0].prompt).toContain('their WhatsApp is 0803 111 2222');
     expect(p.asked[0].system).toContain('never invent');
     expect(await extractBuild('build a site', [], { providers: [provider({ ...mamas, businessName: '' }).client], hooks: {} })).toMatchObject({ missing: expect.stringContaining('called') });
+  });
+
+  it('starts with placeholders when told to, instead of asking for the name again', async () => {
+    const noName = { ...mamas, businessName: '', businessType: 'restaurant', facts: '' };
+    const history = [
+      { role: 'user' as const, text: 'Build a pitch site for a restaurant' },
+      { role: 'assistant' as const, text: MISSING_NAME },
+    ];
+    const asked = await extractBuild('Build a pitch site for a restaurant', [], { providers: [provider(noName).client], hooks: {} });
+    expect(asked).toEqual({ missing: MISSING_NAME });
+    const b = await extractBuild('Use placeholders and just get the site started we’ll be editing it later', history, { providers: [provider(noName).client], hooks: {} });
+    expect(b).toMatchObject({ businessName: PLACEHOLDER_NAME, businessType: 'Restaurant', facts: expect.stringContaining('Placeholder details') });
+    // Any answer to the name question carries on the request.
+    expect(buildFollowUp('Use placeholders', history)).toBe(true);
+    expect(buildFollowUp('Crumbs, a bakery in Yaba', history)).toBe(true);
+    expect(buildFollowUp('wait, what pages do you usually make?', history)).toBe(false);
   });
 
   it('picks the style from what worked for you, and lets a rule override it', () => {

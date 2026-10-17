@@ -62,6 +62,9 @@ export function buildAsk(message: string): boolean {
  */
 export function buildFollowUp(message: string, history: { role: 'user' | 'assistant'; text: string }[]): boolean {
   const m = message.trim();
+  // An answer to "What's the business called?" carries on the build request.
+  const lastReply = [...history].reverse().find((h) => h.role === 'assistant');
+  if (lastReply?.text.startsWith(MISSING_NAME.slice(0, 30)) && m.length <= 1500 && !/\?\s*$/.test(m)) return true;
   if (m.length > 140 || QUESTION.test(m)) return false;
   const earlier = history
     .filter((h) => h.role === 'user' && h.text.trim() !== m)
@@ -71,6 +74,17 @@ export function buildFollowUp(message: string, history: { role: 'user' | 'assist
   const askedBefore = earlier.some((t) => new RegExp(`\\b${VERB}\\b[^?]{0,100}\\b(?:${THING}|page|one|for)\\b`, 'i').test(t));
   if (!askedBefore) return false;
   return new RegExp(`\\b${THING}\\b`, 'i').test(m) || /^\s*(?:yes|yeah|yep|ok(?:ay)?|sure|go ahead|do it|build it|make it|please do)\b[\s,.!]*(?:(?:build|make|create|do)\s+it|it|now|please)?[\s,.!]*(?:now|please)?[\s.!]*$/i.test(m);
+}
+
+/** Asked when a build request has no business name; a reply to it carries on the request. */
+export const MISSING_NAME = 'What’s the business called? Tell me the name (and anything else you know: what they do, where, their WhatsApp or Instagram) and I’ll prepare the brief. Or say “use placeholders” and I’ll start it with a stand-in name you can change later.';
+export const PLACEHOLDER_NAME = 'Your Business';
+
+/** "Use placeholders", "make one up", "doesn't matter", "just get it started". */
+export function placeholdersOk(texts: string[]): boolean {
+  return texts.some((t) =>
+    /\b(placeholders?|dummy|stand-?ins?|make (?:one|it|them|something) up|any name|doesn['’]?t matter|don['’]?t (?:have|know) (?:the|a|its) name|no name yet|you (?:choose|pick|decide)|fill (?:it|them|that) in|just (?:get|start) (?:it|the site|something))/i.test(t),
+  );
 }
 
 const pageKey = z.enum(PAGE_KEYS);
@@ -110,7 +124,13 @@ Reply as {"businessName": "", "businessType": "", "pages": [], "facts": "", "cli
     deps.hooks,
   );
   const d = r.data;
-  if (!d.businessName.trim()) return { missing: 'What’s the business called? Tell me the name (and anything else you know: what they do, where, their WhatsApp or Instagram) and I’ll prepare the brief.' };
+  // "Use placeholders", "make one up": start with stand-ins, to be replaced in the workspace.
+  const stand = placeholdersOk([request, ...history.filter((h) => h.role === 'user').slice(-3).map((h) => h.text)]);
+  if (!d.businessName.trim() && !stand) return { missing: MISSING_NAME };
+  if (!d.businessName.trim()) {
+    d.businessName = PLACEHOLDER_NAME;
+    d.facts = [d.facts.trim(), 'Placeholder details: the name, contact details and copy are stand-ins, to be replaced later.'].filter(Boolean).join('\n');
+  }
   const kind = BUSINESS_KINDS.find((k) => k.name.toLowerCase() === d.businessType.trim().toLowerCase());
   const pages = [...new Set(d.pages.map((p) => p.toLowerCase().trim()).filter((p): p is PageKey => pageKey.safeParse(p).success))];
   return {
