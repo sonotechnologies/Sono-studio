@@ -6,10 +6,13 @@ import type { Mode } from './types';
  * studio, something current from the web, or everyday conversation.
  */
 
-const RULE = /^\s*(?:rule\s*:|remember(?:\s+that)?\b|from now on\b|always\b|never\b|don['’]t ever\b|make sure (?:you )?always\b)\s*,?\s*(.+)$/is;
+const RULE = /^\s*(?:rule\s*:|remember(?:\s+that\b|\s*:|\s+to\b)|from now on\b|always\b|never\b|don['’]t ever\b|make sure (?:you )?always\b)\s*,?\s*(.+)$/is;
+/** Things that start like a rule but aren't one: "never mind", "always happy to help!" */
+const NOT_RULE = /^\s*(?:never\s*mind|nevermind|never (?:heard|seen|thought|knew|been)|always (?:happy|glad|nice|good|great|fun)|remember to (?:remind|tell) me)\b/i;
 
 /** The rule in a message like "always quote in dollars for UK clients", or null. */
 export function ruleIn(message: string): string | null {
+  if (NOT_RULE.test(message) || /\?\s*$/.test(message)) return null;
   const m = RULE.exec(message.trim());
   if (!m) return null;
   const lead = message.trim().match(/^\s*(always|never)\b/i)?.[1];
@@ -24,6 +27,8 @@ export type DraftAsk = { kind: 'follow_up' } | { kind: 'quote' } | { kind: 'chec
 export function draftAsk(message: string): DraftAsk | null {
   const m = message.toLowerCase();
   if (!/\b(draft|write|make|prepare|create|give me)\b/.test(m) && !/^(follow[- ]?ups?|quote|checklist)\b/.test(m.trim())) return null;
+  // "Make a website for Lagos Quotes" is a site, not a quote.
+  if (/\b(site|website|web\s*page|landing\s*page|homepage)\b/.test(m) && !/\b(quote|follow[- ]?ups?|checklist)\s+for\b/.test(m)) return null;
   if (/\bfollow[- ]?ups?\b/.test(m)) return { kind: 'follow_up' };
   if (/\bquote|quotation|price for\b/.test(m)) return { kind: 'quote' };
   if (/\b(handover|hand-over|checklist)\b/.test(m)) return { kind: 'checklist' };

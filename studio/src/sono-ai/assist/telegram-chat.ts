@@ -2,7 +2,7 @@ import 'server-only';
 import { AllProvidersFailed } from '@/ai/router';
 import { escapeHtml, type Button, type Telegram } from '../telegram';
 import { approveHref, followUpDrafts } from './drafts';
-import { briefSummary, extractBuild } from './build';
+import { BRIEF_INTRO, briefSummary, existingProject, extractBuild } from './build';
 import { answer } from './engine';
 import { QUOTA_NOTE } from './reserve';
 import { draftButtons, draftMessage } from './telegram-drafts';
@@ -30,9 +30,14 @@ function approvedMessage(d: Draft): string {
 }
 
 /** A message from your chat (already checked to be yours). */
+/** Marks where /new started over; the assistant remembers only what comes after it. */
+export const NEW_CHAT = '— New conversation —';
+
 export async function ownerMessage(chatId: number, text: string, bot: Telegram, backend: TgBackend): Promise<void> {
   const state = await backend.state();
   if (!state) return;
+  const fresh = state.history.map((h) => h.text).lastIndexOf(NEW_CHAT);
+  if (fresh >= 0) state.history = state.history.slice(fresh + 1);
 
   // Waiting for your edited text for a draft.
   if (state.editingDraft) {
@@ -46,6 +51,12 @@ export async function ownerMessage(chatId: number, text: string, bot: Telegram, 
     return;
   }
 
+  // Start over: earlier messages stop being part of what the assistant remembers.
+  if (/^\/(?:new|reset|start)\b/i.test(text.trim())) {
+    await backend.write({ op: 'message', args: { role: 'assistant', text: NEW_CHAT, mode: null } });
+    await bot.send(chatId, 'New conversation. I’ve put the earlier messages aside, so ask away.');
+    return;
+  }
   await backend.write({ op: 'message', args: { role: 'user', text, mode: null } });
   const { deps, draftDeps } = tgDeps(state, backend);
   const say = async (reply: string, mode: string | null, buttons: (id: string) => Button[][] = () => [], sources: { label: string; href: string }[] = []) => {
@@ -72,9 +83,14 @@ export async function ownerMessage(chatId: number, text: string, bot: Telegram, 
     if (a.kind === 'build') {
       const brief = await extractBuild(text, state.history, deps);
       if ('missing' in brief) return say(brief.missing, 'build');
+      const already = existingProject(brief, state.projects, text);
+      if (already)
+        return say(`You already have a project called ${already.name}. Open it in the studio, or say “build another site for ${already.name}” to start a second one.`, 'build', () => [
+          [{ text: `Open ${already.name}`.slice(0, 60), url: `${deps.studioUrl}/projects/${already.id}` }],
+        ]);
       const id = await backend.write<string>({ op: 'build', args: { request: text, brief } });
       if (!id) return say('I couldn’t save that build request. Try again in the studio.', 'build');
-      return say(`Here’s the brief I’d start from:\n\n${briefSummary(brief)}\n\nNothing is built yet. Open it in the studio to plan the site; you’ll review the plan before anything is built.`, 'build', () => [
+      return say(`${BRIEF_INTRO}\n\n${briefSummary(brief)}\n\nNothing is built yet. Open it in the studio to plan the site; you’ll review the plan before anything is built.`, 'build', () => [
         [{ text: '🧭 Plan it in the studio', url: `${deps.studioUrl}/sono-ai/builds/${id}` }],
       ]);
     }

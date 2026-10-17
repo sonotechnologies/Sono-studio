@@ -166,7 +166,7 @@ Notes:
 | --- | --- |
 | Chats (`/sono-ai/chat`) | Separate chats: New chat, a list to switch between (beside the chat on wide screens, behind the chat's name on phones), rename and delete (with its messages). A chat is made with its first message and named after it; each chat only remembers its own messages. The page opens the most recent chat (`?t=` a given one, `?new=1` a new one); the workspace's Sono AI tab carries on the most recent chat |
 | Messages | Tap your message (or use the icons under a reply) to copy or delete it; deleting takes a second tap |
-| Storage | `chat_threads`, and `conversations.thread_id`; a message can only go into one of your own chats. Studio messages from before become one chat, "Earlier chat". Telegram stays one running conversation |
+| Storage | `chat_threads`, and `conversations.thread_id`; a message can only go into one of your own chats. Studio messages from before become one chat, "Earlier chat". Telegram stays one running conversation; send `/new` there to start over |
 
 Notes:
 - Supabase needs `supabase/migrations/0016_sono_ai_chats.sql`.

@@ -38,7 +38,9 @@ export interface BuildRequest {
 const VERB = String.raw`(?:build|make|create|generate|set\s*up|start|design|do|put together|whip up|code|develop)`;
 const THING = String.raw`(?:site|website|web\s*site|web\s*page|pitch|landing\s*page|homepage)`;
 /** Questions about past work ("how many sites did I build?"), not requests. */
-const QUESTION = /^\s*(?:how|which|what|when|where|who|why|did|do i|have i|has|is|are|was|were|show me|list)\b/i;
+const QUESTION = /^\s*(?:how|which|what|when|where|who|why|did|do (?:i|you|we)|does|should|have i|has|is|are|was|were|show me|list|can i|could i|would it)\b/i;
+/** Verbs that look like building but aren't: "make sure the site…", "do you think the site…" */
+const NOT_BUILD = /\b(?:make sure|do you think|start (?:the )?deploy|design (?:of|for) (?:the|my) (?:existing|current))\b/i;
 
 /**
  * A request to build a site: "Build a pitch site for…", "can you make a
@@ -47,6 +49,7 @@ const QUESTION = /^\s*(?:how|which|what|when|where|who|why|did|do i|have i|has|i
  */
 export function buildAsk(message: string): boolean {
   const m = message.trim();
+  if (NOT_BUILD.test(m)) return false;
   if (QUESTION.test(m) && !/^\s*(?:can|could|would|will)\s+you\b/i.test(m)) return false;
   const lead = String.raw`^\s*(?:(?:please|hey|ok(?:ay)?|so|now|alright|sono(?:\s*ai)?)[,!]?\s+)*`;
   const polite = String.raw`(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:help\s+(?:me\s+)?)?|i\s+(?:want|need|would like|['’]d like|wanna)\s+(?:you\s+)?(?:to\s+)?|help\s+me\s+|let['’]?s\s+|go\s+ahead\s+and\s+|i['’]?m\s+asking\s+you\s+to\s+)?`;
@@ -64,6 +67,8 @@ export function buildFollowUp(message: string, history: { role: 'user' | 'assist
   const m = message.trim();
   // An answer to "What's the business called?" carries on the build request.
   const lastReply = [...history].reverse().find((h) => h.role === 'assistant');
+  // After the brief, "yes, go ahead" means the brief already given, not another request (see briefAgain).
+  if (lastReply && isBriefReply(lastReply.text)) return false;
   if (lastReply?.text.startsWith(MISSING_NAME.slice(0, 30)) && m.length <= 1500 && !/\?\s*$/.test(m)) return true;
   if (m.length > 140 || QUESTION.test(m)) return false;
   const earlier = history
@@ -85,6 +90,28 @@ export function placeholdersOk(texts: string[]): boolean {
   return texts.some((t) =>
     /\b(placeholders?|dummy|stand-?ins?|make (?:one|it|them|something) up|any name|doesn['’]?t matter|don['’]?t (?:have|know) (?:the|a|its) name|no name yet|you (?:choose|pick|decide)|fill (?:it|them|that) in|just (?:get|start) (?:it|the site|something))/i.test(t),
   );
+}
+
+/** How the reply with a brief starts, in the studio and on Telegram. */
+export const BRIEF_INTRO = 'Here’s the brief I’d start from:';
+const isBriefReply = (text: string) => text.startsWith(BRIEF_INTRO);
+
+/**
+ * "Yes", "go ahead", "plan it" right after a brief: the request is already
+ * filed and waits for Plan it, so say where it is instead of filing it twice.
+ */
+export function briefAgain(message: string, history: { role: 'user' | 'assistant'; text: string }[]): boolean {
+  const lastReply = [...history].reverse().find((h) => h.role === 'assistant');
+  if (!lastReply || !isBriefReply(lastReply.text)) return false;
+  return /^\s*(?:yes|yeah|yep|ok(?:ay)?|sure|great|perfect|go ahead|do it|build it|make it|start it|plan it|proceed|continue|please do|looks good|sounds good)\b[^?]{0,60}$/i.test(message.trim());
+}
+
+/** A project that already has this business's name, so a build request doesn't make a second one. */
+export function existingProject<P extends { id: string; name: string }>(brief: BuildBrief, projects: P[], request: string): P | null {
+  if (/\b(another|second|new version|again|duplicate|fresh)\b/i.test(request)) return null;
+  const name = brief.businessName.trim().toLowerCase();
+  if (name === PLACEHOLDER_NAME.toLowerCase()) return null;
+  return projects.find((p) => p.name.trim().toLowerCase() === name) ?? null;
 }
 
 const pageKey = z.enum(PAGE_KEYS);

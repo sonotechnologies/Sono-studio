@@ -5,7 +5,7 @@ import type { Embedder } from '../knowledge';
 import { Redactor, type Redaction } from '../redact';
 import type { ChunkHit } from '../store';
 import { factsText, scorecardText, type Snapshot } from './context';
-import { buildAsk, buildFollowUp } from './build';
+import { briefAgain, buildAsk, buildFollowUp } from './build';
 import { draftAsk, pickMode, ruleIn, type DraftAsk } from './modes';
 import type { Mode, ScoreRow, Source } from './types';
 import { WebSearchError, type WebSearch } from './web';
@@ -85,6 +85,14 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
   if (buildAsk(message)) return { kind: 'build' };
 
   const [snapshot, rules, history] = await Promise.all([deps.snapshot(), deps.rules(), deps.history()]);
+  // "Yes, go ahead" after a brief: it's filed already and waits for Plan it.
+  if (briefAgain(message, history))
+    return {
+      kind: 'reply',
+      mode: 'casual',
+      reply: 'It’s ready: tap “Plan it” on the brief above (or find it under Sono AI → Builds). The studio plans the pages and you approve the plan before anything is built.',
+      sources: [{ label: 'Builds', href: `${deps.studioUrl}/sono-ai/builds` }],
+    };
   // "I meant the website", "yes, build it": the request was made earlier in other words.
   if (buildFollowUp(message, history)) return { kind: 'build' };
   const redactor = redactorFor(snapshot);

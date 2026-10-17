@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, ProviderClient } from '@/ai/types';
 import { briefSchema } from '@/generate/brief';
 import type { Telegram } from '../telegram';
-import { briefSummary, buildAsk, buildFollowUp, extractBuild, MISSING_NAME, PLACEHOLDER_NAME, presetFor, toBrief } from './build';
+import { BRIEF_INTRO, briefAgain, briefSummary, buildAsk, buildFollowUp, existingProject, extractBuild, MISSING_NAME, PLACEHOLDER_NAME, presetFor, toBrief } from './build';
+import { draftAsk, ruleIn } from './modes';
 import { answer } from './engine';
 import type { TgBackend, TgOp } from './telegram-assist';
-import { ownerMessage } from './telegram-chat';
+import { NEW_CHAT, ownerMessage } from './telegram-chat';
 
 function provider(reply: unknown) {
   const asked: ChatRequest[] = [];
@@ -86,6 +87,40 @@ describe('build requests', () => {
     expect(buildFollowUp('wait, what pages do you usually make?', history)).toBe(false);
   });
 
+  it('doesn’t mistake everyday messages for rules, drafts or builds', () => {
+    expect(ruleIn('Never mind')).toBeNull();
+    expect(ruleIn('never mind, ignore that')).toBeNull();
+    expect(ruleIn('Remember the Kora site?')).toBeNull();
+    expect(ruleIn('Always happy to see a new client')).toBeNull();
+    expect(ruleIn('Never use stock photos of food')).toBe('Never use stock photos of food');
+    expect(ruleIn('Remember that Ada prefers WhatsApp')).toBe('Ada prefers WhatsApp');
+    expect(buildAsk('do you think the site looks good')).toBe(false);
+    expect(buildAsk('make sure the site loads fast')).toBe(false);
+    expect(buildAsk('Make a website for Lagos Quotes, a printing shop')).toBe(true);
+    expect(draftAsk('Make a website for Lagos Quotes, a printing shop')).toBeNull();
+    expect(draftAsk('write a quote for Crumbs')).toEqual({ kind: 'quote' });
+  });
+
+  it('points to Plan it instead of filing the same build twice', () => {
+    const history = [
+      { role: 'user' as const, text: 'Build a site for Crumbs, a bakery' },
+      { role: 'assistant' as const, text: `${BRIEF_INTRO}\n\nCrumbs, a bakery.` },
+    ];
+    expect(briefAgain('yes go ahead', history)).toBe(true);
+    expect(briefAgain('looks good, plan it', history)).toBe(true);
+    expect(buildFollowUp('yes, build it', history)).toBe(false);
+    expect(briefAgain('what pages will it have?', history)).toBe(false);
+    expect(briefAgain('yes', [{ role: 'assistant', text: 'Anything else?' }])).toBe(false);
+  });
+
+  it('notices a project with the same name already exists', () => {
+    const projects = [{ id: 'p1', name: 'Crumbs' }];
+    const brief = { ...mamas, businessName: 'crumbs', businessType: 'Bakery', pages: ['home' as const], client: { ...mamas.client, address: '' } };
+    expect(existingProject(brief, projects, 'Build a site for Crumbs')).toEqual({ id: 'p1', name: 'Crumbs' });
+    expect(existingProject(brief, projects, 'Build another site for Crumbs')).toBeNull();
+    expect(existingProject({ ...brief, businessName: PLACEHOLDER_NAME }, [{ id: 'p2', name: PLACEHOLDER_NAME }], 'use placeholders')).toBeNull();
+  });
+
   it('picks the style from what worked for you, and lets a rule override it', () => {
     const past = [
       { businessType: 'Restaurant', preset: 'bold-street', status: 'live' },
@@ -129,5 +164,24 @@ describe('build requests', () => {
     await ownerMessage(42, 'Build a pitch site for Crumbs, a bakery in Yaba', bot, backend);
     expect(writes.some((w) => w.op === 'build')).toBe(false);
     expect(sent[0].text).toMatch(/quota for site builds/);
+  });
+
+  it('starts over on Telegram with /new', async () => {
+    const writes: TgOp[] = [];
+    const seen: string[][] = [];
+    const backend: TgBackend = {
+      state: async () => ({ providers: [], rules: [], history: [{ role: 'user', text: 'old' }, { role: 'assistant', text: NEW_CHAT }, { role: 'user', text: 'kept' }], editingDraft: null, voice: [], pendingFollowUps: [], followUpDays: 3, projects: [], scorecards: [], redactions: [] }),
+      write: async <T,>(w: TgOp) => (writes.push(w), { id: '00000000-0000-4000-8000-000000000002' } as T),
+      match: async () => [],
+    };
+    const sent: string[] = [];
+    const bot: Telegram = { send: async (_c, text) => void sent.push(text), answerCallback: async () => {}, setWebhook: async () => {}, username: async () => 'b' };
+    await ownerMessage(42, '/new', bot, backend);
+    expect(writes).toEqual([{ op: 'message', args: { role: 'assistant', text: NEW_CHAT, mode: null } }]);
+    expect(sent[0]).toMatch(/New conversation/);
+    // Only what came after the marker is remembered: a follow-up to "old" isn't one any more.
+    const state = (await backend.state())!;
+    seen.push(state.history.slice(state.history.map((h) => h.text).lastIndexOf(NEW_CHAT) + 1).map((h) => h.text));
+    expect(seen[0]).toEqual(['kept']);
   });
 });
