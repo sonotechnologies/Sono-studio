@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, ProviderClient } from '@/ai/types';
 import { briefSchema } from '@/generate/brief';
 import type { Telegram } from '../telegram';
-import { briefSummary, buildAsk, extractBuild, presetFor, toBrief } from './build';
+import { briefSummary, buildAsk, buildFollowUp, extractBuild, presetFor, toBrief } from './build';
 import { answer } from './engine';
 import type { TgBackend, TgOp } from './telegram-assist';
 import { ownerMessage } from './telegram-chat';
@@ -28,6 +28,31 @@ describe('build requests', () => {
     expect(buildAsk('could you create a landing page for Crumbs bakery')).toBe(true);
     expect(buildAsk('how many sites did I build this month?')).toBe(false);
     expect(buildAsk('draft follow-ups')).toBe(false);
+    // Other ways of asking.
+    expect(buildAsk('I want you to build a website for Kick Lab, a streetwear shop')).toBe(true);
+    expect(buildAsk('I need a website for Crumbs, a bakery in Yaba')).toBe(true);
+    expect(buildAsk('new site for Crumbs, a bakery')).toBe(true);
+    expect(buildAsk('help me make a landing page for a salon called Nala')).toBe(true);
+    expect(buildAsk('ok sono, can you please create a website for my client Ada’s restaurant')).toBe(true);
+    expect(buildAsk('Let’s design a site for Volt Supply')).toBe(true);
+    // Questions about past work stay questions.
+    expect(buildAsk('which sites did I make last week?')).toBe(false);
+    expect(buildAsk('did I build a site for Crumbs?')).toBe(false);
+    expect(buildAsk('what makes a good landing page?')).toBe(false);
+  });
+
+  it('understands a follow-up that makes it a build request', () => {
+    const history = [
+      { role: 'user' as const, text: 'Make the Kora Kitchen one for the restaurant on Admiralty Way' },
+      { role: 'assistant' as const, text: 'Got it, I’ll get those pages up right now' },
+      { role: 'user' as const, text: 'I meant the website' },
+    ];
+    expect(buildFollowUp('I meant the website', history)).toBe(true);
+    expect(buildFollowUp('yes, build it', history)).toBe(true);
+    // Without an earlier request, it's just chat.
+    expect(buildFollowUp('I meant the website', [{ role: 'user', text: 'what do you think of my portfolio?' }])).toBe(false);
+    expect(buildFollowUp('which website?', history)).toBe(false);
+    expect(buildFollowUp('thanks', history)).toBe(false);
   });
 
   it('reads the brief from the request without inventing anything', async () => {

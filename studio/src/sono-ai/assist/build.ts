@@ -35,9 +35,42 @@ export interface BuildRequest {
   startedAt: string | null;
 }
 
-/** "Build a pitch site for…", "make a website for…", "can you create a site for…" */
+const VERB = String.raw`(?:build|make|create|generate|set\s*up|start|design|do|put together|whip up|code|develop)`;
+const THING = String.raw`(?:site|website|web\s*site|web\s*page|pitch|landing\s*page|homepage)`;
+/** Questions about past work ("how many sites did I build?"), not requests. */
+const QUESTION = /^\s*(?:how|which|what|when|where|who|why|did|do i|have i|has|is|are|was|were|show me|list)\b/i;
+
+/**
+ * A request to build a site: "Build a pitch site for…", "can you make a
+ * website for…", "I want you to create a landing page for…", "I need a
+ * website for Crumbs, a bakery…", "help me build a site for…".
+ */
 export function buildAsk(message: string): boolean {
-  return /^\s*(?:please\s+|hey\s+)?(?:(?:can|could|would) you\s+)?(?:build|make|create|generate|set up|start|design|do)\b[^?]{0,80}\b(?:site|website|pitch|landing page)\b/i.test(message.trim());
+  const m = message.trim();
+  if (QUESTION.test(m) && !/^\s*(?:can|could|would|will)\s+you\b/i.test(m)) return false;
+  const lead = String.raw`^\s*(?:(?:please|hey|ok(?:ay)?|so|now|alright|sono(?:\s*ai)?)[,!]?\s+)*`;
+  const polite = String.raw`(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:help\s+(?:me\s+)?)?|i\s+(?:want|need|would like|['’]d like|wanna)\s+(?:you\s+)?(?:to\s+)?|help\s+me\s+|let['’]?s\s+|go\s+ahead\s+and\s+|i['’]?m\s+asking\s+you\s+to\s+)?`;
+  if (new RegExp(`${lead}${polite}${VERB}\\b[^?]{0,100}\\b${THING}`, 'i').test(m)) return true;
+  // "I need a website for Crumbs…", "new site for Crumbs, a bakery in Yaba"
+  return new RegExp(`${lead}(?:i\\s+(?:need|want)\\s+(?:a\\s+)?(?:new\\s+)?|(?:a\\s+)?new\\s+)${THING}\\s+for\\b`, 'i').test(m);
+}
+
+/**
+ * A follow-up that turns the conversation into a build request: "I meant
+ * the website", "a website, not the page", "yes, build it" right after you
+ * asked for a site in other words.
+ */
+export function buildFollowUp(message: string, history: { role: 'user' | 'assistant'; text: string }[]): boolean {
+  const m = message.trim();
+  if (m.length > 140 || QUESTION.test(m)) return false;
+  const earlier = history
+    .filter((h) => h.role === 'user' && h.text.trim() !== m)
+    .slice(-3)
+    .map((h) => h.text);
+  // An earlier message about making something: "build the Kora page", "make one for my client".
+  const askedBefore = earlier.some((t) => new RegExp(`\\b${VERB}\\b[^?]{0,100}\\b(?:${THING}|page|one|for)\\b`, 'i').test(t));
+  if (!askedBefore) return false;
+  return new RegExp(`\\b${THING}\\b`, 'i').test(m) || /^\s*(?:yes|yeah|yep|ok(?:ay)?|sure|go ahead|do it|build it|make it|please do)\b[\s,.!]*(?:(?:build|make|create|do)\s+it|it|now|please)?[\s,.!]*(?:now|please)?[\s.!]*$/i.test(m);
 }
 
 const pageKey = z.enum(PAGE_KEYS);

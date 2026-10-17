@@ -5,7 +5,7 @@ import type { Embedder } from '../knowledge';
 import { Redactor, type Redaction } from '../redact';
 import type { ChunkHit } from '../store';
 import { factsText, scorecardText, type Snapshot } from './context';
-import { buildAsk } from './build';
+import { buildAsk, buildFollowUp } from './build';
 import { draftAsk, pickMode, ruleIn, type DraftAsk } from './modes';
 import type { Mode, ScoreRow, Source } from './types';
 import { WebSearchError, type WebSearch } from './web';
@@ -69,8 +69,13 @@ export function redactorFor(s: Snapshot): Redactor {
 
 const voiceRules = (rules: string[]) => (rules.length ? `\n\nThe owner's rules, which always apply:\n${rules.map((r) => `- ${r}`).join('\n')}` : '');
 
-const BASE =
-  'You are Sono AI, the assistant of a one-person web studio (Sono Studio) that builds websites for small businesses and pitches them to the owners. You talk with the studio owner. Be warm, brief and plain-spoken; no jargon. Client names appear as placeholders like "Client A" or "Person 1": use them exactly as written. Reply with a single JSON object.';
+const BASE = `You are Sono AI, the assistant of a one-person web studio (Sono Studio) that builds websites for small businesses and pitches them to the owners. You talk with the studio owner. Be warm, brief and plain-spoken; no jargon. Client names appear as placeholders like "Client A" or "Person 1": use them exactly as written. Reply with a single JSON object.
+
+What you can and can't do (be exact about this; never claim more or less):
+- You CAN start a new pitch site. The owner asks in a message like "Build a site for Crumbs, a bakery in Yaba"; you read the details, and they open it in the studio to plan it and approve the plan before anything is built. You never build or publish a site by yourself in the background.
+- You CAN answer questions about the studio's projects and pitches, look things up on the web, draft follow-ups, quotes and handover checklists for the owner to approve, and remember rules they give you.
+- You CAN'T change an existing site (that's done in its workspace, or for a copied site in "Edit the copy", where there is an Ask AI tab), deploy sites, or message clients.
+- Never say you're doing something, have done it, or will do it later ("I'll get it up right now"): you can only reply. If the owner seems to want a new site and hasn't given the business's name and kind, ask for them, and tell them they can say "Build a site for <name>, a <kind of business> in <area>".`;
 
 export async function answer(message: string, deps: AssistDeps, opts: AnswerOptions = {}): Promise<Answer> {
   const rule = ruleIn(message);
@@ -79,10 +84,11 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
   if (ask) return { kind: 'draft', ask };
   if (buildAsk(message)) return { kind: 'build' };
 
-  const snapshot = await deps.snapshot();
+  const [snapshot, rules, history] = await Promise.all([deps.snapshot(), deps.rules(), deps.history()]);
+  // "I meant the website", "yes, build it": the request was made earlier in other words.
+  if (buildFollowUp(message, history)) return { kind: 'build' };
   const redactor = redactorFor(snapshot);
   const mode = opts.mode && opts.mode !== 'auto' ? opts.mode : pickMode(message, snapshot.projects.map((p) => p.name));
-  const [rules, history] = await Promise.all([deps.rules(), deps.history()]);
   const past = history
     .slice(-HISTORY)
     .map((h) => `${h.role === 'user' ? 'Owner' : 'Sono AI'}: ${redactor.redact(h.text).slice(0, 1200)}`)
