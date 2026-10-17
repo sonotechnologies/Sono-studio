@@ -54,7 +54,7 @@ const LABELS: Record<string, string> = {
   whatsapp: 'WhatsApp', phone: 'Phone', email: 'Email', address: 'Address', hours: 'Opening hours', days: 'Days', time: 'Time',
   mapQuery: 'Map location', title: 'Title', text: 'Text', price: 'Price', quote: 'Quote', name: 'Name', detail: 'Detail',
   rating: 'Rating (0 to 5)', ratingCount: 'Rating note', value: 'Number', label: 'Label', question: 'Question', answer: 'Answer',
-  signature: 'Signature', filter: 'Category buttons above the products', limit: 'Product limit', sticky: 'Stay at the top when scrolling', number: 'WhatsApp number', message: 'Pre-filled message', alt: 'Description (alt text)',
+  signature: 'Signature', filter: 'Category buttons above the products', limit: 'Product limit', phoneColumns: 'Products per row on phones', sticky: 'Stay at the top when scrolling', number: 'WhatsApp number', message: 'Pre-filled message', alt: 'Description (alt text)',
 };
 const MULTILINE = new Set(['subheading', 'intro', 'text', 'answer', 'quote', 'tagline', 'message', 'body']);
 
@@ -337,6 +337,17 @@ export function FieldFor({
     );
   }
   if (d.type === 'array') return <ArrayField label={label} schema={inner} value={(value as unknown[]) ?? []} path={path} ctx={ctx} />;
+  if (name === 'phoneColumns') {
+    return (
+      <label className="flex flex-col gap-1.5 text-[13px] font-medium" data-field={path}>
+        {label}
+        <select value={String(value ?? 2)} onChange={(e) => ctx.set(path, Number(e.target.value))} className={`${fieldInput} h-[38px] cursor-pointer`}>
+          <option value="2">2 side by side</option>
+          <option value="1">1, the full width</option>
+        </select>
+      </label>
+    );
+  }
   if (d.type === 'number') {
     return (
       <label className="flex flex-col gap-1.5 text-[13px] font-medium" data-field={path}>

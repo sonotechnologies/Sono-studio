@@ -192,6 +192,8 @@ export const productGridContent = z.object({
   filter: z.boolean().optional(),
   /** At most this many products (the first in the list); empty shows all. */
   limit: z.number().int().min(1).max(60).optional(),
+  /** Products per row on phones: 1 (each card the full width) or 2 (the default). */
+  phoneColumns: z.number().int().min(1).max(2).optional(),
 });
 
 export const productFeatureContent = z.object({

@@ -116,7 +116,7 @@ export function AddToCart({
     );
   }
   return (
-    <div className={`flex flex-col gap-3 ${className}`}>
+    <div className={`@container/add flex flex-col gap-3 ${className}`}>
       {!compact &&
         options.map((o) => (
           <fieldset key={o.name} className="m-0 flex flex-col gap-1.5 border-0 p-0">
@@ -141,9 +141,12 @@ export function AddToCart({
       <button
         type="button"
         onClick={() => addToCart(site, { productId: product.id, name: product.name, price: product.price, image: product.image, options: compact ? Object.fromEntries(options.map((o) => [o.name, o.values[0]])) : chosen })}
-        className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-site-button bg-site-primary px-5 text-[0.95em] font-semibold text-site-on-primary transition-[filter] hover:brightness-110"
+        className={`inline-flex min-h-11 cursor-pointer items-center justify-center rounded-site-button bg-site-primary font-semibold whitespace-nowrap text-site-on-primary transition-[filter] hover:brightness-110 ${
+          compact ? 'gap-1.5 px-3 text-[0.9em]' : 'gap-2 px-5 text-[0.95em]'
+        }`}
       >
-        <ShoppingBag size={17} aria-hidden />
+        {/* In a narrow card the words matter more than the bag. */}
+        <ShoppingBag size={17} aria-hidden className={compact ? 'hidden flex-none @min-[10rem]/add:block' : 'flex-none'} />
         Add to cart
       </button>
     </div>

@@ -74,7 +74,9 @@ export function ProductGrid({ section, ctx }: Props) {
   const products = c.limit ? all.slice(0, c.limit) : all;
   const categories = [...new Set(all.map((p) => p.category).filter(Boolean))];
   const grid =
-    section.variant === 'list' ? 'flex flex-col' : 'grid grid-cols-2 gap-x-4 gap-y-8 @3xl:grid-cols-3 @3xl:gap-x-6 @6xl:grid-cols-4';
+    section.variant === 'list'
+      ? 'flex flex-col'
+      : `grid ${c.phoneColumns === 1 ? 'grid-cols-1 @xl:grid-cols-2' : 'grid-cols-2'} gap-x-4 gap-y-8 @3xl:grid-cols-3 @3xl:gap-x-6 @6xl:grid-cols-4`;
   const cards = products.map((p) => (
     <div key={p.id} data-cat={p.category} className="contents">
       <Card product={p} ctx={ctx} variant={section.variant} currency={store!.currency} />
