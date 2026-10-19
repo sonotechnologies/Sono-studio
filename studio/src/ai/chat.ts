@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { contentSchemaFor } from '@/generate/fill';
 import { addableTypes, BOOKING_TYPES, PLANNABLE_TYPES, STORE_TYPES } from '@/generate/plan';
+import { GOOGLE_FONTS } from '@/site/fonts';
 import { SECTIONS } from '@/site/registry';
 import { sectionSchema, siteConfigSchema, themeSchema, type Section, type SectionType, type SiteConfig } from '@/site/schema';
 import { readableOn } from '@/site/theme';
@@ -42,7 +43,9 @@ function schemaText(type: SectionType): string {
   return JSON.stringify(s);
 }
 
-export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string, businessType: string) {
+const FONTS = Object.keys(GOOGLE_FONTS);
+
+export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string, businessType: string, history: { role: 'user' | 'assistant'; text: string }[] = []) {
   const page = scope.kind === 'page' ? config.pages.find((p) => p.id === scope.pageId) : null;
   const target = scope.kind === 'section' ? findSection(config, scope.sectionId) : null;
   const inScope: Section[] = target ? [target.section] : page ? page.sections : config.pages.flatMap((p) => p.sections);
@@ -56,10 +59,12 @@ export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string
       'Never invent facts about the business (prices, amenities, hours, addresses, reviews, numbers). If the request needs facts you do not have, make the change with neutral wording and say in the reply what the owner should confirm.',
       'Image src values must stay as they are or be "" (empty). Never write image URLs.',
       'Only use fields that exist in the content schemas below. If the request needs something the site cannot do, return no operations and say plainly in the reply that it is not possible yet. Never say you changed something unless an operation does it.',
-      'Write replies for a business owner, not a developer: never mention schemas, fields, JSON, operations or code. When something is not possible, say so in everyday words and, if one exists, suggest the closest thing you can do (for example a custom section from the + menu).',
+      'Write replies for a business owner, not a developer: never mention schemas, fields, JSON, operations, section ids or code. When something is not possible, say so in everyday words and suggest the closest thing that is: another layout of the same section, one of its settings, a theme change, or for a design the sections can’t do, a section written by AI from “+ → Custom section · written by AI”.',
+      'For layout requests (width, columns, size, alignment, order), first look for a variant or a setting in the schema that does it, and use it.',
+      'Short follow-ups ("yes", "do that", "but bigger") continue the conversation so far: work out the full request from it.',
     ].join(' '),
     prompt: `Business: ${config.meta.businessName} (${businessType || 'local business'}).
-Change requested: """${message.slice(0, 1500)}"""
+${history.length ? `Conversation so far:\n${history.slice(-6).map((h) => `${h.role === 'user' ? 'Owner' : 'You'}: ${h.text.slice(0, 400)}`).join('\n')}\n` : ''}Change requested: """${message.slice(0, 1500)}"""
 
 Scope: ${scope.kind === 'site' ? 'the whole site' : scope.kind === 'page' ? `the "${page?.title}" page only` : `only the section "${target?.section.id}"`}. Do not touch anything outside it${scope.kind === 'site' ? '' : ' (theme changes are only allowed with site scope)'}.
 
@@ -70,14 +75,14 @@ Current content of the sections in scope (JSON):
 ${JSON.stringify(inScope.map((s) => ({ id: s.id, type: s.type, variant: s.variant, content: s.content })))}
 
 Section types and variants you may use:
-${types.map((t) => `- ${t}: ${SECTIONS[t].variants.map((v) => v.id).join(', ')}. Content schema: ${schemaText(t)}`).join('\n')}
+${types.map((t) => `- ${t}: layouts ${SECTIONS[t].variants.map((v) => `"${v.id}"${v.note ? ` (${v.note})` : ''}`).join(', ')}. Content schema: ${schemaText(t)}`).join('\n')}
 
 Operations (use as few as possible):
 - {"op":"update","section":"<id>","content":{<only the fields that change>},"variant":"<optional new variant>"}  Fields you give replace the old ones; arrays are replaced whole.
 - {"op":"add","page":"<page id>","after":"<section id or null for the top>","type":"<type>","variant":"<variant>","content":{<full content>}}
 - {"op":"remove","section":"<id>"}
 - {"op":"move","section":"<id>","after":"<section id or null for the top>"}
-- {"op":"theme","colors":{...},"fonts":{"heading":"...","body":"..."},"radius":{"card":0,"button":0,"input":0}}  Colours are #RRGGBB. Fonts: Fraunces, DM Sans, Cormorant Garamond, Inter, Anton, Space Grotesk, Manrope, Sora, Playfair Display, Nunito Sans.
+- {"op":"theme","colors":{...},"fonts":{"heading":"...","body":"..."},"radius":{"card":0,"button":0,"input":0}}  Colours are #RRGGBB. Fonts (only these): ${FONTS.join(', ')}.
 
 Reply with JSON in exactly this shape:
 {"reply":"<one or two sentences to the owner about what changed>","ops":[ ... ]}`,
@@ -99,6 +104,8 @@ function inScope(config: SiteConfig, scope: ChatScope, sectionId: string): boole
   return findSection(config, sectionId)?.page.id === scope.pageId;
 }
 
+const OUTSIDE = 'that’s outside what you picked under “Will change”';
+
 /** Applies what it can; anything invalid or out of scope is skipped and reported. */
 export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): ApplyResult {
   let out = structuredClone(config);
@@ -110,12 +117,12 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
     try {
       if (op.op === 'update') {
         const at = findSection(out, op.section);
-        if (!at) throw new Error(`no section "${op.section}"`);
-        if (!inScope(out, scope, op.section)) throw new Error(`"${op.section}" is outside the scope`);
+        if (!at) throw new Error('that section isn’t on the site');
+        if (!inScope(out, scope, op.section)) throw new Error(OUTSIDE);
         const prev = at.section;
         const known = Object.keys((contentSchemaFor(prev.type) as z.ZodObject).shape);
         const unknown = Object.keys(op.content ?? {}).filter((k) => !known.includes(k));
-        if (unknown.length) throw new Error(`${SECTIONS[prev.type].label} has no setting "${unknown[0]}"`);
+        if (unknown.length) throw new Error(`the ${SECTIONS[prev.type].label.toLowerCase()} section has no setting for that`);
         const content = { ...(prev.content as Record<string, unknown>), ...(op.content ?? {}) };
         restoreImages(prev.content, content);
         const next = sectionSchema.parse({ ...prev, variant: op.variant ?? prev.variant, content });
@@ -124,11 +131,11 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         touched.add(op.section);
         labels.add(SECTIONS[next.type].label);
       } else if (op.op === 'add') {
-        if (scope.kind === 'section') throw new Error('adding sections needs page or site scope');
+        if (scope.kind === 'section') throw new Error('to add a section, pick a page or “Whole site” under “Will change”');
         const page = out.pages.find((p) => p.id === op.page);
-        if (!page) throw new Error(`no page "${op.page}"`);
-        if (scope.kind === 'page' && scope.pageId !== page.id) throw new Error('that page is outside the scope');
-        if (!PLANNABLE_TYPES.includes(op.type as SectionType)) throw new Error(`"${op.type}" cannot be added`);
+        if (!page) throw new Error('that page isn’t on the site');
+        if (scope.kind === 'page' && scope.pageId !== page.id) throw new Error(OUTSIDE);
+        if (!PLANNABLE_TYPES.includes(op.type as SectionType)) throw new Error('that kind of section can’t be added here');
         if (STORE_TYPES.includes(op.type as SectionType) && !out.store) throw new Error('product sections need a shop: add one in the Products tab');
         if (BOOKING_TYPES.includes(op.type as SectionType) && !out.bookings) throw new Error('the booking section needs bookings set up: add them in the Bookings tab');
         const type = op.type as SectionType;
@@ -146,16 +153,16 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         labels.add(`added ${SECTIONS[type].label}`);
       } else if (op.op === 'remove') {
         const at = findSection(out, op.section);
-        if (!at) throw new Error(`no section "${op.section}"`);
-        if (scope.kind === 'section') throw new Error('removing needs page or site scope');
-        if (!inScope(out, scope, op.section)) throw new Error(`"${op.section}" is outside the scope`);
+        if (!at) throw new Error('that section isn’t on the site');
+        if (scope.kind === 'section') throw new Error('to remove a section, pick its page or “Whole site” under “Will change”');
+        if (!inScope(out, scope, op.section)) throw new Error(OUTSIDE);
         if (at.section.type === 'navbar' || at.section.type === 'footer') throw new Error('the navbar and footer stay');
         out = removeSection(out, op.section);
         labels.add(`removed ${SECTIONS[at.section.type].label}`);
       } else if (op.op === 'move') {
         const at = findSection(out, op.section);
-        if (!at) throw new Error(`no section "${op.section}"`);
-        if (!inScope(out, scope, op.section)) throw new Error(`"${op.section}" is outside the scope`);
+        if (!at) throw new Error('that section isn’t on the site');
+        if (!inScope(out, scope, op.section)) throw new Error(OUTSIDE);
         // Positions are counted with the moved section taken out; never above the navbar or below the footer.
         const list = at.page.sections.filter((s) => s.id !== op.section);
         let index = (op.after ? list.findIndex((s) => s.id === op.after) : list.findIndex((s) => s.type === 'navbar')) + 1;
@@ -165,14 +172,17 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         touched.add(op.section);
         labels.add('order');
       } else {
-        if (scope.kind !== 'site') throw new Error('theme changes need site scope');
+        if (scope.kind !== 'site') throw new Error('colours and fonts change for the whole site: pick “Whole site” under “Will change”');
+        const font = [op.fonts?.heading, op.fonts?.body].find((f) => f && !FONTS.includes(f));
+        if (font) throw new Error(`the font “${font}” isn’t available; choose from ${FONTS.join(', ')}`);
         const colors = { ...out.theme.colors, ...op.colors };
         colors.onPrimary = readableOn(colors.primary, colors.background, colors.text);
         out = { ...out, theme: themeSchema.parse({ ...out.theme, colors, fonts: { ...out.theme.fonts, ...op.fonts }, radius: { ...out.theme.radius, ...op.radius } }) };
         labels.add('Theme');
       }
     } catch (err) {
-      skipped.push(`${op.op}: ${err instanceof z.ZodError ? err.issues[0]?.message : (err as Error).message}`);
+      // Content that fails its checks: say which part, in words (the model wrote something too long or the wrong kind).
+      skipped.push(`${op.op}: ${err instanceof z.ZodError ? zodWhy(err) : (err as Error).message}`);
     }
   }
   const final = siteConfigSchema.parse(out);
@@ -207,4 +217,12 @@ export function chatReplyText(reply: string, opCount: number, changed: boolean, 
   if (!changed) return reply || 'Nothing changed.';
   const note = skipped.length ? ` Part of it couldn’t be applied:${why}` : '';
   return (reply || 'Done.') + note;
+}
+
+function zodWhy(err: z.ZodError): string {
+  const i = err.issues[0];
+  if (!i) return 'the change didn’t fit the section';
+  const where = i.path.filter((p) => typeof p === 'string').at(-1);
+  const what = i.code === 'too_big' ? 'was too long' : i.code === 'too_small' ? 'was empty or too short' : 'wasn’t the right kind of value';
+  return `${where ? `the “${String(where)}” part` : 'part of it'} ${what}`;
 }

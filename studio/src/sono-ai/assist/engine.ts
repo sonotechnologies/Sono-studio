@@ -6,6 +6,7 @@ import { Redactor, type Redaction } from '../redact';
 import type { ChunkHit } from '../store';
 import { factsText, scorecardText, type Snapshot } from './context';
 import { briefAgain, buildAsk, buildFollowUp } from './build';
+import { STUDIO_GUIDE } from './guide';
 import { draftAsk, pickMode, ruleIn, type DraftAsk } from './modes';
 import type { Mode, ScoreRow, Source } from './types';
 import { WebSearchError, type WebSearch } from './web';
@@ -175,13 +176,15 @@ Reply as {"reply": "..."} or {"search": true}.`,
         href: h.projectId ? `${deps.studioUrl}/projects/${h.projectId}` : `${deps.studioUrl}/`,
       },
     })),
+    // Last, so the numbers of the records above stay the same.
+    { text: STUDIO_GUIDE, source: { label: 'How the studio works', href: `${deps.studioUrl}/` } },
   ];
   const looking = opts.projectId && name.get(opts.projectId) ? `\nThe owner is looking at ${redactor.redact(name.get(opts.projectId)!)} right now.` : '';
   const r = await runJson(
     deps.providers,
     {
       task: 'assistant',
-      system: `${BASE} Answer questions about the studio's work using only the numbered context below; it comes straight from the studio's records. Do the arithmetic carefully. If the context doesn't hold the answer, say plainly that the knowledge bank has nothing on that yet, instead of guessing. Never invent clients, numbers or events.${voiceRules(rules.map((x) => redactor.redact(x)))}
+      system: `${BASE} Answer questions about the studio's work, and how to use the studio, using only the numbered context below; it comes from the studio's records and its guide. Do the arithmetic carefully. If the context doesn't hold the answer, say plainly that the knowledge bank has nothing on that yet, instead of guessing. Never invent clients, numbers or events.${voiceRules(rules.map((x) => redactor.redact(x)))}
 
 Context:
 ${context.map((c, i) => `[${i + 1}] ${c.text}`).join('\n\n')}

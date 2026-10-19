@@ -42,7 +42,7 @@ const SEARCH = /\b(search|look up|google|news|price of|exchange rate|weather|rel
 const CURRENT =
   /\b(latest|today['’]?s|right now|currently|recently|this (?:week|month|year)|how much (?:is|does|do)|what['’]?s new|(?:been |was |is |get )?released|release date|come out|came out|coming out|out yet|new season|season \d+|(?:second|third|next|last) season|seasons?|episodes?|ep \d+|airing|premiere|who won|scores?|fixtures|schedule|upcoming|when (?:is|does|will|did)|check|verify|look (?:it|that) up|find out|is (?:it|that) true)\b/i;
 const STUDIO =
-  /\b(pitch(?:es)?|projects?|clients?|sites?|websites?|quotes?|drafts?|follow[- ]?ups?|leads?|models?|providers?|summary|deploy(?:ed|s)?|bookings?|orders?|studio|sent|opened|approved|live|scorecards?|rules?|keep rate|my work)\b/i;
+  /\b(pitch(?:es)?|projects?|clients?|sites?|websites?|quotes?|drafts?|follow[- ]?ups?|leads?|models?|providers?|summary|deploy(?:ed|s)?|bookings?|orders?|studio|sent|opened|approved|live|scorecards?|rules?|keep rate|my work|products?|workspace|themes?|presets?|export|domains?|telegram|settings|sections?|sono)\b/i;
 
 /** Which kind of answer a message needs; project names count as studio questions. */
 export function pickMode(message: string, projectNames: string[] = []): Mode {

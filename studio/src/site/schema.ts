@@ -38,7 +38,7 @@ export const navbarContent = z.object({
   links: z.array(linkSchema).max(6),
   cta: linkSchema.optional(),
   /** Stays at the top of the screen while scrolling. */
-  sticky: z.boolean().optional(),
+  sticky: z.boolean().optional().describe('Keep the navbar at the top of the screen while scrolling'),
 });
 
 export const heroContent = z.object({
@@ -88,7 +88,7 @@ export const testimonialsContent = z.object({
     .min(1)
     .max(6),
   /** Average rating out of 5, shown on the rating-strip variant. */
-  rating: z.number().min(0).max(5).optional(),
+  rating: z.number().min(0).max(5).optional().describe('Star rating out of 5; leave out unless a real rating was given'),
   ratingCount: text(40).optional(),
 });
 
@@ -189,11 +189,11 @@ export const productGridContent = z.object({
   /** Only this category; empty shows every product. */
   category: text(40),
   /** Category buttons above the grid. */
-  filter: z.boolean().optional(),
+  filter: z.boolean().optional().describe('Show category buttons above the products'),
   /** At most this many products (the first in the list); empty shows all. */
-  limit: z.number().int().min(1).max(60).optional(),
+  limit: z.number().int().min(1).max(60).optional().describe('Show at most this many products; leave out to show all'),
   /** Products per row on phones: 1 (each card the full width) or 2 (the default). */
-  phoneColumns: z.number().int().min(1).max(2).optional(),
+  phoneColumns: z.number().int().min(1).max(2).optional().describe('Products per row on phones: 1 makes each card the full width of the screen, 2 puts two side by side (the default)'),
 });
 
 export const productFeatureContent = z.object({

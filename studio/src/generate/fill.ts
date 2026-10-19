@@ -94,7 +94,7 @@ Rules for fields:
 - Keep headings under 8 words.
 ${
   page.sections.some((s) => s.type === 'product-grid' || s.type === 'product-feature')
-    ? `- Products are shown automatically from the shop's list; write only the headings and intro around them. product-grid: leave category empty to show every product (or use one of the categories below); leave limit out on the Shop page and set it to 3 or 4 elsewhere. product-feature: productId is one of the ids below.
+    ? `- Products are shown automatically from the shop's list; write only the headings and intro around them. product-grid: leave category empty to show every product (or use one of the categories below); leave limit out on the Shop page and set it to 3 or 4 elsewhere; leave phoneColumns out. product-feature: productId is one of the ids below.
   Products: ${(storeFor(brief, extracted)?.products ?? []).slice(0, 30).map((p) => `${p.id} (${p.name}${p.category ? `, ${p.category}` : ''})`).join('; ')}
 `
     : ''

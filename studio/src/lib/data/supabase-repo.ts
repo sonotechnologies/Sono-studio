@@ -347,9 +347,10 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async listChatMessages(projectId) {
       const rows = check(
-        await db.from('chat_messages').select('id, role, text, scope, change, version, created_at').eq('project_id', projectId).order('created_at').limit(200),
+        // The latest 200, oldest first.
+        await db.from('chat_messages').select('id, role, text, scope, change, version, created_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(200),
       ) as { id: string; role: ChatMessage['role']; text: string; scope: ChatMessage['scope']; change: string; version: number | null; created_at: string }[];
-      return rows.map((r) => ({ id: r.id, role: r.role, text: r.text, scope: r.scope, change: r.change, version: r.version, createdAt: r.created_at }));
+      return rows.reverse().map((r) => ({ id: r.id, role: r.role, text: r.text, scope: r.scope, change: r.change, version: r.version, createdAt: r.created_at }));
     },
 
     async getPitch(slug) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, chatReplyText } from '@/ai/chat';
+import { applyOps, chatPrompt, chatReplyText } from '@/ai/chat';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import {
@@ -143,7 +143,7 @@ describe('shared sections and merging', () => {
 describe('honest chat replies', () => {
   it('reports settings a section does not have instead of silently dropping them', () => {
     const r = applyOps(site(), [{ op: 'update', section: 'home-hero', content: { glow: true } }], { kind: 'site' });
-    expect(r.skipped[0]).toMatch(/no setting "glow"/);
+    expect(r.skipped[0]).toMatch(/hero section has no setting for that/);
     expect(r.config).toEqual(siteConfigSchema.parse(site()));
   });
 
@@ -176,5 +176,31 @@ describe('style layouts', () => {
     const c = site();
     c.theme = { ...c.theme, layouts: { faq: 'two-column' } };
     expect(newSection(c, 'faq', 'home', 'restaurant').variant).toBe('two-column');
+  });
+});
+
+describe('chat replies in plain words', () => {
+  it('turns out-of-reach changes into everyday explanations', () => {
+    const fonts = applyOps(site(), [{ op: 'theme', fonts: { heading: 'Comic Sans' } }], { kind: 'site' });
+    expect(fonts.skipped[0]).toMatch(/isn’t available; choose from/);
+    const scoped = applyOps(site(), [{ op: 'theme', colors: { primary: '#112233' } }], { kind: 'section', sectionId: 'home-hero' });
+    expect(scoped.skipped[0]).toMatch(/Whole site/);
+    const missing = applyOps(site(), [{ op: 'remove', section: 'nope' }], { kind: 'site' });
+    expect(missing.skipped[0]).not.toMatch(/"nope"/);
+  });
+
+  it('gives the model the conversation so far', () => {
+    const p = chatPrompt(siteConfigSchema.parse(site()), { kind: 'site' }, 'yes, do that', 'Restaurant', [
+      { role: 'assistant', text: 'Want me to make the cards full width on phones?' },
+    ]);
+    expect(p.prompt).toContain('You: Want me to make the cards full width on phones?');
+  });
+});
+
+describe('what the chat knows about each section', () => {
+  it('sees what each layout looks like and what each setting does', () => {
+    const p = chatPrompt(siteConfigSchema.parse(site()), { kind: 'site' }, 'make the menu stay at the top', 'Restaurant');
+    expect(p.prompt).toContain('"inline" (Logo left, links and button right)');
+    expect(p.prompt).toContain('Keep the navbar at the top of the screen while scrolling');
   });
 });

@@ -50,6 +50,13 @@ export function approveHref(d: Pick<Draft, 'channel' | 'recipient' | 'body' | 'f
   return null;
 }
 
+/** "a bakery", "an agency"; a copied site's placeholder type reads as an existing website. */
+const kindOf = (type: string) => {
+  const t = (type || 'business').trim();
+  if (/^existing site$/i.test(t)) return 'whose existing website the designer copied and refreshed';
+  return `${/^[aeiou]/i.test(t) ? 'an' : 'a'} ${t.toLowerCase()}`;
+};
+
 const rulesText = (rules: string[], redact: (s: string) => string) => (rules.length ? `\nThe owner's rules, which always apply:\n${rules.map((r) => `- ${redact(r)}`).join('\n')}` : '');
 
 /** Follow-up messages for pitches that need one and don't have a draft waiting. */
@@ -73,7 +80,7 @@ export async function followUpDrafts(deps: DraftDeps, existing: Draft[]): Promis
           voice.length ? `\n\nWrite the way the designer writes. Their recent messages:\n${voice.map((v) => `---\n${v}`).join('\n')}\n---` : ''
         }${rulesText(deps.rules, r)}\n\nReply as {"message": "..."}.`,
         prompt: r(
-          `Business: ${p.name}, a ${p.businessType || 'business'}${p.client.ownerName ? `, owner ${p.client.ownerName}` : ''}. Site: ${p.siteType}. ${why}${p.client.notes ? ` Notes: ${p.client.notes.slice(0, 400)}` : ''}`,
+          `Business: ${p.name}, ${kindOf(p.businessType)}${p.client.ownerName ? `, owner ${p.client.ownerName}` : ''}. Site: ${p.siteType}. ${why}${p.client.notes ? ` Notes: ${p.client.notes.slice(0, 400)}` : ''}`,
         ),
         temperature: 0.8,
         maxTokens: 400,
@@ -118,10 +125,10 @@ export async function quoteDraft(deps: DraftDeps, project: SnapshotProject, conf
     deps.providers,
     {
       task: 'assistant',
-      system: `You draft website quotes for a one-person web studio. Base the price on the site's scope and on the studio's past quotes (stay consistent with them). If there are no past quotes, give a sensible small-business price and keep it modest. List the scope in 3 to 6 short lines. Write a short friendly message (2 to 3 sentences) to the business owner introducing the quote. No invented features. Names appear as placeholders: keep them as written.${
+      system: `You draft website quotes for a one-person web studio. Base the price on the site's scope and on the studio's past quotes (stay consistent with them). If there are no past quotes, give a sensible small-business price and keep it modest. Unless a past quote or the owner's rules say otherwise, quote in ${config?.store?.currency || 'NGN'}. List the scope in 3 to 6 short lines. Write a short friendly message (2 to 3 sentences) to the business owner introducing the quote. No invented features. Names appear as placeholders: keep them as written.${
         pastQuotes.length ? `\n\nPast approved quotes:\n${pastQuotes.slice(0, 5).map((q) => `---\n${r(q)}`).join('\n')}\n---` : ''
       }${rulesText(deps.rules, r)}\n\nReply as {"price": number, "currency": "ISO code like NGN or USD", "scope": ["..."], "message": "..."}.`,
-      prompt: r(`Business: ${project.name}, a ${project.businessType || 'business'}. Site type: ${project.siteType}. Includes:\n${modules.map((m) => `- ${m}`).join('\n')}`),
+      prompt: r(`Business: ${project.name}, ${kindOf(project.businessType)}. Site type: ${project.siteType}. Includes:\n${modules.map((m) => `- ${m}`).join('\n')}`),
       temperature: 0.4,
       maxTokens: 700,
       demo: { kind: 'assistant', task: 'quote' },

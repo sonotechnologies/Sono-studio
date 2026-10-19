@@ -69,11 +69,13 @@ export async function chatAction(projectId: string, input: { message: string; sc
   if (!parsed.success) return { error: 'The site has an unsaved problem; undo the last edit and try again.' };
   const repo = await getRepo();
   const providers = await loadProviders(repo, { projectId });
+  // The last few turns, so "yes", "do that" and "but bigger" make sense.
+  const history = (await repo.listChatMessages(projectId).catch(() => [])).slice(-6).map((m) => ({ role: m.role, text: m.text }));
   const userMsg = await repo.addChatMessage(projectId, { role: 'user', text: message, scope: input.scope.kind, change: '', version: null });
   try {
     const r = await runJson(
       providers,
-      { task: 'chat', ...chatPrompt(parsed.data, input.scope, message, input.businessType), temperature: 0.4, demo: { kind: 'chat' } },
+      { task: 'chat', ...chatPrompt(parsed.data, input.scope, message, input.businessType, history), temperature: 0.4, demo: { kind: 'chat' } },
       chatReplySchema,
       routerHooks(repo),
     );
