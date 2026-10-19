@@ -3,7 +3,7 @@ import { contentSchemaFor } from '@/generate/fill';
 import { addableTypes, BOOKING_TYPES, PLANNABLE_TYPES, STORE_TYPES } from '@/generate/plan';
 import { GOOGLE_FONTS } from '@/site/fonts';
 import { SECTIONS } from '@/site/registry';
-import { sectionSchema, siteConfigSchema, themeSchema, type Section, type SectionType, type SiteConfig } from '@/site/schema';
+import { customDataSchema, sectionSchema, siteConfigSchema, themeSchema, type Section, type SectionType, type SiteConfig } from '@/site/schema';
 import { readableOn } from '@/site/theme';
 import { findSection, insertSection, moveSection, removeSection, syncShared, uniqueSectionId } from '@/workspace/model';
 
@@ -72,7 +72,15 @@ export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string
   // Sections that could be added: their full schemas only when the request may be about adding one (they're long).
   const addable = scope.kind === 'section' ? [] : addableTypes(config).filter((t) => !owned.includes(t));
   const withSchemas = ADDING.test(message) || history.some((h) => h.role === 'user' && ADDING.test(h.text)) ? addable : [];
-  const types = [...owned, ...withSchemas];
+  const types = [...owned.filter((t) => t !== 'custom'), ...withSchemas];
+  // AI-written sections each have their own fields: the model sees them, and changes only the words in "data".
+  const customs = inScope.flatMap((s) => {
+    const def = s.type === 'custom' ? config.customSections?.[s.content.component] : undefined;
+    if (!def) return [];
+    const fields = z.toJSONSchema(customDataSchema(def.fields), { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>;
+    delete fields.$schema;
+    return [`- "${s.id}" (${def.name}, written by AI: ${def.purpose}). Change its words with {"op":"update","section":"${s.id}","content":{"data":{<only the fields that change>}}}. Its layout and code can't change here; for that, the owner rewrites it from the Edit tab. Data schema: ${JSON.stringify(fields)}`];
+  });
   const outline = config.pages.map((p) => `- page "${p.id}" (${p.path}, "${p.title}"): ${p.sections.map((s) => `${s.id} [${s.type}/${s.variant}]`).join(', ')}`).join('\n');
 
   return {
@@ -97,7 +105,7 @@ ${outline}
 Current content of the sections in scope (JSON):
 ${JSON.stringify(inScope.map((s) => ({ id: s.id, type: s.type, variant: s.variant, content: s.content })))}
 
-Section types and variants you may use:
+${customs.length ? `Sections written by AI:\n${customs.join('\n')}\n\n` : ''}Section types and variants you may use:
 ${types.map((t) => `- ${t}: layouts ${SECTIONS[t].variants.map((v) => `"${v.id}"${v.note ? ` (${v.note})` : ''}`).join(', ')}. Content schema: ${schemaText(t)}`).join('\n')}${
       addable.length > withSchemas.length ? `\nOther sections that can be added (ask the owner to say "add a … section" to get one): ${addable.filter((t) => !withSchemas.includes(t)).join(', ')}.` : ''
     }
@@ -150,7 +158,13 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         const known = Object.keys((contentSchemaFor(prev.type) as z.ZodObject).shape);
         const unknown = Object.keys(op.content ?? {}).filter((k) => !known.includes(k));
         if (unknown.length) throw new Error(`the ${SECTIONS[prev.type].label.toLowerCase()} section has no setting for that`);
-        const content = { ...(prev.content as Record<string, unknown>), ...(op.content ?? {}) };
+        if (prev.type === 'custom' && (op.variant || (op.content?.component !== undefined && op.content.component !== prev.content.component)))
+          throw new Error('a section written by AI keeps its design here; rewrite it from the Edit tab to change that');
+        const content =
+          prev.type === 'custom'
+            ? // Only the fields given change: the rest of the section's words stay.
+              { ...prev.content, data: { ...prev.content.data, ...((op.content?.data as Record<string, unknown> | undefined) ?? {}) } }
+            : { ...(prev.content as Record<string, unknown>), ...(op.content ?? {}) };
         restoreImages(prev.content, content);
         const next = sectionSchema.parse({ ...prev, variant: op.variant ?? prev.variant, content });
         out = { ...out, pages: out.pages.map((p) => ({ ...p, sections: p.sections.map((s) => (s.id === op.section ? next : s)) })) };

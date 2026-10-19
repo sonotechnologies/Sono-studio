@@ -78,6 +78,27 @@ What you can and can't do (be exact about this; never claim more or less):
 - You CAN'T change an existing site (that's done in its workspace, or for a copied site in "Edit the copy", where there is an Ask AI tab), deploy sites, or message clients.
 - Never say you're doing something, have done it, or will do it later ("I'll get it up right now"): you can only reply. If the owner seems to want a new site and hasn't given the business's name and kind, ask for them, and tell them they can say "Build a site for <name>, a <kind of business> in <area>".`;
 
+/**
+ * A reply as plain text: models (web answers especially) write markdown, which
+ * the chat and Telegram would show as asterisks and hashes.
+ */
+export function plainText(text: string): string {
+  return text
+    .split('\n')
+    .map((line) =>
+      line
+        .replace(/^\s{0,3}#{1,6}\s+/, '')
+        .replace(/^(\s*)[*+-]\s+/, '$1• ')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1 ($2)')
+        .replace(/(\*\*|__)(?=\S)(.+?)(?<=\S)\1/g, '$2')
+        .replace(/(^|[\s(])\*(?=\S)([^*\n]+?)(?<=\S)\*(?=[\s.,;:!?)]|$)/g, '$1$2')
+        .replace(/`([^`\n]+)`/g, '$1'),
+    )
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 /** The conversation before this message: a chat saved before it's answered has the message as its last entry. */
 export function priorHistory<H extends { role: 'user' | 'assistant'; text: string }>(history: H[], message: string): H[] {
   const last = history.at(-1);
@@ -126,7 +147,7 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
         `You answer the owner of a small web studio with current information from the web. Write plain text: no markdown, asterisks or headings. Short follow-ups ("check", "it does", "what about season 2?") refer to the conversation so far: work out the actual question from it, search for that, and correct any earlier wrong answer plainly. Be brief and concrete; give numbers and dates where they matter. Client names appear as placeholders: keep them as written.${voiceRules(rules.map((x) => redactor.redact(x)))}`,
       );
       deps.logWeb?.({ request: question, answer: r.text, model: r.model, ms: Date.now() - started, status: 'ok', error: null, inputTokens: r.inputTokens, outputTokens: r.outputTokens });
-      return { kind: 'reply', mode, reply: redactor.restore(r.text), sources: r.sources };
+      return { kind: 'reply', mode, reply: plainText(redactor.restore(r.text)), sources: r.sources };
     } catch (err) {
       const limit = err instanceof WebSearchError && err.limit;
       if (limit) await deps.hooks.onCooldown?.('gemini', new Date(Date.now() + 60_000));
@@ -161,7 +182,7 @@ Reply as ${deps.web ? '{"reply": "..."} or {"search": true}' : '{"reply": "..."}
     );
     if (deps.web && (r.data.search || !r.data.reply)) return webAnswer();
     if (!r.data.reply) return { kind: 'reply', mode, reply: 'I can’t check that without web search, which needs a Gemini key in Settings → AI providers.', sources: [] };
-    return { kind: 'reply', mode, reply: redactor.restore(r.data.reply), sources: [] };
+    return { kind: 'reply', mode, reply: plainText(redactor.restore(r.data.reply)), sources: [] };
   }
 
   // A question about your work: numbered context, cited back as links.
@@ -170,8 +191,9 @@ Reply as ${deps.web ? '{"reply": "..."} or {"search": true}' : '{"reply": "..."}
   const [scores, hits] = await Promise.all([
     deps.scorecards(),
     deps.embedQuery
-      ? deps
-          .embedQuery([question])
+      ? Promise.resolve(deps.hooks.onRequest?.('gemini'))
+          // A knowledge search lookup uses Gemini's quota too, so it counts towards the share kept for builds.
+          .then(() => deps.embedQuery!([question]))
           .then(([v]) => (v ? deps.match(v, 6, focus) : []))
           .catch(() => [] as ChunkHit[])
       : Promise.resolve([] as ChunkHit[]),
@@ -219,5 +241,5 @@ Reply as {"reply": "...", "sources": [numbers of the context items you used]}.`,
     deps.hooks,
   );
   const used = [...new Set(r.data.sources ?? [])].filter((n) => n >= 1 && n <= context.length).map((n) => context[n - 1].source);
-  return { kind: 'reply', mode, reply: redactor.restore(r.data.reply), sources: used };
+  return { kind: 'reply', mode, reply: plainText(redactor.restore(r.data.reply)), sources: used };
 }

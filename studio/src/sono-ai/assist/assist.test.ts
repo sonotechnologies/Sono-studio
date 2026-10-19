@@ -4,7 +4,7 @@ import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import type { Telegram } from '../telegram';
 import { computeScorecards, factsText, keepRate, leadStats, type Snapshot, type SnapshotProject } from './context';
 import { approveHref, checklistDraft, followUpDrafts, quoteDraft, recipientOf } from './drafts';
-import { answer, type AssistDeps } from './engine';
+import { answer, plainText, type AssistDeps } from './engine';
 import { draftAsk, pickMode, ruleIn } from './modes';
 import { forAssistant } from './reserve';
 import type { TgBackend, TgOp, TgState } from './telegram-assist';
@@ -49,6 +49,22 @@ function deps(over: Partial<AssistDeps> & { providers: ProviderClient[] }): Assi
     ...over,
   };
 }
+
+describe('plain replies', () => {
+  it('turns markdown into plain text and leaves ordinary stars alone', () => {
+    expect(plainText('## Best times\n**Weekdays** at *7pm*:\n* Reels\n- Stories\nSee [the guide](https://example.com/g). Use `npm`.\n\n\n5 * 3 = 15')).toBe(
+      'Best times\nWeekdays at 7pm:\n• Reels\n• Stories\nSee the guide (https://example.com/g). Use npm.\n\n5 * 3 = 15',
+    );
+  });
+
+  it('counts a web search and a knowledge lookup against the quota kept for builds', async () => {
+    const counted: string[] = [];
+    const p = provider(() => ({ reply: 'You sent 2 pitches.', sources: [1] }));
+    await answer('how many pitches did I send?', deps({ providers: [p.client], hooks: { onRequest: (id) => void counted.push(id) }, embedQuery: async () => [[0.1]] }));
+    await answer('search for bakery prices', deps({ providers: [p.client], hooks: { onRequest: (id) => void counted.push(id) }, web: async () => ({ text: 'x', sources: [], model: 'g', inputTokens: null, outputTokens: null }) }));
+    expect(counted.filter((x) => x === 'gemini')).toHaveLength(2);
+  });
+});
 
 describe('picking how to answer', () => {
   it('spots rules, draft requests, web questions and studio questions without a request', () => {

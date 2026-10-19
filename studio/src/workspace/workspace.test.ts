@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { applyOps, chatPrompt, chatReplySchema, chatReplyText } from '@/ai/chat';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
+import { timelineDef } from '@/site/custom/samples';
 import {
+  addCustomSection,
   duplicateSection,
   findSection,
   getIn,
@@ -116,6 +118,23 @@ describe('chat operations', () => {
     const r = applyOps(withPhotos, [{ op: 'update', section: 'home-gallery', content: { images: [...reversed, { src: 'https://made.up/new.jpg', alt: 'new' }] } }], { kind: 'site' });
     const after = findSection(r.config, 'home-gallery')!.section;
     expect(after.type === 'gallery' && after.content.images.map((i) => i.src)).toEqual([...reversed.map((i) => i.src), '']);
+  });
+
+  it('changes the words of a section written by AI, field by field, and shows the model its fields', () => {
+    const base = site();
+    for (const p of base.pages) p.sections = p.sections.filter((x) => x.type !== 'custom');
+    delete base.customSections;
+    const data = { eyebrow: 'Since 2014', heading: 'Our story', moments: [{ year: '2014', title: 'First stall', text: 'Saturday market' }] };
+    const { config, id } = addCustomSection(base, 'home', 2, timelineDef(), data);
+    const prompt = chatPrompt(config, { kind: 'section', sectionId: id }, 'warmer heading', 'Restaurant').prompt;
+    expect(prompt).toContain('Sections written by AI');
+    expect(prompt).toContain('"moments"');
+    const r = applyOps(config, [{ op: 'update', section: id, content: { data: { heading: 'How we began' } } }], { kind: 'section', sectionId: id });
+    const after = findSection(r.config, id)!.section;
+    expect(after.type === 'custom' && after.content.data).toEqual({ ...data, heading: 'How we began' });
+    const bad = applyOps(config, [{ op: 'update', section: id, content: { data: { heading: 42 } } }], { kind: 'section', sectionId: id });
+    expect(bad.skipped[0]).toMatch(/heading/);
+    expect(applyOps(config, [{ op: 'update', section: id, variant: 'x' }], { kind: 'site' }).skipped[0]).toMatch(/Edit tab/);
   });
 
   it('places sections sensibly when the model names a section that isn’t there', () => {
