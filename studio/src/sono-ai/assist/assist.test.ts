@@ -125,8 +125,11 @@ describe('answers', () => {
     expect(casual).toMatchObject({ kind: 'reply', mode: 'casual' });
     expect(p.asked[0].system).not.toContain('Projects:');
 
+    // Without web search, current questions get the model's own answer, told it can't search.
     const noKey = await answer('latest Next.js release?', deps({ providers: [p.client] }));
-    expect(noKey).toMatchObject({ kind: 'reply', mode: 'search', reply: expect.stringContaining('needs a Gemini key') });
+    expect(noKey).toMatchObject({ kind: 'reply', mode: 'casual' });
+    expect(p.asked.at(-1)!.system).toContain('search the web here');
+    expect(p.asked.at(-1)!.system).not.toContain('{"search": true}');
 
     const queries: string[] = [];
     const logged: unknown[] = [];
@@ -233,7 +236,7 @@ describe('Sono AI on Telegram', () => {
   it('says when no provider can answer, and confirms rules with a button', async () => {
     const s = setup();
     await ownerMessage(42, 'how many projects do I have?', s.bot, s.backend);
-    expect(s.sent[0].text).toMatch(/saving its remaining quota for site builds/);
+    expect(s.sent[0].text).toMatch(/add a free Gemini key/);
 
     await ownerMessage(42, 'Always reply in English', s.bot, s.backend);
     expect(s.sent[1].text).toContain('I’ll remember this: “Always reply in English”');

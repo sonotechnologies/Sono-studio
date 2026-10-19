@@ -18,10 +18,10 @@ export type ChatScope = { kind: 'site' } | { kind: 'page'; pageId: string } | { 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
 const opSchema = z.discriminatedUnion('op', [
-  z.object({ op: z.literal('update'), section: z.string(), variant: z.string().optional(), content: z.record(z.string(), z.unknown()).optional() }),
-  z.object({ op: z.literal('add'), page: z.string(), after: z.string().nullable().optional(), type: z.string(), variant: z.string().optional(), content: z.record(z.string(), z.unknown()) }),
+  z.object({ op: z.literal('update'), section: z.string(), variant: z.string().nullish(), content: z.record(z.string(), z.unknown()).nullish() }),
+  z.object({ op: z.literal('add'), page: z.string(), after: z.string().nullish(), type: z.string(), variant: z.string().nullish(), content: z.record(z.string(), z.unknown()) }),
   z.object({ op: z.literal('remove'), section: z.string() }),
-  z.object({ op: z.literal('move'), section: z.string(), after: z.string().nullable() }),
+  z.object({ op: z.literal('move'), section: z.string(), after: z.string().nullish() }),
   z.object({
     op: z.literal('theme'),
     colors: z.object({ background: hex, surface: hex, text: hex, muted: hex, primary: hex, accent: hex }).partial().optional(),
@@ -31,10 +31,23 @@ const opSchema = z.discriminatedUnion('op', [
 ]);
 export type ChatOp = z.infer<typeof opSchema>;
 
-export const chatReplySchema = z.object({
-  reply: z.string().max(600),
-  ops: z.array(opSchema).max(20),
-});
+/**
+ * A reply is read leniently: an over-long reply is cut, and an operation the
+ * model wrote wrongly is counted and left out instead of failing the rest.
+ */
+export const chatReplySchema = z
+  .object({
+    reply: z.string().catch(''),
+    ops: z.array(z.unknown()).catch([]),
+  })
+  .transform(({ reply, ops }) => {
+    const read = ops.slice(0, 20).map((o) => opSchema.safeParse(o));
+    return {
+      reply: reply.trim().slice(0, 600),
+      ops: read.flatMap((r) => (r.success ? [r.data] : [])),
+      unreadable: read.filter((r) => !r.success).length,
+    };
+  });
 export type ChatReply = z.infer<typeof chatReplySchema>;
 
 function schemaText(type: SectionType): string {
@@ -45,11 +58,21 @@ function schemaText(type: SectionType): string {
 
 const FONTS = Object.keys(GOOGLE_FONTS);
 
+/** Stored as a chat message's change when the turn failed, so it isn't fed back to the model. */
+export const CHAT_ERROR = 'Not done';
+
+/** Whether a request may add a section, so the content schemas of the sections that could be added are worth sending. */
+const ADDING = /\b(add|adding|new|insert|include|put|create|another|more|extra|section|block|faq|gallery|testimonials?|reviews?|map|menu|pricing|team|form|banner)\b/i;
+
 export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string, businessType: string, history: { role: 'user' | 'assistant'; text: string }[] = []) {
   const page = scope.kind === 'page' ? config.pages.find((p) => p.id === scope.pageId) : null;
   const target = scope.kind === 'section' ? findSection(config, scope.sectionId) : null;
   const inScope: Section[] = target ? [target.section] : page ? page.sections : config.pages.flatMap((p) => p.sections);
-  const types = [...new Set([...inScope.map((s) => s.type), ...(scope.kind === 'section' ? [] : addableTypes(config))])];
+  const owned = [...new Set(inScope.map((s) => s.type))];
+  // Sections that could be added: their full schemas only when the request may be about adding one (they're long).
+  const addable = scope.kind === 'section' ? [] : addableTypes(config).filter((t) => !owned.includes(t));
+  const withSchemas = ADDING.test(message) || history.some((h) => h.role === 'user' && ADDING.test(h.text)) ? addable : [];
+  const types = [...owned, ...withSchemas];
   const outline = config.pages.map((p) => `- page "${p.id}" (${p.path}, "${p.title}"): ${p.sections.map((s) => `${s.id} [${s.type}/${s.variant}]`).join(', ')}`).join('\n');
 
   return {
@@ -66,7 +89,7 @@ export function chatPrompt(config: SiteConfig, scope: ChatScope, message: string
     prompt: `Business: ${config.meta.businessName} (${businessType || 'local business'}).
 ${history.length ? `Conversation so far:\n${history.slice(-6).map((h) => `${h.role === 'user' ? 'Owner' : 'You'}: ${h.text.slice(0, 400)}`).join('\n')}\n` : ''}Change requested: """${message.slice(0, 1500)}"""
 
-Scope: ${scope.kind === 'site' ? 'the whole site' : scope.kind === 'page' ? `the "${page?.title}" page only` : `only the section "${target?.section.id}"`}. Do not touch anything outside it${scope.kind === 'site' ? '' : ' (theme changes are only allowed with site scope)'}.
+Scope: ${scope.kind === 'site' ? 'the whole site' : scope.kind === 'page' ? `the "${page?.title}" page only` : `only the section "${target?.section.id}"`}. Do not touch sections outside it. Colours, fonts and corners (the theme) are shared by the whole site: change them only when the request is about them.
 
 Site outline:
 ${outline}
@@ -75,11 +98,13 @@ Current content of the sections in scope (JSON):
 ${JSON.stringify(inScope.map((s) => ({ id: s.id, type: s.type, variant: s.variant, content: s.content })))}
 
 Section types and variants you may use:
-${types.map((t) => `- ${t}: layouts ${SECTIONS[t].variants.map((v) => `"${v.id}"${v.note ? ` (${v.note})` : ''}`).join(', ')}. Content schema: ${schemaText(t)}`).join('\n')}
+${types.map((t) => `- ${t}: layouts ${SECTIONS[t].variants.map((v) => `"${v.id}"${v.note ? ` (${v.note})` : ''}`).join(', ')}. Content schema: ${schemaText(t)}`).join('\n')}${
+      addable.length > withSchemas.length ? `\nOther sections that can be added (ask the owner to say "add a … section" to get one): ${addable.filter((t) => !withSchemas.includes(t)).join(', ')}.` : ''
+    }
 
 Operations (use as few as possible):
-- {"op":"update","section":"<id>","content":{<only the fields that change>},"variant":"<optional new variant>"}  Fields you give replace the old ones; arrays are replaced whole.
-- {"op":"add","page":"<page id>","after":"<section id or null for the top>","type":"<type>","variant":"<variant>","content":{<full content>}}
+- {"op":"update","section":"<id>","content":{<only the fields that change>},"variant":"<optional new variant>"}  Fields you give replace the old ones. A list is replaced whole: give every item, changed or not, or the missing ones are deleted.
+- {"op":"add","page":"<page id>","after":"<id of a section on that page, or null for the top>","type":"<type>","variant":"<variant>","content":{<full content>}}
 - {"op":"remove","section":"<id>"}
 - {"op":"move","section":"<id>","after":"<section id or null for the top>"}
 - {"op":"theme","colors":{...},"fonts":{"heading":"...","body":"..."},"radius":{"card":0,"button":0,"input":0}}  Colours are #RRGGBB. Fonts (only these): ${FONTS.join(', ')}.
@@ -114,6 +139,8 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
   const labels = new Set<string>();
 
   for (const op of ops) {
+    const start = out;
+    const marks = { touched: new Set(touched), labels: new Set(labels) };
     try {
       if (op.op === 'update') {
         const at = findSection(out, op.section);
@@ -143,11 +170,7 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         const content = { ...op.content };
         restoreImages(undefined, content);
         const section = sectionSchema.parse({ id: uniqueSectionId(out, `${page.id}-${type}`), type, variant: variants.includes(op.variant ?? '') ? op.variant : variants[0], content });
-        // Keep the navbar first: "the top" means just after it.
-        const afterIdx = op.after ? page.sections.findIndex((s) => s.id === op.after) : page.sections.findIndex((s) => s.type === 'navbar');
-        const footerIdx = page.sections.findIndex((s) => s.type === 'footer');
-        let index = afterIdx + 1;
-        if (footerIdx >= 0 && index > footerIdx) index = footerIdx;
+        const index = placeAt(page.sections, op.after);
         out = insertSection(out, page.id, index, section);
         touched.add(section.id);
         labels.add(`added ${SECTIONS[type].label}`);
@@ -164,15 +187,11 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         if (!at) throw new Error('that section isn’t on the site');
         if (!inScope(out, scope, op.section)) throw new Error(OUTSIDE);
         // Positions are counted with the moved section taken out; never above the navbar or below the footer.
-        const list = at.page.sections.filter((s) => s.id !== op.section);
-        let index = (op.after ? list.findIndex((s) => s.id === op.after) : list.findIndex((s) => s.type === 'navbar')) + 1;
-        const footerIdx = list.findIndex((s) => s.type === 'footer');
-        if (footerIdx >= 0 && index > footerIdx) index = footerIdx;
-        out = moveSection(out, op.section, index);
+        if (op.after && !at.page.sections.some((s) => s.id === op.after)) throw new Error('it was asked to go next to a section that isn’t on that page');
+        out = moveSection(out, op.section, placeAt(at.page.sections.filter((s) => s.id !== op.section), op.after));
         touched.add(op.section);
         labels.add('order');
       } else {
-        if (scope.kind !== 'site') throw new Error('colours and fonts change for the whole site: pick “Whole site” under “Will change”');
         const font = [op.fonts?.heading, op.fonts?.body].find((f) => f && !FONTS.includes(f));
         if (font) throw new Error(`the font “${font}” isn’t available; choose from ${FONTS.join(', ')}`);
         const colors = { ...out.theme.colors, ...op.colors };
@@ -180,23 +199,57 @@ export function applyOps(config: SiteConfig, ops: ChatOp[], scope: ChatScope): A
         out = { ...out, theme: themeSchema.parse({ ...out.theme, colors, fonts: { ...out.theme.fonts, ...op.fonts }, radius: { ...out.theme.radius, ...op.radius } }) };
         labels.add('Theme');
       }
+      // Each change has to leave a valid site, or it's taken back on its own.
+      out = siteConfigSchema.parse(out);
     } catch (err) {
+      out = start;
+      touched.clear();
+      marks.touched.forEach((t) => touched.add(t));
+      labels.clear();
+      marks.labels.forEach((l) => labels.add(l));
       // Content that fails its checks: say which part, in words (the model wrote something too long or the wrong kind).
       skipped.push(`${op.op}: ${err instanceof z.ZodError ? zodWhy(err) : (err as Error).message}`);
     }
   }
-  const final = siteConfigSchema.parse(out);
-  return { config: final, touched: [...touched], summary: [...labels].slice(0, 4).join(', ') || 'No change', skipped };
+  return { config: labels.size ? out : config, touched: [...touched], summary: [...labels].slice(0, 4).join(', ') || 'No change', skipped };
 }
 
-/** Keeps existing photos when the model rewrites a field, and blanks any URL it made up. */
+/**
+ * Where a new or moved section goes: after the one named, or at the top
+ * (just below the navbar), and never below the footer. An "after" that isn't
+ * on the page puts it at the end, above the footer.
+ */
+function placeAt(sections: Section[], after: string | null | undefined): number {
+  const navbar = sections.findIndex((s) => s.type === 'navbar');
+  const footer = sections.findIndex((s) => s.type === 'footer');
+  const end = footer >= 0 ? footer : sections.length;
+  const named = after ? sections.findIndex((s) => s.id === after) : -1;
+  const index = after ? (named >= 0 ? named + 1 : end) : navbar + 1;
+  return Math.min(Math.max(index, navbar + 1), end);
+}
+
+/**
+ * Keeps existing photos when the model rewrites a field, and blanks any URL it
+ * made up. A photo the section already has stays with the item the model put
+ * it on (items can be reordered); a new item takes the photo that was in its place.
+ */
 function restoreImages(prev: unknown, next: Record<string, unknown>): void {
+  const known = new Map<string, { src: string; credit?: string }>();
+  const collect = (a: unknown): void => {
+    if (Array.isArray(a)) a.forEach(collect);
+    else if (a && typeof a === 'object') {
+      const o = a as Record<string, unknown>;
+      if (typeof o.src === 'string' && o.src) known.set(o.src, { src: o.src, credit: typeof o.credit === 'string' ? o.credit : undefined });
+      Object.values(o).forEach(collect);
+    }
+  };
+  collect(prev);
   const walk = (a: unknown, b: unknown): void => {
     if (Array.isArray(b)) b.forEach((x, i) => walk(Array.isArray(a) ? a[i] : undefined, x));
     else if (b && typeof b === 'object') {
       const o = b as Record<string, unknown>;
       if (typeof o.src === 'string' && typeof o.alt === 'string') {
-        const old = a as { src?: string; credit?: string } | undefined;
+        const old = known.get(o.src) ?? (a as { src?: string; credit?: string } | undefined);
         o.src = old?.src ?? '';
         if (old?.credit) o.credit = old.credit;
         return;
@@ -213,7 +266,7 @@ function restoreImages(prev: unknown, next: Record<string, unknown>): void {
  */
 export function chatReplyText(reply: string, opCount: number, changed: boolean, skipped: string[]): string {
   const why = skipped.length ? ` ${skipped.slice(0, 2).map((s) => s.replace(/^\w+: /, '')).join('; ')}.` : '';
-  if (!changed && opCount > 0) return `Nothing changed: that isn’t something the site can do yet.${why}`;
+  if (!changed && opCount > 0) return skipped.length ? `Nothing changed:${why}` : 'Nothing changed: that isn’t something the site can do yet.';
   if (!changed) return reply || 'Nothing changed.';
   const note = skipped.length ? ` Part of it couldn’t be applied:${why}` : '';
   return (reply || 'Done.') + note;

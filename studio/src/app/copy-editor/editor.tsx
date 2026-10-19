@@ -177,13 +177,13 @@ export function CopyEditor({ projectId, name, pages, initialEdits, stale, startP
       const node = directTexts(el)[indicesOf(el).indexOf(field.index)];
       if (node) {
         const v = node.nodeValue ?? '';
-        node.nodeValue = `${/^\s*/.exec(v)![0]}${to.trim() || ' '}${/\s*$/.exec(v)![0]}`;
+        node.nodeValue = `${/^\s*/.exec(v)![0]}${to.trim() || '\u200b'}${/\s*$/.exec(v)![0]}`;
       }
     }
     setSel((s) => s && { ...s, texts: s.texts.map((t) => (t.index === field.index ? { ...t, value: to, everywhere } : t)) });
     let next = editsRef.current.filter((e) => !(e.kind === 'text' && e.page === page && e.index === field.index));
     // An "every page" change is kept per original text: replace the one for this text, if any.
-    next = next.filter((e) => !(e.kind === 'text' && e.page === '*' && tidy(e.from) === tidy(field.from)));
+    if (everywhere || field.everywhere) next = next.filter((e) => !(e.kind === 'text' && e.page === '*' && tidy(e.from) === tidy(field.from)));
     if (tidy(to) !== tidy(field.from)) next.push({ kind: 'text', page: everywhere ? '*' : page, index: field.index, from: field.from, to });
     change(next);
   };
@@ -233,11 +233,11 @@ export function CopyEditor({ projectId, name, pages, initialEdits, stale, startP
 
   /** Undoing a change: saved straight away, then the page is reloaded with the changes that are left. */
   const revert = async (gone: CopyEdit[]) => {
-    const drop = new Set(gone);
-    const next = editsRef.current.filter((e) => !drop.has(e));
+    const drop = new Set(gone.map((e) => JSON.stringify(e)));
+    const next = editsRef.current.filter((e) => !drop.has(JSON.stringify(e)));
     setEdits(next);
     editsRef.current = next;
-    setStaleEdits((s) => s.filter((e) => !drop.has(e)));
+    setStaleEdits((s) => s.filter((e) => !drop.has(JSON.stringify(e))));
     await save();
     setSel(null);
     setFrameKey((k) => k + 1);
@@ -249,7 +249,7 @@ export function CopyEditor({ projectId, name, pages, initialEdits, stale, startP
     while (inFlight.current) await inFlight.current;
   };
 
-  /** Changes from the AI (already saved), or its changes undone (saved here); the page reloads to show them. */
+  /** Changes from the AI, or its changes undone; the page reloads to show them. */
   const fromAi = async (next: CopyEdit[], persist: boolean) => {
     setEdits(next);
     editsRef.current = next;

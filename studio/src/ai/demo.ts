@@ -125,6 +125,8 @@ function demoParse(brief: Brief): Extracted {
   const hour = /\b(mon|tue|wed|thu|fri|sat|sun)\w*\b.*\d/i;
   const out: Extracted = { tagline: '', hours: [], items: [], facts: [] };
   for (const l of lines) {
+    const email = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i.exec(l)?.[0];
+    if (email && !out.email) out.email = email;
     const p = price.exec(l);
     if (p) {
       const rest = l.replace(p[0], ' ');

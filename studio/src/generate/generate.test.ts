@@ -7,11 +7,13 @@ import { siteConfigSchema } from '@/site/schema';
 import { z } from 'zod';
 import { brandOverrides, presetLabel, siteTheme } from './assemble';
 import { themeFromPreset } from '@/site/theme';
-import { EMPTY_EXTRACTED, type Brief, type GenerationJob } from './brief';
-import { applyKnownFacts } from './fill';
+import { EMPTY_EXTRACTED, extractedSchema, type Brief, type GenerationJob } from './brief';
+import { applyKnownFacts, contentSchemaFor, fitContent } from './fill';
 import { placeImages } from './images';
 import { advance, nextUnit, stepsFor } from './pipeline';
 import { normalisePlan } from './plan';
+
+const featuresContentCheck = contentSchemaFor('features') as z.ZodType<{ items: { text: string }[] }>;
 
 const brief: Brief = {
   businessName: 'Kora Kitchen',
@@ -96,6 +98,33 @@ describe('router', () => {
     expect(b.calls).toBe(1);
     await expect(runJson([], req, schema)).rejects.toThrow(/No AI provider is set up/);
   });
+
+  it('tries the provider’s other model when one is missing or the request is too big for it', async () => {
+    const a = fake('groq', [new ProviderError('Groq: model not found', 'model'), '{"ok":true}']);
+    const r = await runJson([a], req, schema);
+    expect(r.data).toEqual({ ok: true });
+    expect(r.attempts.map((x) => x.outcome)).toEqual(['model', 'ok']);
+  });
+
+  it('stays inside the time budget and gives each call only the time left', async () => {
+    let t = 0;
+    const timeouts: (number | undefined)[] = [];
+    const slow: ProviderClient = {
+      id: 'gemini',
+      models: { strong: 'g-big', light: 'g-small' },
+      async chat(r) {
+        timeouts.push(r.timeoutMs);
+        t += 30_000;
+        throw new ProviderError('Gemini: timed out', 'network');
+      },
+    };
+    const b = fake('groq', ['{"ok":true}']);
+    const err = await runJson([slow, b], { ...req, budgetMs: 50_000 }, schema, { now: () => t, sleep: async () => {} }).catch((e) => e);
+    expect(err).toBeInstanceOf(AllProvidersFailed);
+    expect(timeouts).toEqual([50_000, 20_000]);
+    expect(b.calls).toBe(0);
+    expect(String(err.message)).toMatch(/time ran out/);
+  });
 });
 
 describe('provider adapters', () => {
@@ -168,6 +197,28 @@ describe('guard rails', () => {
       null,
     );
     expect(h.type === 'hero' && h.content.image.src).toBe('');
+  });
+
+  it('keeps real reviews and the email from the owner’s notes', () => {
+    const extracted = { ...EMPTY_EXTRACTED, reviews: [{ quote: 'Best jollof in town', name: 'Femi O.' }], email: 'hello@kora.ng' };
+    const t = applyKnownFacts({ id: 't', type: 'testimonials', variant: 'quotes', content: { heading: 'h', items: [{ quote: 'made up', name: 'X', detail: '' }] } }, brief, extracted);
+    expect(t.type === 'testimonials' && t.content.items).toEqual([{ quote: 'Best jollof in town', name: 'Femi O.', detail: '' }]);
+    const c = applyKnownFacts({ id: 'c', type: 'contact', variant: 'split', content: { heading: 'h', intro: '', address: '', phone: '', whatsapp: '', email: 'made@up.com', hours: [], mapQuery: '' } } as never, brief, extracted);
+    expect(c.type === 'contact' && c.content.email).toBe('hello@kora.ng');
+  });
+
+  it('reads notes leniently and fits a long menu into its section', () => {
+    const parsed = extractedSchema.parse({ tagline: 'x'.repeat(300), items: [...Array(70)].map((_, i) => ({ name: `Dish ${i}`, price: '$5' })).concat([{ name: '', price: '' }]), facts: 'not a list', email: 'nope' });
+    expect(parsed.tagline).toHaveLength(160);
+    expect(parsed.items).toHaveLength(60);
+    expect(parsed.items[0]).toEqual({ name: 'Dish 0', description: '', price: '$5', category: '' });
+    expect(parsed.facts).toEqual([]);
+    expect(parsed.email).toBe('');
+    const menu = { eyebrow: '', heading: 'Menu', intro: '', items: [...Array(25)].map((_, i) => ({ title: `Dish ${i}`, text: 'Lovely '.repeat(80) })) };
+    const fitted = featuresContentCheck.parse(fitContent('features', menu));
+    expect(fitted.items).toHaveLength(9);
+    expect(fitted.items[0].text.length).toBeLessThanOrEqual(300);
+    expect(fitted.items[0].text.endsWith(' ')).toBe(false);
   });
 
   it('only uses logo colours that stay readable as the primary', () => {

@@ -7,7 +7,7 @@ import { siteConfigSchema } from '@/site/schema';
 import { defer, sonoAiEnabled } from '@/sono-ai';
 import { approveHref, checklistDraft, followUpDrafts, quoteDraft, type DraftDeps } from '@/sono-ai/assist/drafts';
 import { BRIEF_INTRO, briefSummary, existingProject, extractBuild } from '@/sono-ai/assist/build';
-import { answer, type AnswerOptions } from '@/sono-ai/assist/engine';
+import { answer, priorHistory, type AnswerOptions } from '@/sono-ai/assist/engine';
 import { QUOTA_NOTE } from '@/sono-ai/assist/reserve';
 import { recalcScorecards, sessionAssist } from '@/sono-ai/assist/session';
 import { assistStore, threadTitle, type AssistStore } from '@/sono-ai/assist/store';
@@ -93,16 +93,19 @@ export async function askAction(text: string, opts: { mode?: Mode | 'auto'; proj
     }
     if (a.kind === 'draft') {
       const snap = await snapshot();
-      const named = snap.projects.find((p) => message.toLowerCase().includes(p.name.toLowerCase())) ?? snap.projects.find((p) => p.id === projectId);
-      const drafts = await makeDrafts(a.ask.kind, named?.id ?? null, draftDeps, assist);
+      const inMessage = snap.projects.find((p) => message.toLowerCase().includes(p.name.toLowerCase()));
+      const named = inMessage ?? snap.projects.find((p) => p.id === projectId);
+      const drafts = await makeDrafts(a.ask.kind, named?.id ?? null, draftDeps, assist, inMessage?.id ?? null);
       if ('error' in drafts) return withThread({ messages: [asked, await reply(drafts.error, 'draft')] });
       const note = drafts.list.length
         ? `${drafts.list.length === 1 ? `Drafted: “${drafts.list[0].title}”.` : `I drafted ${drafts.list.length} ${a.ask.kind === 'follow_up' ? 'follow-ups' : 'drafts'}.`} Review ${drafts.list.length === 1 ? 'it' : 'them'} and approve, edit or skip.`
-        : 'No pitch needs a follow-up right now, or one is already waiting for you.';
+        : inMessage
+          ? `A follow-up for ${inMessage.name} is already waiting for you in Drafts.`
+          : 'No pitch needs a follow-up right now, or one is already waiting for you.';
       return withThread({ messages: [asked, await reply(note, 'draft', drafts.list.length ? [{ label: 'Drafts', href: '/sono-ai/drafts' }] : [])] });
     }
     if (a.kind === 'build') {
-      const brief = await extractBuild(message, await deps.history(), deps);
+      const brief = await extractBuild(message, priorHistory(await deps.history(), message), deps);
       if ('missing' in brief) return withThread({ messages: [asked, await reply(brief.missing, 'build')] });
       const already = existingProject(brief, (await snapshot()).projects, message);
       if (already)
@@ -115,14 +118,14 @@ export async function askAction(text: string, opts: { mode?: Mode | 'auto'; proj
           ],
         });
       const b = await assist.addBuild({ request: message, channel: 'studio', brief });
-      return {
+      return withThread({
         messages: [
           asked,
           await reply(`${BRIEF_INTRO}\n\n${briefSummary(brief)}\n\nNothing is built yet. Open it to plan the site; you’ll review the plan before anything is built.`, 'build', [
             { label: 'Plan it', href: `/sono-ai/builds/${b.id}` },
           ]),
         ],
-      };
+      });
     }
     return withThread({ messages: [asked, await reply(a.reply, a.mode, a.sources)] });
   } catch (err) {
@@ -135,10 +138,11 @@ async function makeDrafts(
   projectId: string | null,
   draftDeps: () => Promise<DraftDeps>,
   assist: AssistStore,
+  only: string | null = null,
 ): Promise<{ list: Draft[] } | { error: string }> {
   const d = await draftDeps();
   if (kind === 'follow_up') {
-    const rows = await followUpDrafts(d, await assist.drafts('pending'));
+    const rows = await followUpDrafts(d, await assist.drafts('pending'), only);
     const list = await assist.addDrafts(rows);
     defer(() => pushDrafts(list));
     return { list };

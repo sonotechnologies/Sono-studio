@@ -29,6 +29,23 @@ export interface Recorder {
 
 const clip = (s: string) => (s.length > MAX_TEXT ? `${s.slice(0, MAX_TEXT)}\n…[cut at ${MAX_TEXT} characters]` : s);
 
+/**
+ * A brief read from a build request names a business that isn't a project
+ * yet: its details, from the answer, are hidden in the record as well.
+ */
+function briefDetails(answer: string | null): ClientDetails | null {
+  if (!answer) return null;
+  try {
+    const d = JSON.parse(answer.slice(answer.indexOf('{'), answer.lastIndexOf('}') + 1)) as { businessName?: unknown; client?: Record<string, unknown> };
+    const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v : undefined);
+    const c = d.client ?? {};
+    const out: ClientDetails = { businessName: str(d.businessName), ownerName: str(c.ownerName), whatsapp: str(c.whatsapp), instagram: str(c.instagram), address: str(c.address) };
+    return Object.values(out).some(Boolean) ? out : null;
+  } catch {
+    return null;
+  }
+}
+
 export function recorded(providers: ProviderClient[], rec: Recorder): ProviderClient[] {
   const now = rec.now ?? Date.now;
   let ready: Promise<{ ctx: RecordContext; redactor: Redactor }> | null = null;
@@ -39,12 +56,15 @@ export function recorded(providers: ProviderClient[], rec: Recorder): ProviderCl
       return { ctx, redactor: new Redactor(existing, ctx.client) };
     })());
 
-  const write = (row: Omit<NewInteraction, 'projectId' | 'siteType' | 'source' | 'sourceRef' | 'system' | 'request' | 'answer'>, text: { system: string; request: string; answer: string | null }) =>
+  const write = (row: Omit<NewInteraction, 'projectId' | 'siteType' | 'source' | 'sourceRef' | 'system' | 'request' | 'answer'>, text: { system: string; request: string; answer: string | null }, build = false) =>
     rec.defer(async () => {
       try {
         const { ctx, redactor } = await prepare();
-        const redacted = { system: clip(redactor.redact(text.system)), request: clip(redactor.redact(text.request)), answer: text.answer === null ? null : clip(redactor.redact(text.answer)) };
-        const error = row.error ? redactor.redact(row.error).slice(0, 1000) : null;
+        const brief = build ? briefDetails(text.answer) : null;
+        if (brief) redactor.add(brief);
+        const hide = (s: string) => redactor.redact(s);
+        const redacted = { system: clip(hide(text.system)), request: clip(hide(text.request)), answer: text.answer === null ? null : clip(hide(text.answer)) };
+        const error = row.error ? hide(row.error).slice(0, 1000) : null;
         if (ctx.projectId && redactor.added.length) await rec.store.addRedactions(ctx.projectId, redactor.added.splice(0));
         await rec.store.addInteractions([{ ...row, ...redacted, error, projectId: ctx.projectId, siteType: ctx.siteType, source: 'live', sourceRef: null }]);
       } catch (err) {
@@ -70,6 +90,7 @@ export function recorded(providers: ProviderClient[], rec: Recorder): ProviderCl
       write(
         { task: req.task, provider: client.id, model: reply.model, ms: now() - started, inputTokens: reply.usage?.input ?? null, outputTokens: reply.usage?.output ?? null, status: 'ok', error: null },
         { system: req.system, request: req.prompt, answer: reply.text },
+        (req.demo as { task?: string } | undefined)?.task === 'build',
       );
       return reply;
     },

@@ -32,8 +32,22 @@ const LABEL: Record<RedactionKind, string> = {
   address: 'Address',
 };
 
-/** Words too common to redact on their own when they are part of a name. */
-const COMMON = new Set(['the', 'and', 'for', 'with', 'from', 'studio', 'kitchen', 'shop', 'store', 'salon', 'cafe', 'café', 'restaurant', 'house', 'lab', 'co', 'ltd', 'inc', 'mrs', 'mr', 'miss', 'dr']);
+/**
+ * Words too common to redact on their own when they are part of a name:
+ * everyday words and places ("Lagos" in "Lagos Bakes" stays, so "the best
+ * bakery in Lagos" still reads right).
+ */
+const COMMON = new Set(
+  (
+    'the and for with from our your its by of at in on to a an & ' +
+    'studio studios kitchen kitchens shop shops store stores salon salons cafe café restaurant restaurants house lab co ltd limited inc plc enterprise enterprises ventures global international services service ' +
+    'mrs mr miss ms dr chef mama papa aunty auntie uncle ' +
+    'bakes bakery bakeries foods food eats grill grills bar lounge suites suite hotel hotels lodge spa beauty glow hair nails skin barbers barber fashion fashions boutique wears clothing fabrics tailor ' +
+    'gold golden royal glory divine grace best new top prime city star stars blessed favour favor joy love sweet sweets fresh green clean hub place world express concept concepts gallery palace home homes events catering cakes treats ' +
+    'lagos abuja lekki ikeja yaba ikoyi ajah surulere victoria island mainland ibadan kano enugu port harcourt benin abeokuta jos kaduna owerri calabar uyo ' +
+    'accra kumasi nairobi london manchester toronto houston nigeria ghana kenya africa'
+  ).split(' '),
+);
 
 const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // "+234 803 000 0000", "(0803) 000-0000": at least 9 digits, so prices and years are left alone.
@@ -95,9 +109,9 @@ export class Redactor {
     for (const e of known) {
       const edge = /^\w/.test(e.value) ? '(?<![\\w])' : '';
       const end = /\w$/.test(e.value) ? '(?![\\w])' : '';
-      // A single word of a name only counts capitalised as written ("Kora", not "kora"), so everyday words survive.
-      const part = this.entries.some((x) => x !== e && x.kind === e.kind && isPartOf(e.value, x.value));
-      out = out.replace(new RegExp(`${edge}${escape(e.value)}${end}`, part ? 'g' : 'gi'), e.placeholder);
+      // A single word (a word of a name, or a one-word name like "Glow") only counts capitalised as written, so everyday words survive.
+      const oneWord = !/\s/.test(e.value.trim());
+      out = out.replace(new RegExp(`${edge}${escape(e.value)}${end}`, oneWord ? 'g' : 'gi'), e.placeholder);
     }
     return out;
   }

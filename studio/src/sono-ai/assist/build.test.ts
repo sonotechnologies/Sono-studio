@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ChatRequest, ProviderClient } from '@/ai/types';
 import { briefSchema } from '@/generate/brief';
 import type { Telegram } from '../telegram';
-import { BRIEF_INTRO, briefAgain, briefSummary, buildAsk, buildFollowUp, existingProject, extractBuild, MISSING_NAME, PLACEHOLDER_NAME, presetFor, toBrief } from './build';
+import { BRIEF_INTRO, briefAgain, briefSummary, buildAsk, buildFollowUp, existingProject, extractBuild, MISSING_NAME, MISSING_NAME_AGAIN, PLACEHOLDER_NAME, presetFor, toBrief } from './build';
 import { draftAsk, ruleIn } from './modes';
 import { answer } from './engine';
 import type { TgBackend, TgOp } from './telegram-assist';
@@ -101,6 +101,35 @@ describe('build requests', () => {
     expect(draftAsk('write a quote for Crumbs')).toEqual({ kind: 'quote' });
   });
 
+  it('keeps everyday sentences out of rules, drafts and builds', () => {
+    // Not rules: past events and remarks.
+    expect(ruleIn('Never got a reply from Crumbs. Draft a follow-up for them')).toBeNull();
+    expect(ruleIn('Never received the payment from Kora, what do I do')).toBeNull();
+    expect(ruleIn('Remember that site I built for Kora last week')).toBeNull();
+    expect(ruleIn('Always the same wahala with this client')).toBeNull();
+    // Not drafts: questions about drafting and other uses of the words.
+    expect(draftAsk('How do I write a good follow-up?')).toBeNull();
+    expect(draftAsk('The client said my quote was too high, what do I make of that')).toBeNull();
+    expect(draftAsk('Never got a reply from Crumbs. Draft a follow-up for them')).toEqual({ kind: 'follow_up' });
+    // Not builds: things made for a site, and work on a pitch.
+    for (const m of ['Do a summary of my pitches this month', 'Make my pitch to Kora shorter', 'Design tips for a bakery website', 'Create an Instagram caption for my new website', 'Make a logo for my website'])
+      expect(buildAsk(m), m).toBe(false);
+    expect(buildAsk('Build me a website for Crumbs, a bakery in Yaba')).toBe(true);
+    expect(buildAsk('can you start a site for Mama Put')).toBe(true);
+  });
+
+  it('lets you drop a build when asked for the name, and offers placeholders the second time', async () => {
+    const history = [
+      { role: 'user' as const, text: 'build a site' },
+      { role: 'assistant' as const, text: MISSING_NAME },
+    ];
+    for (const m of ['never mind', 'forget it, show me my pitches', 'No', 'show me my drafts', 'Tell me about the weather']) expect(buildFollowUp(m, history), m).toBe(false);
+    expect(buildFollowUp('Crumbs, a bakery in Yaba', history)).toBe(true);
+    const again = await extractBuild('the one in Yaba', history, { providers: [provider({ businessName: '', businessType: 'Bakery', pages: [], facts: '', client: {} }).client], hooks: {} });
+    expect(again).toEqual({ missing: MISSING_NAME_AGAIN });
+    expect(buildFollowUp('Crumbs', [...history, { role: 'user', text: 'the one in Yaba' }, { role: 'assistant', text: MISSING_NAME_AGAIN }])).toBe(true);
+  });
+
   it('points to Plan it instead of filing the same build twice', () => {
     const history = [
       { role: 'user' as const, text: 'Build a site for Crumbs, a bakery' },
@@ -110,6 +139,8 @@ describe('build requests', () => {
     expect(briefAgain('looks good, plan it', history)).toBe(true);
     expect(buildFollowUp('yes, build it', history)).toBe(false);
     expect(briefAgain('what pages will it have?', history)).toBe(false);
+    expect(briefAgain('Yes but change the name to Crumbs & Co', history)).toBe(false);
+    expect(briefAgain('ok now do one for Mama Put, a restaurant in Lekki', history)).toBe(false);
     expect(briefAgain('yes', [{ role: 'assistant', text: 'Anything else?' }])).toBe(false);
   });
 

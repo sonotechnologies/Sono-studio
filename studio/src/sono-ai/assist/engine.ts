@@ -78,14 +78,22 @@ What you can and can't do (be exact about this; never claim more or less):
 - You CAN'T change an existing site (that's done in its workspace, or for a copied site in "Edit the copy", where there is an Ask AI tab), deploy sites, or message clients.
 - Never say you're doing something, have done it, or will do it later ("I'll get it up right now"): you can only reply. If the owner seems to want a new site and hasn't given the business's name and kind, ask for them, and tell them they can say "Build a site for <name>, a <kind of business> in <area>".`;
 
+/** The conversation before this message: a chat saved before it's answered has the message as its last entry. */
+export function priorHistory<H extends { role: 'user' | 'assistant'; text: string }>(history: H[], message: string): H[] {
+  const last = history.at(-1);
+  return last?.role === 'user' && last.text.trim() === message.trim() ? history.slice(0, -1) : history;
+}
+
 export async function answer(message: string, deps: AssistDeps, opts: AnswerOptions = {}): Promise<Answer> {
-  const rule = ruleIn(message);
-  if (rule) return { kind: 'rule', rule, reply: `I’ll remember this: “${rule}”. Save it to your rulebook?` };
+  // Drafts and builds first: "Never got a reply from Crumbs, draft a follow-up" is a draft, not a rule.
   const ask = draftAsk(message);
   if (ask) return { kind: 'draft', ask };
   if (buildAsk(message)) return { kind: 'build' };
+  const rule = ruleIn(message);
+  if (rule) return { kind: 'rule', rule, reply: `I’ll remember this: “${rule}”. Save it to your rulebook?` };
 
-  const [snapshot, rules, history] = await Promise.all([deps.snapshot(), deps.rules(), deps.history()]);
+  const [snapshot, rules, all] = await Promise.all([deps.snapshot(), deps.rules(), deps.history()]);
+  const history = priorHistory(all, message);
   // "Yes, go ahead" after a brief: it's filed already and waits for Plan it.
   if (briefAgain(message, history))
     return {
@@ -97,7 +105,9 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
   // "I meant the website", "yes, build it": the request was made earlier in other words.
   if (buildFollowUp(message, history)) return { kind: 'build' };
   const redactor = redactorFor(snapshot);
-  const mode = opts.mode && opts.mode !== 'auto' ? opts.mode : pickMode(message, snapshot.projects.map((p) => p.name));
+  const picked = opts.mode && opts.mode !== 'auto' ? opts.mode : pickMode(message, snapshot.projects.map((p) => p.name));
+  // Without web search (it needs a Gemini key), current questions get the model's own answer, said to be possibly out of date.
+  const mode = picked === 'search' && !deps.web ? 'casual' : picked;
   const past = history
     .slice(-HISTORY)
     .map((h) => `${h.role === 'user' ? 'Owner' : 'Sono AI'}: ${redactor.redact(h.text).slice(0, 1200)}`)
@@ -109,15 +119,18 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
     if (!deps.web) return { kind: 'reply', mode, reply: 'Web search needs a Gemini key. Add one in Settings → AI providers and ask again.', sources: [] };
     const started = Date.now();
     try {
+      // Web search uses Gemini's quota like any request, so it counts towards the share kept for builds.
+      await deps.hooks.onRequest?.('gemini');
       const r = await deps.web(
         `${past ? `Conversation so far:\n${past}\n\n` : ''}Question: ${question}`,
-        `You answer the owner of a small web studio with current information from the web. Short follow-ups ("check", "it does", "what about season 2?") refer to the conversation so far: work out the actual question from it, search for that, and correct any earlier wrong answer plainly. Be brief and concrete; give numbers and dates where they matter. Client names appear as placeholders: keep them as written.${voiceRules(rules.map((x) => redactor.redact(x)))}`,
+        `You answer the owner of a small web studio with current information from the web. Write plain text: no markdown, asterisks or headings. Short follow-ups ("check", "it does", "what about season 2?") refer to the conversation so far: work out the actual question from it, search for that, and correct any earlier wrong answer plainly. Be brief and concrete; give numbers and dates where they matter. Client names appear as placeholders: keep them as written.${voiceRules(rules.map((x) => redactor.redact(x)))}`,
       );
       deps.logWeb?.({ request: question, answer: r.text, model: r.model, ms: Date.now() - started, status: 'ok', error: null, inputTokens: r.inputTokens, outputTokens: r.outputTokens });
       return { kind: 'reply', mode, reply: redactor.restore(r.text), sources: r.sources };
     } catch (err) {
       const limit = err instanceof WebSearchError && err.limit;
-      deps.logWeb?.({ request: question, answer: null, model: '', ms: Date.now() - started, status: limit ? 'limit' : 'error', error: (err as Error).message, inputTokens: null, outputTokens: null });
+      if (limit) await deps.hooks.onCooldown?.('gemini', new Date(Date.now() + 60_000));
+      deps.logWeb?.({ request: question, answer: null, model: '', ms: Date.now() - started, status: limit ? 'limit' : 'error', error: err instanceof WebSearchError ? err.detail : (err as Error).message, inputTokens: null, outputTokens: null });
       return { kind: 'reply', mode, reply: (err as Error).message, sources: [] };
     }
   };
@@ -129,10 +142,15 @@ export async function answer(message: string, deps: AssistDeps, opts: AnswerOpti
       deps.providers,
       {
         task: 'assistant',
+        budgetMs: 45_000,
         system: `${BASE} This is everyday conversation: answer like a helpful friend. Don't bring up the studio unless asked.
-If an honest answer depends on current or recent facts you may not know (releases, episodes and seasons, news, prices, schedules, results, anything that changes), or the owner asks you to check or look something up, don't guess: reply {"search": true} and the question goes to a live web search instead. Never say you'll look something up or do something later; you can't.${voiceRules(rules.map((x) => redactor.redact(x)))}
+${
+          deps.web
+            ? `If an honest answer depends on current or recent facts you may not know (releases, episodes and seasons, news, prices, schedules, results, anything that changes), or the owner asks you to check or look something up, don't guess: reply {"search": true} and the question goes to a live web search instead.`
+            : `You can't search the web here. If an honest answer depends on current or recent facts, answer from what you know and say plainly that it may be out of date, and that live web answers need a Gemini key in Settings → AI providers.`
+        } Never say you'll look something up or do something later; you can't. Write plain text: no markdown, asterisks or headings.${voiceRules(rules.map((x) => redactor.redact(x)))}
 
-Reply as {"reply": "..."} or {"search": true}.`,
+Reply as ${deps.web ? '{"reply": "..."} or {"search": true}' : '{"reply": "..."}'}.`,
         prompt: `${past ? `${past}\n` : ''}Owner: ${question}`,
         temperature: 0.7,
         maxTokens: 1200,
@@ -141,7 +159,8 @@ Reply as {"reply": "..."} or {"search": true}.`,
       casualSchema,
       deps.hooks,
     );
-    if (r.data.search || !r.data.reply) return webAnswer();
+    if (deps.web && (r.data.search || !r.data.reply)) return webAnswer();
+    if (!r.data.reply) return { kind: 'reply', mode, reply: 'I can’t check that without web search, which needs a Gemini key in Settings → AI providers.', sources: [] };
     return { kind: 'reply', mode, reply: redactor.restore(r.data.reply), sources: [] };
   }
 
@@ -184,6 +203,7 @@ Reply as {"reply": "..."} or {"search": true}.`,
     deps.providers,
     {
       task: 'assistant',
+      budgetMs: 45_000,
       system: `${BASE} Answer questions about the studio's work, and how to use the studio, using only the numbered context below; it comes from the studio's records and its guide. Do the arithmetic carefully. If the context doesn't hold the answer, say plainly that the knowledge bank has nothing on that yet, instead of guessing. Never invent clients, numbers or events.${voiceRules(rules.map((x) => redactor.redact(x)))}
 
 Context:

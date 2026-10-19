@@ -19,6 +19,8 @@ export class WebSearchError extends Error {
   constructor(
     message: string,
     readonly limit = false,
+    /** What the service said, for the request log; the message is the plain version for the owner. */
+    readonly detail = message,
   ) {
     super(message);
   }
@@ -40,11 +42,17 @@ export function geminiWebSearch(apiKey: string, model: string, f: typeof fetch =
         signal: AbortSignal.timeout(40_000),
       });
     } catch (err) {
-      throw new WebSearchError(`Web search could not be reached: ${(err as Error).message}`);
+      throw new WebSearchError('Web search couldn’t be reached just now. Try again in a minute.', false, (err as Error).message);
     }
     if (!res.ok) {
       const detail = (await res.text().catch(() => '')).slice(0, 200);
-      throw new WebSearchError(res.status === 429 ? 'Web search hit Gemini’s free limit for now. Try again later.' : `Web search failed (${res.status}): ${detail}`, res.status === 429);
+      const plain =
+        res.status === 429
+          ? 'Web search hit Gemini’s free limit for now. Try again later.'
+          : res.status === 400 || res.status === 401 || res.status === 403
+            ? 'Gemini turned the web search down. Check the Gemini key in Settings → AI providers.'
+            : 'Web search isn’t working just now. Try again in a minute.';
+      throw new WebSearchError(plain, res.status === 429, `Web search failed (${res.status}): ${detail}`);
     }
     const data = (await res.json()) as {
       candidates?: { content?: { parts?: { text?: string }[] }; groundingMetadata?: { groundingChunks?: { web?: { uri?: string; title?: string } }[] } }[];

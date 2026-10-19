@@ -35,8 +35,10 @@ export interface BuildRequest {
   startedAt: string | null;
 }
 
-const VERB = String.raw`(?:build|make|create|generate|set\s*up|start|design|do|put together|whip up|code|develop)`;
-const THING = String.raw`(?:site|website|web\s*site|web\s*page|pitch|landing\s*page|homepage)`;
+const VERB = String.raw`(?:build|make|create|generate|set\s*up|start|design|put together|whip up|code|develop)`;
+const THING = String.raw`(?:site|website|web\s*site|web\s*page|landing\s*page|homepage)`;
+/** Things made for a site, not the site: "make a logo for my website", "create a caption for the new site". */
+const FOR_A_SITE = /\b(?:logo|caption|post|flyer|banner|ad|advert|copy|email|message|video|reel|summary|tips|ideas|card|qr|slogan|name|change|update|edit|fix|shorter|longer|bigger|smaller)\b/i;
 /** Questions about past work ("how many sites did I build?"), not requests. */
 const QUESTION = /^\s*(?:how|which|what|when|where|who|why|did|do (?:i|you|we)|does|should|have i|has|is|are|was|were|show me|list|can i|could i|would it)\b/i;
 /** Verbs that look like building but aren't: "make sure the site…", "do you think the site…" */
@@ -53,7 +55,8 @@ export function buildAsk(message: string): boolean {
   if (QUESTION.test(m) && !/^\s*(?:can|could|would|will)\s+you\b/i.test(m)) return false;
   const lead = String.raw`^\s*(?:(?:please|hey|ok(?:ay)?|so|now|alright|sono(?:\s*ai)?)[,!]?\s+)*`;
   const polite = String.raw`(?:(?:can|could|would|will)\s+you\s+(?:please\s+)?(?:help\s+(?:me\s+)?)?|i\s+(?:want|need|would like|['’]d like|wanna)\s+(?:you\s+)?(?:to\s+)?|help\s+me\s+|let['’]?s\s+|go\s+ahead\s+and\s+|i['’]?m\s+asking\s+you\s+to\s+)?`;
-  if (new RegExp(`${lead}${polite}${VERB}\\b[^?]{0,100}\\b${THING}`, 'i').test(m)) return true;
+  const asked = new RegExp(`${lead}${polite}${VERB}\\b([^?]{0,100}?)\\b${THING}\\b`, 'i').exec(m);
+  if (asked) return !FOR_A_SITE.test(asked[1]);
   // "I need a website for Crumbs…", "new site for Crumbs, a bakery in Yaba"
   return new RegExp(`${lead}(?:i\\s+(?:need|want)\\s+(?:a\\s+)?(?:new\\s+)?|(?:a\\s+)?new\\s+)${THING}\\s+for\\b`, 'i').test(m);
 }
@@ -69,7 +72,7 @@ export function buildFollowUp(message: string, history: { role: 'user' | 'assist
   const lastReply = [...history].reverse().find((h) => h.role === 'assistant');
   // After the brief, "yes, go ahead" means the brief already given, not another request (see briefAgain).
   if (lastReply && isBriefReply(lastReply.text)) return false;
-  if (lastReply?.text.startsWith(MISSING_NAME.slice(0, 30)) && m.length <= 1500 && !/\?\s*$/.test(m)) return true;
+  if (lastReply && isNameQuestion(lastReply.text)) return m.length <= 1500 && !/\?\s*$/.test(m) && !CANCEL.test(m) && !QUESTION.test(m) && !ELSEWHERE.test(m);
   if (m.length > 140 || QUESTION.test(m)) return false;
   const earlier = history
     .filter((h) => h.role === 'user' && h.text.trim() !== m)
@@ -81,8 +84,16 @@ export function buildFollowUp(message: string, history: { role: 'user' | 'assist
   return new RegExp(`\\b${THING}\\b`, 'i').test(m) || /^\s*(?:yes|yeah|yep|ok(?:ay)?|sure|go ahead|do it|build it|make it|please do)\b[\s,.!]*(?:(?:build|make|create|do)\s+it|it|now|please)?[\s,.!]*(?:now|please)?[\s.!]*$/i.test(m);
 }
 
+/** "Never mind", "forget it", "no": dropping a build request when asked for the name. */
+const CANCEL = /^\s*(?:no(?:pe)?|nah|never\s*mind|nevermind|cancel|stop|forget (?:it|that|about it)|leave it|not now|later|skip(?: it)?|don['’]?t bother|drop it)\b/i;
+/** A new subject rather than an answer: "show me my pitches", "tell me about the weather". */
+const ELSEWHERE = /^\s*(?:show|list|tell me|give me|search|look up|google|check|draft|write|remind)\b/i;
+
 /** Asked when a build request has no business name; a reply to it carries on the request. */
 export const MISSING_NAME = 'What’s the business called? Tell me the name (and anything else you know: what they do, where, their WhatsApp or Instagram) and I’ll prepare the brief. Or say “use placeholders” and I’ll start it with a stand-in name you can change later.';
+/** Asked the second time, offering the ways out. */
+export const MISSING_NAME_AGAIN = 'I still need the business’s name to prepare the brief. Tell me the name, say “use placeholders” to start with a stand-in name you can change later, or “never mind” to drop it.';
+const isNameQuestion = (text: string) => text.startsWith(MISSING_NAME.slice(0, 30)) || text.startsWith(MISSING_NAME_AGAIN.slice(0, 30));
 export const PLACEHOLDER_NAME = 'Your Business';
 
 /** "Use placeholders", "make one up", "doesn't matter", "just get it started". */
@@ -103,7 +114,10 @@ const isBriefReply = (text: string) => text.startsWith(BRIEF_INTRO);
 export function briefAgain(message: string, history: { role: 'user' | 'assistant'; text: string }[]): boolean {
   const lastReply = [...history].reverse().find((h) => h.role === 'assistant');
   if (!lastReply || !isBriefReply(lastReply.text)) return false;
-  return /^\s*(?:yes|yeah|yep|ok(?:ay)?|sure|great|perfect|go ahead|do it|build it|make it|start it|plan it|proceed|continue|please do|looks good|sounds good)\b[^?]{0,60}$/i.test(message.trim());
+  const m = message.trim();
+  // "Yes but change the name…", "ok now do one for Mama Put": something new, not just a yes.
+  if (/\b(but|change|instead|another|also|rename|different|except|add|remove|for)\b/i.test(m)) return false;
+  return /^\s*(?:yes|yeah|yep|ok(?:ay)?|sure|great|perfect|go ahead|do it|build it|make it|start it|plan it|proceed|continue|please do|looks good|sounds good)\b[^?]{0,40}$/i.test(m);
 }
 
 /** A project that already has this business's name, so a build request doesn't make a second one. */
@@ -135,6 +149,7 @@ export async function extractBuild(request: string, history: { role: 'user' | 'a
     deps.providers,
     {
       task: 'assistant',
+      budgetMs: 45_000,
       system: `You read a web designer's request to build a pitch website for a small business, and fill in the brief for the studio's site generator. Use only what the request and conversation say; never invent names, numbers, prices or addresses (leave a field empty instead).
 - businessName: the business's name exactly as given, or "" if none was given.
 - businessType: one of ${BUSINESS_KINDS.map((k) => k.name).join(', ')} when it fits, otherwise a short type like "Dental clinic".
@@ -153,7 +168,10 @@ Reply as {"businessName": "", "businessType": "", "pages": [], "facts": "", "cli
   const d = r.data;
   // "Use placeholders", "make one up": start with stand-ins, to be replaced in the workspace.
   const stand = placeholdersOk([request, ...history.filter((h) => h.role === 'user').slice(-3).map((h) => h.text)]);
-  if (!d.businessName.trim() && !stand) return { missing: MISSING_NAME };
+  if (!d.businessName.trim() && !stand) {
+    const lastReply = [...history].reverse().find((h) => h.role === 'assistant');
+    return { missing: lastReply && isNameQuestion(lastReply.text) ? MISSING_NAME_AGAIN : MISSING_NAME };
+  }
   if (!d.businessName.trim()) {
     d.businessName = PLACEHOLDER_NAME;
     d.facts = [d.facts.trim(), 'Placeholder details: the name, contact details and copy are stand-ins, to be replaced later.'].filter(Boolean).join('\n');

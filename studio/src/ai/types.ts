@@ -36,6 +36,10 @@ export interface ChatRequest {
   prompt: string;
   temperature?: number;
   maxTokens?: number;
+  /** How long the whole request may take, with retries and other providers (the page's time limit). */
+  budgetMs?: number;
+  /** Set by the router: how long this one call may take. */
+  timeoutMs?: number;
   /** Structured input the demo provider uses instead of reading the prompt. */
   demo?: unknown;
 }
@@ -47,7 +51,8 @@ export interface ChatResult {
   usage?: { input: number; output: number };
 }
 
-export type ProviderErrorKind = 'rate_limit' | 'auth' | 'bad_request' | 'server' | 'network';
+/** `model`: this model can't take the request (gone, or the request is too big for it), but the provider's other model may. */
+export type ProviderErrorKind = 'rate_limit' | 'auth' | 'bad_request' | 'model' | 'server' | 'network';
 
 export class ProviderError extends Error {
   constructor(

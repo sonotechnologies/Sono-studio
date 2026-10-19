@@ -302,7 +302,7 @@ Notes:
 
 Notes:
 - Supabase needs `supabase/migrations/0014_sono_ai_assist.sql`.
-- Web search and knowledge search need a Gemini key in Settings → AI providers (Gemini's free tier). Without one, studio answers still use studio data and scorecards.
+- Web search and knowledge search need a Gemini key in Settings → AI providers (Gemini's free tier). Without one, studio answers still use studio data and scorecards, and questions about current events get the model's own answer, marked as possibly out of date.
 - Conversations are stored as you wrote them (they're yours, behind your login); what goes to AI providers, and the request log, is redacted.
 
 ### Stage 4, Build

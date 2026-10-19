@@ -3,10 +3,11 @@
 import { ArrowUp, RotateCcw, Sparkles } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Logo } from '@/components/logo';
+import { mergeAi, undoAi } from '@/mirror/ai';
 import type { CopyEdit } from '@/mirror/edit';
 import { copyAiAction } from './actions';
 
-type Message = { id: number; role: 'user' | 'assistant'; text: string; page?: string; before?: CopyEdit[]; changed?: number; undone?: boolean };
+type Message = { id: number; role: 'user' | 'assistant'; text: string; page?: string; put?: CopyEdit[]; removed?: CopyEdit[]; changed?: number; undone?: boolean; failed?: boolean };
 
 const IDEAS = ['Change the phone number to 0809 000 0000 everywhere', 'Make the main heading shorter and punchier', 'Fix any spelling mistakes on this page', 'Point the “Book now” button to WhatsApp: 2348090000000'];
 
@@ -34,7 +35,7 @@ export function CopyAiPanel({
   getEdits: () => CopyEdit[];
   /** Waits for changes being saved, so the AI starts from them. */
   flush: () => Promise<void>;
-  /** The new list of changes (already saved), to show in the page. */
+  /** The new list of changes, to show in the page and save. */
   onEdits: (edits: CopyEdit[], save: boolean) => void | Promise<void>;
 }) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,26 +55,30 @@ export function CopyAiPanel({
     setMessages((m) => [...m, { id, role: 'user', text: t, page }]);
     try {
       await flush();
-      const before = getEdits();
-      const history = messages.map((m) => ({ role: m.role, text: m.text }));
-      const r = await copyAiAction(projectId, { page, message: t, selected, edits: before, history });
-      if (r.error || !r.edits) {
-        setMessages((m) => [...m, { id: id + 1, role: 'assistant', text: r.error ?? 'Something went wrong.' }]);
+      // Errors aren't part of the conversation the AI sees.
+      const history = messages.filter((m) => !m.failed).map((m) => ({ role: m.role, text: m.text }));
+      const r = await copyAiAction(projectId, { page, message: t, selected, history });
+      if (r.error || !r.put || !r.removed) {
+        setDraft((d) => d || t);
+        setMessages((m) => [...m, { id: id + 1, role: 'assistant', text: r.error ?? 'Something went wrong.', failed: true }]);
       } else {
-        if (r.added) await onEdits(r.edits, false);
-        setMessages((m) => [...m, { id: id + 1, role: 'assistant', text: r.reply ?? 'Done.', before: r.added ? before : undefined, changed: r.added }]);
+        const { put, removed } = r;
+        // Put over the editor's own list, which may have changes typed while the AI worked.
+        if (put.length || removed.length) await onEdits(mergeAi(getEdits(), put, removed), true);
+        setMessages((m) => [...m, { id: id + 1, role: 'assistant', text: r.reply ?? 'Done.', ...(r.changed ? { put, removed, changed: r.changed } : {}) }]);
       }
     } catch {
-      setMessages((m) => [...m, { id: id + 1, role: 'assistant', text: 'That didn’t go through. Check your connection and try again.' }]);
+      setDraft((d) => d || t);
+      setMessages((m) => [...m, { id: id + 1, role: 'assistant', text: 'That didn’t go through. Check your connection and try again.', failed: true }]);
     } finally {
       setBusy(false);
     }
   };
 
   const undo = async (m: Message) => {
-    if (!m.before) return;
+    if (!m.put || !m.removed) return;
     await flush();
-    await onEdits(m.before, true);
+    await onEdits(undoAi(getEdits(), m.put, m.removed), true);
     setMessages((list) => list.map((x) => (x.id === m.id ? { ...x, undone: true } : x)));
   };
 
@@ -110,7 +115,7 @@ export function CopyAiPanel({
               <Logo kind="mark" alt="AI" className="mt-[3px] h-3.5 w-auto flex-none" />
               <div className="flex min-w-0 flex-col gap-1.5 text-[14px] leading-snug">
                 <div className="whitespace-pre-wrap">{m.text}</div>
-                {m.before && (
+                {m.put && (
                   <div className="flex items-center gap-2 text-[12px] text-muted">
                     <span>
                       {m.changed} change{m.changed === 1 ? '' : 's'}

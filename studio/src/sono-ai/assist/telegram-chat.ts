@@ -16,7 +16,8 @@ import type { Draft } from './types';
  * Instagram with the message; the bot never contacts a client itself.
  */
 
-const MAX = 3900;
+/** Under Telegram's 4096 characters, leaving room for escaping and the links. */
+const MAX = 3500;
 const clip = (s: string) => (s.length > MAX ? `${s.slice(0, MAX)}…` : s);
 
 /** Where to send an approved draft from, as a Telegram message. */
@@ -41,11 +42,17 @@ export async function ownerMessage(chatId: number, text: string, bot: Telegram, 
 
   // Waiting for your edited text for a draft.
   if (state.editingDraft) {
-    if (/^\/cancel\b/i.test(text.trim())) {
+    // A command ends the edit instead of becoming the message (and /new still starts over).
+    if (/^\//.test(text.trim())) {
       await backend.write({ op: 'draft', args: { id: state.editingDraft, decision: 'cancel_edit' } });
-      await bot.send(chatId, 'Edit cancelled. The draft is still waiting in the studio.');
-      return;
+      if (/^\/cancel\b/i.test(text.trim())) {
+        await bot.send(chatId, 'Edit cancelled. The draft is still waiting in the studio.');
+        return;
+      }
+      state.editingDraft = null;
     }
+  }
+  if (state.editingDraft) {
     const row = await backend.write<Parameters<typeof draftFromRow>[0]>({ op: 'draft', args: { id: state.editingDraft, decision: 'approved', body: text.trim() } });
     await bot.send(chatId, row ? approvedMessage(draftFromRow(row)) : 'That draft was already handled.');
     return;
@@ -62,7 +69,7 @@ export async function ownerMessage(chatId: number, text: string, bot: Telegram, 
   const say = async (reply: string, mode: string | null, buttons: (id: string) => Button[][] = () => [], sources: { label: string; href: string }[] = []) => {
     const saved = await backend.write<{ id: string }>({ op: 'message', args: { role: 'assistant', text: reply, mode, sources } });
     const links = sources.length ? `\n\n${sources.map((s) => `<a href="${s.href}">${escapeHtml(s.label)}</a>`).join(' · ')}` : '';
-    await bot.send(chatId, clip(escapeHtml(reply)) + links, saved ? buttons(saved.id) : []);
+    await bot.send(chatId, escapeHtml(clip(reply)) + links, saved ? buttons(saved.id) : []);
   };
 
   try {
@@ -73,8 +80,9 @@ export async function ownerMessage(chatId: number, text: string, bot: Telegram, 
     }
     if (a.kind === 'draft') {
       if (a.ask.kind !== 'follow_up') return say(`Quotes and handover checklists are made in the studio: ${deps.studioUrl}/sono-ai/drafts`, 'draft');
-      const rows = await followUpDrafts(draftDeps, state.pendingFollowUps.map((projectId) => ({ kind: 'follow_up', status: 'pending', projectId }) as Draft));
-      if (!rows.length) return say('No pitch needs a follow-up right now, or one is already waiting for you.', 'draft');
+      const named = state.projects.find((p) => text.toLowerCase().includes(p.name.toLowerCase()));
+      const rows = await followUpDrafts(draftDeps, state.pendingFollowUps.map((projectId) => ({ kind: 'follow_up', status: 'pending', projectId }) as Draft), named?.id ?? null);
+      if (!rows.length) return say(named ? `A follow-up for ${named.name} is already waiting for you.` : 'No pitch needs a follow-up right now, or one is already waiting for you.', 'draft');
       const saved = (await backend.write<Parameters<typeof draftFromRow>[0][]>({ op: 'add_drafts', args: { rows } })) ?? [];
       await say(`Here ${saved.length === 1 ? 'is a follow-up' : `are ${saved.length} follow-ups`} to approve, edit or skip.`, 'draft');
       for (const d of saved.map(draftFromRow)) await bot.send(chatId, clip(draftMessage(d)), draftButtons(d));

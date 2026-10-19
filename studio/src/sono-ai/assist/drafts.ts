@@ -60,9 +60,10 @@ const kindOf = (type: string) => {
 const rulesText = (rules: string[], redact: (s: string) => string) => (rules.length ? `\nThe owner's rules, which always apply:\n${rules.map((r) => `- ${redact(r)}`).join('\n')}` : '');
 
 /** Follow-up messages for pitches that need one and don't have a draft waiting. */
-export async function followUpDrafts(deps: DraftDeps, existing: Draft[]): Promise<NewDraft[]> {
+export async function followUpDrafts(deps: DraftDeps, existing: Draft[], only: string | null = null): Promise<NewDraft[]> {
   const waiting = new Set(existing.filter((d) => d.kind === 'follow_up' && d.status === 'pending').map((d) => d.projectId));
-  const due = deps.snapshot.projects.filter((p) => needsFollowUp(p, deps.snapshot) && !waiting.has(p.id)).slice(0, MAX_FOLLOW_UPS);
+  // A follow-up asked for by name ("follow up with Kora") is drafted even if it isn't due yet.
+  const due = deps.snapshot.projects.filter((p) => (only ? p.id === only : needsFollowUp(p, deps.snapshot)) && !waiting.has(p.id)).slice(0, MAX_FOLLOW_UPS);
   const redactor = redactorFor(deps.snapshot);
   const r = (s: string) => redactor.redact(s);
   const voice = deps.voice.slice(0, 5).map((v) => r(v));
@@ -76,6 +77,7 @@ export async function followUpDrafts(deps: DraftDeps, existing: Draft[]): Promis
       deps.providers,
       {
         task: 'assistant',
+        budgetMs: 45_000,
         system: `You write short follow-up messages from a web designer to a small-business owner they made a free website for (a "pitch"). Friendly, human and brief: 2 to 4 sentences, under 450 characters. One clear, low-pressure next step. Include the token ${PITCH_LINK} exactly once where the link should go. No invented facts, prices or promises. Write for ${to.channel === 'instagram' ? 'an Instagram DM' : 'WhatsApp'}. Names appear as placeholders: keep them as written.${
           voice.length ? `\n\nWrite the way the designer writes. Their recent messages:\n${voice.map((v) => `---\n${v}`).join('\n')}\n---` : ''
         }${rulesText(deps.rules, r)}\n\nReply as {"message": "..."}.`,
@@ -125,6 +127,7 @@ export async function quoteDraft(deps: DraftDeps, project: SnapshotProject, conf
     deps.providers,
     {
       task: 'assistant',
+      budgetMs: 45_000,
       system: `You draft website quotes for a one-person web studio. Base the price on the site's scope and on the studio's past quotes (stay consistent with them). If there are no past quotes, give a sensible small-business price and keep it modest. Unless a past quote or the owner's rules say otherwise, quote in ${config?.store?.currency || 'NGN'}. List the scope in 3 to 6 short lines. Write a short friendly message (2 to 3 sentences) to the business owner introducing the quote. No invented features. Names appear as placeholders: keep them as written.${
         pastQuotes.length ? `\n\nPast approved quotes:\n${pastQuotes.slice(0, 5).map((q) => `---\n${r(q)}`).join('\n')}\n---` : ''
       }${rulesText(deps.rules, r)}\n\nReply as {"price": number, "currency": "ISO code like NGN or USD", "scope": ["..."], "message": "..."}.`,

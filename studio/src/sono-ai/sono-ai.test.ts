@@ -26,6 +26,13 @@ describe('redaction', () => {
     expect(new Redactor([], { businessName: 'Kick Lab' }).redact('Kick Lab: kick off at the Lab. Kick it.')).toBe('Client A: kick off at the Lab. Client A it.');
   });
 
+  it('leaves places and everyday words in names alone', () => {
+    const r = new Redactor([], { businessName: 'Lagos Bakes', ownerName: 'Grace Okafor' });
+    r.add({ businessName: 'Glow' });
+    expect(r.redact('Lagos Bakes is the best bakery in Lagos. Ask Grace Okafor, or Okafor.')).toBe('Client A is the best bakery in Lagos. Ask Person 1, or Person 1.');
+    expect(r.redact('Glow wants healthy skin glow. Grace Jones tickets')).toBe('Client B wants healthy skin glow. Grace Jones tickets');
+  });
+
   it('keeps placeholders stable across requests from the saved map', () => {
     const first = new Redactor([], client);
     first.redact('write to hello@kora.example');

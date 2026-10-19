@@ -12,6 +12,31 @@ export function contentSchemaFor(type: SectionType): z.ZodType {
   return option.shape.content;
 }
 
+type JsonSchema = { properties?: Record<string, JsonSchema>; items?: JsonSchema; maxItems?: number; maxLength?: number };
+const jsonSchemas = new Map<SectionType, JsonSchema>();
+
+/**
+ * A model's content trimmed to fit its section: text cut at the length limit
+ * and lists at their most items, so a long menu or a wordy line doesn't fail
+ * the whole page. Anything else wrong is still caught by the schema.
+ */
+export function fitContent(type: SectionType, content: unknown): unknown {
+  let schema = jsonSchemas.get(type);
+  if (!schema) jsonSchemas.set(type, (schema = z.toJSONSchema(contentSchemaFor(type), { io: 'input', unrepresentable: 'any' }) as JsonSchema));
+  const fit = (s: JsonSchema | undefined, v: unknown): unknown => {
+    if (!s) return v;
+    if (typeof v === 'string' && s.maxLength !== undefined && v.length > s.maxLength) {
+      const cut = v.slice(0, s.maxLength);
+      const space = cut.lastIndexOf(' ');
+      return (space > s.maxLength * 0.6 ? cut.slice(0, space) : cut).trim();
+    }
+    if (Array.isArray(v) && s.items) return v.slice(0, s.maxItems ?? v.length).map((x) => fit(s.items, x));
+    if (v && typeof v === 'object' && !Array.isArray(v) && s.properties) return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, fit(s.properties![k], x)]));
+    return v;
+  };
+  return fit(schema, content);
+}
+
 function jsonSchemaText(type: SectionType): string {
   const schema = z.toJSONSchema(contentSchemaFor(type), { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>;
   delete schema.$schema;
@@ -67,7 +92,7 @@ export function fillPrompt(brief: Brief, extracted: Extracted | null, fullPage: 
 ${briefSummary(brief, extracted)}
 ${brief.paste.trim() ? `\nWhat the owner sent (use it first):\n"""${pasteFor(brief.paste, page)}"""\n` : ''}${
       items.length
-        ? `\nMenu or price-list items (use these exactly, grouped by category where it helps):\n${items
+        ? `\nMenu or price-list items (use these exactly, grouped by category where it helps; a list holds at most 9 items, so when there are more, spread them over the page's list sections by category and keep the rest for the owner to add):\n${items
             .map((i) => `- ${i.category ? `[${i.category}] ` : ''}${i.name}${i.price ? ` — ${i.price}` : ''}${i.description ? `: ${i.description}` : ''}`)
             .join('\n')}\n`
         : ''
@@ -86,7 +111,11 @@ ${thin(brief, extracted) ? 'Very little is known, so keep the copy general: no s
 Rules for fields:
 - Every image is {"src": "", "alt": "..."}: leave src empty and write alt as a short description of the ideal photo (it is used to find one). ${photoCount ? `The owner supplied ${photoCount} photo(s); they are placed automatically.` : ''}
 - Links: use page paths like "/contact" or "/menu", or "/#section-id" for a section on the home page.
-- Testimonials: no real reviews were supplied, so write two or three short sample quotes, name each "Customer name" and set detail to "Sample review". Leave rating out.
+${
+  extracted?.reviews?.length
+    ? `- Testimonials: use these real reviews word for word, with their names, and set detail to "": ${JSON.stringify(extracted.reviews)}. Leave rating out.`
+    : '- Testimonials: no real reviews were supplied, so write two or three short sample quotes, name each "Customer name" and set detail to "Sample review". Leave rating out.'
+}
 - Stats: only numbers that appear in the facts.
 - FAQ: only questions whose answers are in the facts or the contact details given. If none, ask how to book or get in touch and answer with only the channels given.
 - Contact: leave address, phone, WhatsApp, email and hours empty unless they are given; they are filled in from the owner's details.
@@ -116,7 +145,7 @@ export function fillResponseSchema(fullPage: PlanPage) {
           ctx.addIssue({ code: 'custom', message: `Missing section "${planned.id}"`, path: ['sections'] });
           return;
         }
-        const check = contentSchemaFor(planned.type).safeParse(got.content);
+        const check = contentSchemaFor(planned.type).safeParse(fitContent(planned.type, got.content));
         if (!check.success) {
           for (const issue of check.error.issues.slice(0, 6)) {
             ctx.addIssue({ code: 'custom', message: issue.message, path: ['sections', planned.id, 'content', ...issue.path.map(String)] });
@@ -145,7 +174,7 @@ export function applyKnownFacts(section: Section, brief: Brief, extracted: Extra
     c.address = brief.client.address;
     c.whatsapp = brief.client.whatsapp;
     c.phone = brief.client.whatsapp;
-    c.email = '';
+    c.email = extracted?.email ?? '';
     c.mapQuery = brief.client.address;
     c.hours = extracted?.hours ?? [];
   }
@@ -161,10 +190,13 @@ export function applyKnownFacts(section: Section, brief: Brief, extracted: Extra
     if (s.content.category && !services.some((x) => x.category === s.content.category)) s.content.category = '';
   }
   if (s.type === 'testimonials') {
-    // We never have real reviews at this point, so they must read as samples.
     delete s.content.rating;
     delete s.content.ratingCount;
-    s.content.items = s.content.items.map((t) => ({ ...t, name: 'Customer name', detail: 'Sample review' }));
+    // Reviews from the owner's notes, exactly as given; otherwise the model's must read as samples.
+    const real = extracted?.reviews ?? [];
+    s.content.items = real.length
+      ? real.map((r) => ({ quote: r.quote, name: r.name || 'A customer', detail: '' }))
+      : s.content.items.map((t) => ({ ...t, name: 'Customer name', detail: 'Sample review' }));
   }
   return s;
 }
@@ -173,7 +205,7 @@ export function toSections(reply: { sections: { id: string; content: unknown }[]
   const page = libraryPage(fullPage);
   return page.sections.map((planned) => {
     const got = reply.sections.find((s) => s.id === planned.id)!;
-    const section = applyKnownFacts(sectionSchema.parse({ id: planned.id, type: planned.type, variant: planned.variant, content: got.content }), brief, extracted);
+    const section = applyKnownFacts(sectionSchema.parse({ id: planned.id, type: planned.type, variant: planned.variant, content: fitContent(planned.type, got.content) }), brief, extracted);
     if (section.type === 'product-grid') {
       // The Shop page shows everything with category buttons; elsewhere a few products are a taste.
       if (page.id === 'shop') {

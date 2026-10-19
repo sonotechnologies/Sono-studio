@@ -441,8 +441,10 @@ export function Workspace({
         }
         flash(r.touched ?? []);
       }
+      if (r.error) setDraft((d) => d || text);
       if (r.error && !r.messages) toast(r.error);
     } catch (err) {
+      setDraft((d) => d || text);
       setMessages((m) => [
         ...m,
         { id: `local-err-${Date.now()}`, role: 'assistant', text: `That didn’t go through: ${(err as Error).message}`, scope: effectiveScope, change: 'No change', version: null, createdAt: new Date().toISOString() },

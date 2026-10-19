@@ -72,6 +72,11 @@ describe('checking AI-written sections', () => {
       templateExpression: wrap('const s = `${window.name}`;'),
       eval: wrap('eval("1");'),
       regex: wrap('const r = /x/.source;'),
+      builtKey: wrap('const k = "constr" + "uctor"; const f = data[k][k];'),
+      stringKey: wrap('const f = data["constructor"];'),
+      loop: wrap('while (true) {}'),
+      forLoop: wrap('for (;;) {}'),
+      variableTag: 'export default function Section({ data }) { const Tag = data.tag; return <Tag>x</Tag>; }',
     };
     for (const [what, code] of Object.entries(refused)) expect(checkCustomCode(code).problems.length, what).toBeGreaterThan(0);
     expect(checkCustomCode('export default function Section({ data }) { return <script>{"alert(1)"}</script>; }').problems[0]).toMatch(/script/);
@@ -79,6 +84,17 @@ describe('checking AI-written sections', () => {
     expect(checkCustomCode('export default function Section({ data }) { return <button onClick={() => 1}>x</button>; }').problems[0]).toMatch(/event handlers/);
     expect(checkCustomCode('function Section() { return <div /> }').problems[0]).toMatch(/export default function/);
     expect(checkCustomCode('export default function Section({ data }) { return <div>; }').problems[0]).toMatch(/compile/);
+  });
+
+  it('still allows indexes, array literals, destructuring and small components', () => {
+    const code = `const Card = ({ item }) => <li>{item.title}</li>;
+function Badge({ text }) { return <b>{text}</b>; }
+export default function Section({ data }) {
+  const [first] = data.moments;
+  const pair = [data.heading, first?.title];
+  return <ul>{data.moments.map((m) => <Card item={m} />)}<Badge text={pair[0]} />{data.moments[0]?.year}</ul>;
+}`;
+    expect(checkCustomCode(code).problems).toEqual([]);
   });
 
   it('leaves strings and comments out of the scan', () => {

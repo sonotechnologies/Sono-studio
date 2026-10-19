@@ -29,7 +29,7 @@ function describeIssues(err: z.ZodError): string {
 export interface Attempt {
   provider: ProviderId;
   model: string;
-  outcome: 'ok' | 'invalid' | 'rate_limit' | 'auth' | 'bad_request' | 'server' | 'network';
+  outcome: 'ok' | 'invalid' | 'rate_limit' | 'auth' | 'bad_request' | 'model' | 'server' | 'network' | 'timeout';
   detail?: string;
 }
 
@@ -49,6 +49,8 @@ const OUTCOME_TEXT: Record<Attempt['outcome'], string> = {
   rate_limit: 'hit its rate limit (it rests for a minute, or until its daily quota resets)',
   auth: 'rejected the key (check it in Settings → AI providers)',
   bad_request: 'refused the request',
+  model: 'couldn’t take the request',
+  timeout: 'wasn’t tried: the time ran out',
   server: 'had a server error',
   network: 'could not be reached',
 };
@@ -61,7 +63,7 @@ export function describeAttempts(attempts: Attempt[]): string {
     .map((a) => {
       const name = a.provider === 'gemini' ? 'Gemini' : a.provider === 'groq' ? 'Groq' : a.provider === 'openrouter' ? 'OpenRouter' : a.provider;
       const detail =
-        a.outcome === 'bad_request' && a.detail
+        (a.outcome === 'bad_request' || a.outcome === 'model') && a.detail
           ? `: ${a.detail.replace(/^\w+ \d+: /, '').slice(0, 220)}`
           : (a.outcome === 'invalid' || a.outcome === 'server') && a.detail
             ? ` (${a.detail.split('\n')[0].slice(0, 160)})`
@@ -96,6 +98,8 @@ const SERVER_COOLDOWN_MS = 15_000;
 const RETRY_WAIT_MS = 2_500;
 /** Past this, no more retries: the request has to finish inside one server call. */
 const RETRY_BUDGET_MS = 35_000;
+/** A call isn't started with less time than this left in the request's budget. */
+const MIN_CALL_MS = 8_000;
 
 /**
  * Sends a task to the first available provider for its tier and returns
@@ -115,7 +119,14 @@ export async function runJson<T>(
 
   const sleep = hooks.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 
+  // Time left in the whole request; a call that would run past it isn't started.
+  const left = () => (req.budgetMs ?? Infinity) - (now() - started);
+
   for (const client of providers) {
+    if (left() < MIN_CALL_MS) {
+      attempts.push({ provider: client.id, model: client.models[tier], outcome: 'timeout' });
+      continue;
+    }
     // The provider's other model is a second chance: overload and free quotas are usually per model.
     const other = tier === 'strong' ? client.models.light : client.models.strong;
     const models = [client.models[tier], other].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
@@ -126,9 +137,10 @@ export async function runJson<T>(
       let serverRetries = 0;
       lastError = null;
       for (let round = 0; round < 2; round++) {
+        if (left() < MIN_CALL_MS) break;
         try {
           await hooks.onRequest?.(client.id);
-          const reply = await client.chat({ ...req, prompt }, model);
+          const reply = await client.chat({ ...req, prompt, ...(Number.isFinite(left()) ? { timeoutMs: left() } : {}) }, model);
           let parsed: unknown;
           try {
             parsed = extractJson(reply.text);

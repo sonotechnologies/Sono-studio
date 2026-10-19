@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyOps, chatPrompt, chatReplyText } from '@/ai/chat';
+import { applyOps, chatPrompt, chatReplySchema, chatReplyText } from '@/ai/chat';
 import { KORA_KITCHEN } from '@/site/samples/kora-kitchen';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import {
@@ -96,7 +96,6 @@ describe('chat operations', () => {
       site(),
       [
         { op: 'update', section: 'home-about', content: { heading: 'Out of scope' } },
-        { op: 'theme', colors: { primary: '#000000' } },
         { op: 'update', section: 'home-hero', content: { heading: 'In scope' } },
         { op: 'update', section: 'home-hero', variant: 'diagonal' },
         { op: 'remove', section: 'home-nav' },
@@ -104,8 +103,38 @@ describe('chat operations', () => {
       { kind: 'section', sectionId: 'home-hero' },
     );
     expect(heroOf(r.config).content).toMatchObject({ heading: 'In scope' });
-    expect(r.skipped.length).toBe(4);
-    expect(r.config.theme).toEqual(KORA_KITCHEN.theme);
+    expect(r.skipped.length).toBe(3);
+  });
+
+  it('keeps each photo with its item when the AI reorders a list', () => {
+    const base = site();
+    const g = findSection(base, 'home-gallery')!.section;
+    if (g.type !== 'gallery') throw new Error('gallery expected');
+    const images = g.content.images.map((im, i) => ({ ...im, src: `/p${i}.jpg`, alt: `photo ${i}` }));
+    const withPhotos = setField(base, 'home-gallery', 'images', images);
+    const reversed = [...images].reverse();
+    const r = applyOps(withPhotos, [{ op: 'update', section: 'home-gallery', content: { images: [...reversed, { src: 'https://made.up/new.jpg', alt: 'new' }] } }], { kind: 'site' });
+    const after = findSection(r.config, 'home-gallery')!.section;
+    expect(after.type === 'gallery' && after.content.images.map((i) => i.src)).toEqual([...reversed.map((i) => i.src), '']);
+  });
+
+  it('places sections sensibly when the model names a section that isn’t there', () => {
+    const r = applyOps(site(), [{ op: 'add', page: 'home', after: 'nope', type: 'faq', variant: 'accordion', content: { heading: 'Q', intro: '', items: [{ question: 'a?', answer: 'b' }] } }], { kind: 'site' });
+    const types = r.config.pages[0].sections.map((s) => s.type);
+    expect(types[0]).toBe('navbar');
+    expect(types.indexOf('faq')).toBe(types.indexOf('footer') - 1);
+    const moved = applyOps(site(), [{ op: 'move', section: 'home-cta', after: 'nope' }], { kind: 'site' });
+    expect(moved.skipped).toHaveLength(1);
+  });
+
+  it('reads a reply leniently and keeps one bad change from sinking the rest', () => {
+    const reply = chatReplySchema.parse({ reply: 'x'.repeat(900), ops: [{ op: 'update', section: 'home-hero', content: { heading: 'Fine' }, variant: null }, { op: 'paint' }, ...Array(30).fill({ op: 'remove', section: 'a' })] });
+    expect(reply.reply).toHaveLength(600);
+    expect(reply.ops).toHaveLength(19);
+    expect(reply.unreadable).toBe(1);
+    const r = applyOps(site(), [{ op: 'update', section: 'home-hero', content: { heading: 'Kept' } }, { op: 'update', section: 'home-hero', content: { heading: 'x'.repeat(5000) } }], { kind: 'site' });
+    expect(heroOf(r.config).content).toMatchObject({ heading: 'Kept' });
+    expect(r.skipped[0]).toMatch(/too long/);
   });
 
   it('never moves a section above the navbar or below the footer', () => {
@@ -183,8 +212,9 @@ describe('chat replies in plain words', () => {
   it('turns out-of-reach changes into everyday explanations', () => {
     const fonts = applyOps(site(), [{ op: 'theme', fonts: { heading: 'Comic Sans' } }], { kind: 'site' });
     expect(fonts.skipped[0]).toMatch(/isn’t available; choose from/);
+    // The theme is the whole site's, whatever part is picked.
     const scoped = applyOps(site(), [{ op: 'theme', colors: { primary: '#112233' } }], { kind: 'section', sectionId: 'home-hero' });
-    expect(scoped.skipped[0]).toMatch(/Whole site/);
+    expect(scoped.config.theme.colors.primary).toBe('#112233');
     const missing = applyOps(site(), [{ op: 'remove', section: 'nope' }], { kind: 'site' });
     expect(missing.skipped[0]).not.toMatch(/"nope"/);
   });

@@ -103,7 +103,8 @@ const escAttr = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 
 /** Links that are safe to put in a page: web, email, phone, on-page and relative ones. */
 export function safeHref(href: string): string | null {
-  const h = href.trim();
+  // Browsers ignore tabs, newlines and other control characters in a scheme ("java\tscript:").
+  const h = href.replace(/[\x00-\x1f\x7f]/g, '').trim();
   if (!h) return null;
   if (/^[a-z][a-z0-9+.-]*:/i.test(h) && !/^(https?|mailto|tel|sms|whatsapp):/i.test(h)) return null;
   return h;
@@ -111,7 +112,7 @@ export function safeHref(href: string): string | null {
 
 /** Image addresses an edit may use: web addresses and the copy's own files. */
 export function safeSrc(src: string): string | null {
-  const s = src.trim();
+  const s = src.replace(/[\x00-\x1f\x7f]/g, '').trim();
   if (!s) return null;
   if (/^[a-z][a-z0-9+.-]*:/i.test(s) && !/^https?:/i.test(s)) return null;
   return s;
@@ -164,7 +165,7 @@ export function applyEdits(page: string, html: string, edits: CopyEdit[], opts: 
       // Keep the spacing around the words, which can matter between inline elements.
       const lead = /^\s*/.exec(t.value)![0];
       const trail = /\s*$/.exec(t.value)![0];
-      splices.push({ start: t.loc.startOffset, end: t.loc.endOffset, text: escText(`${lead}${e.to.trim() || ' '}${trail}`) });
+      splices.push({ start: t.loc.startOffset, end: t.loc.endOffset, text: escText(`${lead}${e.to.trim() || '\u200b'}${trail}`) });
     } else if (e.kind === 'image') {
       const img = spots.images[e.index];
       if (!img || img.src !== e.from) {

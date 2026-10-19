@@ -114,5 +114,33 @@ export function checkCustomCode(code: string): CheckResult {
   // A "/" that could start a regex literal (after an operator or bracket) isn't allowed: the scan can't see inside one.
   if (/[=(,:!&|?{};]\s*\/[^/*]/.test(scan)) problems.push('Not allowed: regular expressions.');
   for (const [re, what] of FORBIDDEN) if (re.test(scan)) problems.push(`Not allowed: ${what}.`);
+  // obj[k] with a key built at run time can reach anything ("constr" + "uctor"): only obj[0]-style access.
+  if (computedAccess(scan)) problems.push('Not allowed: reading properties by a computed name (use data.field, or .map over lists).');
+  // A loop that never ends would freeze the page or the site's build: lists are rendered with .map.
+  if (/\b(while|do)\b|\bfor\s*\(/.test(scan)) problems.push('Not allowed: loops (use .map over a list).');
+  // Every element is a literal tag, Fragment or a component defined in the file, never a tag held in a variable.
+  const own = new Set([...code.matchAll(/\bfunction\s+([A-Z]\w*)|\bconst\s+([A-Z]\w*)\s*=\s*(?:\([^)]*\)|[\w$]+)\s*=>/g)].map((m) => m[1] ?? m[2]));
+  for (const m of js.matchAll(/\bh\(\s*([A-Za-z_$][\w$.]*)/g)) {
+    if (m[1] !== 'Fragment' && !own.has(m[1])) {
+      problems.push('Not allowed: elements whose tag comes from a variable.');
+      break;
+    }
+  }
   return problems.length ? { problems: [...new Set(problems)] } : { js, problems: [] };
+}
+
+/** Words after which "[" starts an array, not a property read. */
+const BEFORE_ARRAY = new Set(['const', 'let', 'var', 'return', 'in', 'of', 'typeof', 'case', 'else', 'void', 'delete', 'new', 'yield', 'await']);
+
+/** Whether the code reads a property by anything other than a number: obj[k], obj["x"], f()[k]. */
+function computedAccess(scan: string): boolean {
+  for (const m of scan.matchAll(/([\w$)\]])\s*\[/g)) {
+    const before = scan.slice(0, m.index! + 1);
+    const word = /([A-Za-z_$][\w$]*)$/.exec(before)?.[1];
+    if (word && BEFORE_ARRAY.has(word)) continue;
+    const inside = scan.slice(m.index! + m[0].length);
+    if (/^\s*\d+\s*\]/.test(inside)) continue;
+    return true;
+  }
+  return false;
 }

@@ -33,7 +33,8 @@ async function errorFrom(res: Response, provider: string): Promise<ProviderError
   if (res.status === 429) return new ProviderError(msg, 'rate_limit', retryAfter(res));
   // Gemini reports a bad key as 400 API_KEY_INVALID rather than 401.
   if (res.status === 401 || res.status === 403 || (res.status === 400 && /API[_ ]?key/i.test(detail))) return new ProviderError(msg, 'auth');
-  if (res.status === 404) return new ProviderError(`${provider}: model not found. Pick an available model in Settings → AI providers → Manage. (${detail.slice(0, 120)})`, 'bad_request');
+  if (res.status === 404) return new ProviderError(`${provider}: model not found. Pick an available model in Settings → AI providers → Manage. (${detail.slice(0, 120)})`, 'model');
+  if (res.status === 413) return new ProviderError(`${provider}: the request is too big for this model`, 'model');
   if (res.status >= 500) return new ProviderError(msg, 'server', retryAfter(res));
   return new ProviderError(msg, 'bad_request');
 }
@@ -75,6 +76,7 @@ export function geminiClient(apiKey: string, models: Record<Tier, string>, f: Fe
           }),
         },
         'Gemini',
+        Math.min(req.timeoutMs ?? TIMEOUT_MS, TIMEOUT_MS),
       );
       if (!res.ok) throw await errorFrom(res, 'Gemini');
       const data = (await res.json()) as {
@@ -138,6 +140,7 @@ export function openAiCompatClient(
         }),
       },
       cfg.name,
+      Math.min(req.timeoutMs ?? TIMEOUT_MS, TIMEOUT_MS),
     );
     if (!res.ok) throw await errorFrom(res, cfg.name);
     const data = (await res.json()) as {

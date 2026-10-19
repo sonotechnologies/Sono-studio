@@ -4,7 +4,7 @@ import { customPrompt, customReplySchema, toCustom } from '@/generate/custom';
 import type { CustomDef } from '@/site/schema';
 
 import { revalidatePath } from 'next/cache';
-import { applyOps, chatPrompt, chatReplySchema, chatReplyText, type ChatScope } from '@/ai/chat';
+import { applyOps, CHAT_ERROR, chatPrompt, chatReplySchema, chatReplyText, type ChatScope } from '@/ai/chat';
 import { AllProvidersFailed, runJson } from '@/ai/router';
 import { loadProviders, loadStock, routerHooks } from '@/ai/service';
 import type { Asset } from '@/generate/brief';
@@ -70,12 +70,16 @@ export async function chatAction(projectId: string, input: { message: string; sc
   const repo = await getRepo();
   const providers = await loadProviders(repo, { projectId });
   // The last few turns, so "yes", "do that" and "but bigger" make sense.
-  const history = (await repo.listChatMessages(projectId).catch(() => [])).slice(-6).map((m) => ({ role: m.role, text: m.text }));
+  // Errors aren't part of the conversation the model sees.
+  const history = (await repo.listChatMessages(projectId).catch(() => []))
+    .filter((m) => m.change !== CHAT_ERROR)
+    .slice(-6)
+    .map((m) => ({ role: m.role, text: m.text }));
   const userMsg = await repo.addChatMessage(projectId, { role: 'user', text: message, scope: input.scope.kind, change: '', version: null });
   try {
     const r = await runJson(
       providers,
-      { task: 'chat', ...chatPrompt(parsed.data, input.scope, message, input.businessType, history), temperature: 0.4, demo: { kind: 'chat' } },
+      { task: 'chat', ...chatPrompt(parsed.data, input.scope, message, input.businessType, history), temperature: 0.4, maxTokens: 4000, budgetMs: 50_000, demo: { kind: 'chat' } },
       chatReplySchema,
       routerHooks(repo),
     );
@@ -84,7 +88,7 @@ export async function chatAction(projectId: string, input: { message: string; sc
     const version = changed ? await repo.saveSiteVersion(projectId, applied.config, `Chat: ${applied.summary}`.slice(0, 300)) : undefined;
     const aiMsg = await repo.addChatMessage(projectId, {
       role: 'assistant',
-      text: chatReplyText(r.data.reply, r.data.ops.length, changed, applied.skipped),
+      text: chatReplyText(r.data.reply, r.data.ops.length + r.data.unreadable, changed, [...(r.data.unreadable ? [`ops: ${r.data.unreadable === 1 ? 'one change was' : 'some changes were'} written wrongly by the AI`] : []), ...applied.skipped]),
       scope: input.scope.kind,
       change: changed ? applied.summary : 'No change',
       version: version ?? null,
@@ -92,7 +96,7 @@ export async function chatAction(projectId: string, input: { message: string; sc
     return { reply: aiMsg.text, config: applied.config, touched: applied.touched, summary: applied.summary, skipped: applied.skipped, version, messages: [userMsg, aiMsg] };
   } catch (err) {
     const text = err instanceof AllProvidersFailed ? err.message : `Something went wrong: ${(err as Error).message}`;
-    const aiMsg = await repo.addChatMessage(projectId, { role: 'assistant', text: text.slice(0, 1000), scope: input.scope.kind, change: 'No change', version: null });
+    const aiMsg = await repo.addChatMessage(projectId, { role: 'assistant', text: text.slice(0, 1000), scope: input.scope.kind, change: CHAT_ERROR, version: null });
     return { error: text, messages: [userMsg, aiMsg] };
   }
 }
@@ -143,6 +147,7 @@ export async function writeCustomAction(
       await loadProviders(repo, { projectId }),
       {
         task: 'custom',
+        budgetMs: 50_000,
         ...customPrompt({
           businessName: input.businessName,
           businessType: input.businessType,

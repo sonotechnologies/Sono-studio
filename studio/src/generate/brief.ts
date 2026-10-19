@@ -70,20 +70,34 @@ export function pagesFor(brief: Pick<Brief, 'pages'>) {
 
 /* ---------- Ingest: pasted text turned into structure ---------- */
 
+/** Text and lists from a model, trimmed to fit rather than rejected for running long. */
+const cut = (n: number) => z.string().catch('').transform((v) => v.trim().slice(0, n));
+const upTo = <T extends z.ZodType>(item: T, n: number) =>
+  z
+    .array(z.unknown())
+    .catch([])
+    .transform((list) =>
+      list
+        .flatMap((x) => {
+          const r = item.safeParse(x);
+          return r.success ? [r.data as z.output<T>] : [];
+        })
+        .slice(0, n),
+    );
+
 export const extractedSchema = z.object({
-  tagline: z.string().max(160),
-  hours: z.array(z.object({ days: z.string().max(40), time: z.string().max(40) })).max(7),
-  items: z
-    .array(
-      z.object({
-        name: z.string().max(80),
-        description: z.string().max(300),
-        price: z.string().max(24),
-        category: z.string().max(60),
-      }),
-    )
-    .max(60),
-  facts: z.array(z.string().max(200)).max(20),
+  tagline: cut(160),
+  hours: upTo(z.object({ days: cut(40), time: cut(40) }), 7),
+  items: upTo(z.object({ name: z.string().trim().min(1).transform((v) => v.slice(0, 80)), description: cut(300), price: cut(24), category: cut(60) }), 60),
+  facts: upTo(cut(200), 20),
+  /** Reviews quoted in the notes, word for word, with who wrote them. */
+  reviews: upTo(z.object({ quote: z.string().trim().min(1).transform((v) => v.slice(0, 400)), name: cut(60) }), 6).optional(),
+  /** An email address given in the notes. */
+  email: z
+    .string()
+    .catch('')
+    .transform((v) => (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? v.trim().slice(0, 120) : ''))
+    .optional(),
 });
 export type Extracted = z.infer<typeof extractedSchema>;
 

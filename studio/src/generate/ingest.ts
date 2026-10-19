@@ -12,8 +12,10 @@ Extract:
 - hours: opening hours as [{"days": "Tue to Sat", "time": "17:00 to 22:00"}].
 - items: every menu, price-list or product item as {"name", "description", "price", "category"}; keep prices exactly as written (with the currency), "" if none.
 - facts: short statements of fact worth putting on the site (founding year, specialities, awards, parking, delivery). Only what the notes say.
+- reviews: customer reviews quoted in the notes, word for word, as {"quote", "name"} (the name as given, "" if none). [] if there are none; never write one.
+- email: the business's email address if the notes give one, else "".
 
 Reply with JSON in exactly this shape:
-{"tagline":"","hours":[],"items":[],"facts":[]}`,
+{"tagline":"","hours":[],"items":[],"facts":[],"reviews":[],"email":""}`,
   };
 }

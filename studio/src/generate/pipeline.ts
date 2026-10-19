@@ -86,12 +86,12 @@ export async function advance(job: GenerationJob, deps: PipelineDeps): Promise<{
         j.extracted = { ...EMPTY_EXTRACTED };
         log({ status: 'skipped', provider: 'local', detail: 'Nothing pasted' });
       } else {
-        const r = await runJson(deps.providers, { task: 'parse', ...parsePrompt(j.brief), temperature: 0.1, demo: demo({ kind: 'parse', brief: j.brief }) }, extractedSchema, deps.hooks);
+        const r = await runJson(deps.providers, { task: 'parse', budgetMs: 100_000, ...parsePrompt(j.brief), temperature: 0.1, demo: demo({ kind: 'parse', brief: j.brief }) }, extractedSchema, deps.hooks);
         j.extracted = r.data;
         log({ status: 'done', provider: r.provider, model: r.model, ms: r.ms });
       }
     } else if (unit.key === 'plan') {
-      const r = await runJson(deps.providers, { task: 'plan', ...planPrompt(j.brief, j.extracted), temperature: 0.4, demo: demo({ kind: 'plan', brief: j.brief }) }, rawPlanSchema, deps.hooks);
+      const r = await runJson(deps.providers, { task: 'plan', budgetMs: 100_000, ...planPrompt(j.brief, j.extracted), temperature: 0.4, demo: demo({ kind: 'plan', brief: j.brief }) }, rawPlanSchema, deps.hooks);
       j.plan = normalisePlan(r.data, j.brief, j.extracted);
       j.status = 'plan_review';
       log({ status: 'done', provider: r.provider, model: r.model, ms: r.ms });
@@ -104,7 +104,7 @@ export async function advance(job: GenerationJob, deps: PipelineDeps): Promise<{
         const photos = deps.assets.filter((a) => a.kind === 'photo').length;
         const r = await runJson(
           deps.providers,
-          { task: 'fill', ...fillPrompt(j.brief, j.extracted, page, photos), temperature: 0.7, demo: demo({ kind: 'fill', brief: j.brief, extracted: j.extracted, page: libraryPage(page) }) },
+          { task: 'fill', budgetMs: 100_000, ...fillPrompt(j.brief, j.extracted, page, photos), temperature: 0.7, demo: demo({ kind: 'fill', brief: j.brief, extracted: j.extracted, page: libraryPage(page) }) },
           fillResponseSchema(page),
           deps.hooks,
         );
@@ -119,6 +119,7 @@ export async function advance(job: GenerationJob, deps: PipelineDeps): Promise<{
           deps.providers,
           {
             task: 'custom',
+            budgetMs: 100_000,
             ...customPrompt({ businessName: j.brief.businessName, businessType: j.brief.businessType, purpose: planned.note, pageTitle: page.title, facts: briefSummary(j.brief, j.extracted) }),
             temperature: 0.4,
             demo: demo({ kind: 'custom', purpose: planned.note }),
