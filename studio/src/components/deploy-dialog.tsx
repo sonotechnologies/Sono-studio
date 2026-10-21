@@ -3,6 +3,7 @@
 import { AlertTriangle, Check, CircleCheck, ExternalLink, Rocket, X } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from '@/site/store/focus-trap';
 import type { ChecklistItem } from '@/export/checklist';
 import type { Deployment } from '@/lib/data/repo';
 import { MiniSpin } from './orbit';
@@ -98,11 +99,8 @@ export function DeployDialog({
     return () => clearTimeout(timer.current);
   }, [phase, poll]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && phase !== 'uploading' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose, phase]);
+  const box = useRef<HTMLDivElement>(null);
+  useFocusTrap(box, true, () => phase !== 'uploading' && onClose());
 
   const deploy = async () => {
     setError('');
@@ -135,6 +133,7 @@ export function DeployDialog({
   return (
     <div onClick={() => phase !== 'uploading' && onClose()} className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(22,20,15,.45)] sm:items-center sm:p-5">
       <div
+        ref={box}
         role="dialog"
         aria-modal="true"
         aria-labelledby="deploy-title"

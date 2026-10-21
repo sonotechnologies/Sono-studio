@@ -3,7 +3,6 @@
 import { customPrompt, customReplySchema, toCustom } from '@/generate/custom';
 import type { CustomDef } from '@/site/schema';
 
-import { revalidatePath } from 'next/cache';
 import { applyOps, CHAT_ERROR, chatPrompt, chatReplySchema, chatReplyText, type ChatScope } from '@/ai/chat';
 import { AllProvidersFailed, runJson } from '@/ai/router';
 import { loadProviders, loadStock, routerHooks } from '@/ai/service';
@@ -13,8 +12,21 @@ import { getRepo, requireUser } from '@/lib/auth';
 import type { ChatMessage, VersionInfo } from '@/lib/data/repo';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 
-/** Saves the workspace's current config as a new version. */
-export async function saveSiteAction(projectId: string, config: SiteConfig, summary: string): Promise<{ version?: number; error?: string }> {
+export interface SaveConflict {
+  /** The newest version, saved elsewhere since this one was loaded. */
+  version: number;
+  config: SiteConfig;
+  /** For a client's edit in /admin: the version they started from, to bring only their changes in. */
+  basedOn: SiteConfig | null;
+}
+
+/**
+ * Saves the workspace's current config as a new version. With `base` (the
+ * version the workspace last loaded or saved), a newer version saved
+ * elsewhere (another tab, or the client in /admin) is sent back instead, so
+ * it can be merged rather than overwritten.
+ */
+export async function saveSiteAction(projectId: string, config: SiteConfig, summary: string, base?: number): Promise<{ version?: number; error?: string; conflict?: SaveConflict }> {
   await requireUser();
   const parsed = siteConfigSchema.safeParse(config);
   if (!parsed.success) {
@@ -22,11 +34,21 @@ export async function saveSiteAction(projectId: string, config: SiteConfig, summ
     return { error: `Not saved: ${i?.path.join('.')} ${i?.message}` };
   }
   const repo = await getRepo();
+  if (base !== undefined) {
+    const latest = await repo.getSiteVersion(projectId);
+    if (latest && latest.version > base) {
+      const from = await repo.versionBasedOn(projectId, latest.version);
+      const basedOn = from !== null ? await repo.getSiteVersionNumber(projectId, from) : null;
+      const read = (c: unknown) => siteConfigSchema.safeParse(c);
+      const now = read(latest.config);
+      if (now.success) return { conflict: { version: latest.version, config: now.data, basedOn: basedOn && read(basedOn.config).success ? read(basedOn.config).data! : null } };
+    }
+  }
   const version = await repo.saveSiteVersion(projectId, parsed.data, summary.slice(0, 300) || 'Edited');
   // A shop added in the workspace makes the project a store in the projects list.
   if (parsed.data.store && summary.includes('Added a shop')) await repo.updateProject(projectId, { siteType: 'store' });
   if (parsed.data.bookings && summary.includes('Added bookings')) await repo.updateProject(projectId, { siteType: 'booking' });
-  revalidatePath(`/projects/${projectId}`);
+  // No revalidatePath: it would re-render the whole workspace page on every autosave. Project pages are dynamic and read fresh data anyway.
   return { version };
 }
 

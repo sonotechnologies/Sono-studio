@@ -17,5 +17,9 @@ export function isDevStore(): boolean {
   if (process.env.NODE_ENV === 'production' && process.env.SONO_ALLOW_DEV_STORE !== '1') {
     throw new Error('Supabase is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY).');
   }
+  // Its default sign-in and encryption key are public: never on a real host, even with the switch on.
+  if (process.env.VERCEL && process.env.NODE_ENV === 'production') {
+    throw new Error('The dev store can’t run on Vercel. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+  }
   return true;
 }

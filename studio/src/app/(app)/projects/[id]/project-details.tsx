@@ -126,7 +126,7 @@ export function ProjectDetails({
           </span>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setConfirmDelete(true)} className={`${btn.dangerGhost} h-11 px-4 text-[14px]`}>
+          <button type="button" onClick={() => setConfirmDelete(true)} className={`${btn.dangerGhost} order-last h-11 px-4 text-[14px]`}>
             Delete
           </button>
 {copy && p.currentVersion === null ? (
@@ -343,7 +343,12 @@ function PitchCard({ p, link, onPatch, events, now }: { p: Project; link: string
         <span className={state.tone}>{state.text}</span>
         {p.currentVersion !== null && (
           <span className="text-muted">
-            {opens.length ? `${opens.length}${events.length >= 50 ? '+' : ''} open${opens.length === 1 ? '' : 's'} · last ${timeAgo(opens[0].openedAt, now)}` : 'Not opened yet'}
+            {opens.length
+              ? `${opens.length}${events.length >= 50 ? '+' : ''} open${opens.length === 1 ? '' : 's'} · last ${timeAgo(opens[0].openedAt, now)}`
+              : // Opens from before tracking existed only left a timestamp.
+                p.lastOpenedAt
+                ? `Opened · last ${timeAgo(p.lastOpenedAt, now)}`
+                : 'Not opened yet'}
           </span>
         )}
       </div>

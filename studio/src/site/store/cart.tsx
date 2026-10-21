@@ -2,8 +2,9 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { CreditCard, Minus, Plus, ShoppingBag, X } from 'lucide-react';
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CheckoutCtx } from '../primitives';
+import { useFocusTrap } from './focus-trap';
 import { formatPrice, orderMessage } from './format';
 
 /*
@@ -161,6 +162,8 @@ const PROVIDER_NOTE = { paystack: 'Card, bank transfer or mobile money', stripe:
 export function CartDrawer({ site, business, currency, whatsapp, checkout }: { site: string; business: string; currency: string; whatsapp: string; checkout?: CheckoutCtx }) {
   const lines = useCart(site);
   const [open, setOpen] = useState(false);
+  const panel = useRef<HTMLElement>(null);
+  useFocusTrap(panel, open, () => setOpen(false));
   const [name, setName] = useState('');
   const [note, setNote] = useState('');
   const [email, setEmail] = useState('');
@@ -232,6 +235,7 @@ export function CartDrawer({ site, business, currency, whatsapp, checkout }: { s
       {open && (
         <div className="fixed inset-0 z-[60] flex justify-end bg-black/40" onClick={() => setOpen(false)}>
           <aside
+            ref={panel}
             role="dialog"
             aria-modal="true"
             aria-label="Your cart"

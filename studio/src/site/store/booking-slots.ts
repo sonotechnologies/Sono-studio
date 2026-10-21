@@ -1,4 +1,5 @@
 import type { Bookings, Service } from '../schema';
+import { fromMinor, minorUnits } from './payments-info';
 
 /*
  * Which start times are free, worked out in the business's own time zone, so
@@ -100,6 +101,9 @@ export function slotsFor(b: Bookings, service: Pick<Service, 'duration'>, date: 
   for (const span of b.hours.filter((h) => h.day === weekday(date)).sort((x, y) => x.open.localeCompare(y.open))) {
     for (let m = minutes(span.open); m + service.duration <= minutes(span.close); m += b.step) {
       const start = zonedTime(date, hhmm(m), b.timezone);
+      // Around a clock change some times don't exist, or would repeat: skip any that don't read back the same.
+      const back = zonedParts(start, b.timezone);
+      if (back.date !== date || back.time !== hhmm(m) || out.some((x) => x.start === start.toISOString())) continue;
       if (start.getTime() < earliest) continue;
       const end = new Date(start.getTime() + service.duration * 60_000);
       const overlapping = taken.filter(([s, e]) => s < end.getTime() && e > start.getTime()).length;
@@ -115,6 +119,8 @@ export function slotFree(b: Bookings, service: Pick<Service, 'duration'>, startI
   const at = new Date(startIso);
   if (Number.isNaN(at.getTime())) return null;
   const { date } = zonedParts(at, b.timezone);
+  // Only as far ahead as the business takes bookings.
+  if (!openDays(b, now).includes(date)) return null;
   return slotsFor(b, service, date, busy, now).find((s) => s.start === at.toISOString()) ?? null;
 }
 
@@ -122,7 +128,8 @@ export function slotFree(b: Bookings, service: Pick<Service, 'duration'>, startI
 export function depositFor(b: Pick<Bookings, 'depositPercent' | 'currency'>, service: Pick<Service, 'price'>): number {
   if (!b.depositPercent || service.price <= 0) return 0;
   const raw = (service.price * b.depositPercent) / 100;
-  return ['UGX', 'RWF', 'XOF', 'XAF', 'JPY', 'KRW'].includes(b.currency) ? Math.round(raw) : Math.round(raw * 100) / 100;
+  // Rounded to the currency's smallest unit, as the payment providers charge it.
+  return fromMinor(minorUnits(raw, b.currency), b.currency);
 }
 
 /** "Tue 14 Oct" in the business's zone. */

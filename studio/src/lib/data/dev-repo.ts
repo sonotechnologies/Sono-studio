@@ -165,7 +165,14 @@ export const devRepo: Repo = {
       db.pitchEvents = db.pitchEvents.filter((e) => e.projectId !== id);
       db.deployments = db.deployments.filter((d) => d.projectId !== id);
       delete db.copies[id];
-    }).then(() => rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }));
+      // As Supabase's cascade does: orders, bookings and client logins go with the project.
+      db.orders = db.orders.filter((o) => o.projectId !== id);
+      db.bookings = db.bookings.filter((b) => b.projectId !== id);
+      db.admins = db.admins.filter((a) => a.projectId !== id);
+      db.adminSessions = db.adminSessions.filter((x) => x.projectId !== id);
+      delete db.ordersKeys[id];
+      delete db.published[id];
+    }).then(() => Promise.all([rm(path.join(UPLOAD_DIR, id), { recursive: true, force: true }), rm(path.join(COPY_DIR, `${id}.zip`), { force: true })]).then(() => {}));
   },
 
   async getSiteVersion(projectId) {
@@ -191,6 +198,10 @@ export const devRepo: Repo = {
       .reverse()
       .slice(0, limit)
       .map(({ config: _config, ...info }) => info);
+  },
+
+  async versionBasedOn(projectId, version) {
+    return (await load()).versions[projectId]?.find((v) => v.version === version)?.basedOn ?? null;
   },
 
   async getSiteVersionNumber(projectId, version) {
@@ -364,7 +375,20 @@ export const devRepo: Repo = {
     return (await load()).jobs.filter((j) => j.projectId === projectId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
   },
 
+  async getLatestJobStatus(projectId) {
+    const j = await this.getLatestJob(projectId);
+    return j ? { id: j.id, status: j.status } : null;
+  },
+
+  async claimJob(id, seconds) {
+    const now = Date.now();
+    if ((jobLeases.get(id) ?? 0) > now) return false;
+    jobLeases.set(id, now + seconds * 1000);
+    return true;
+  },
+
   saveJob(job) {
+    jobLeases.delete(job.id);
     return mutate((db) => {
       const i = db.jobs.findIndex((j) => j.id === job.id);
       if (i < 0) throw new Error('Job not found');
@@ -458,6 +482,10 @@ export const devRepo: Repo = {
     const db = await load();
     const p = livePitch(db, slug);
     return p ? (db.keys.find((k) => k.provider === provider)?.ciphertext ?? null) : null;
+  },
+
+  async setOrderSecret() {
+    // The dev store checks the token hash it keeps with each order.
   },
 
   createPitchOrder(slug, order, tokenHash) {
@@ -566,8 +594,7 @@ export const devRepo: Repo = {
     await mutate((db) => {
       const b = db.bookings.find((x) => x.reference === reference);
       if (!b || b.status !== 'held' || b.tokenHash !== sha256(token)) return;
-      b.status = 'confirmed';
-      ok = true;
+      ok = confirmHeld(db, b);
     });
     return ok;
   },
@@ -578,7 +605,7 @@ export const devRepo: Repo = {
       if (db.ordersKeys[projectId] !== sha256(key)) return;
       ok = true;
       const b = db.bookings.find((x) => x.projectId === projectId && x.reference === reference);
-      if (b?.status === 'held') b.status = 'confirmed';
+      if (b?.status === 'held') confirmHeld(db, b);
     });
     return ok;
   },
@@ -666,8 +693,11 @@ export const devRepo: Repo = {
     const db = await load();
     const a = adminOf(db, token);
     if (!a) return null;
-    const p = db.projects.find((x) => x.id === a.projectId)!;
-    const v = db.versions[p.id]?.at(-1);
+    const p = db.projects.find((x) => x.id === a.projectId);
+    if (!p) return null;
+    // The live version; the studio's unpublished draft stays the studio's.
+    const list = db.versions[p.id] ?? [];
+    const v = list.find((x) => x.version === db.published[p.id]) ?? list.at(-1);
     return { name: a.name, email: a.email, projectId: p.id, projectName: p.name, liveUrl: p.liveUrl, pitchSlug: p.pitchSlug, version: v?.version ?? 0, config: v?.config ?? null } satisfies AdminView;
   },
 
@@ -677,11 +707,14 @@ export const devRepo: Repo = {
       const a = adminOf(db, token);
       if (!a) throw new Error('not signed in');
       const list = (db.versions[a.projectId] ??= []);
-      if ((list.at(-1)?.version ?? 0) !== baseVersion) throw new Error('changed meanwhile');
-      version = baseVersion + 1;
-      list.push({ version, config, summary: summary.slice(0, 300) || 'Edited by the client', createdAt: new Date().toISOString() });
-      const p = db.projects.find((x) => x.id === a.projectId)!;
+      const live = db.published[a.projectId] ?? list.at(-1)?.version ?? 0;
+      if (live !== baseVersion) throw new Error('changed meanwhile');
+      version = (list.at(-1)?.version ?? 0) + 1;
+      list.push({ version, config, summary: summary.slice(0, 300) || 'Edited by the client', createdAt: new Date().toISOString(), basedOn: live });
+      const p = db.projects.find((x) => x.id === a.projectId);
+      if (!p) throw new Error('not signed in');
       p.currentVersion = version;
+      p.updatedAt = new Date().toISOString();
       db.published[a.projectId] = version;
     });
     return version;
@@ -749,6 +782,13 @@ export const devRepo: Repo = {
     return v ? (db.versions[projectId]?.find((x) => x.version === v)?.config ?? null) : null;
   },
 
+  async publishedSite(projectId) {
+    const db = await load();
+    const v = db.published[projectId];
+    const config = v ? (db.versions[projectId]?.find((x) => x.version === v)?.config ?? null) : null;
+    return config ? { version: v, config } : null;
+  },
+
   setPublishedVersion(projectId, version) {
     return mutate((db) => {
       db.published[projectId] = Math.max(db.published[projectId] ?? 0, version);
@@ -793,6 +833,24 @@ function holdIn(db: DevDb, projectId: string, h: BookingHold, mode: 'test' | 'li
     price: h.price, customer: h.customer, createdAt: new Date().toISOString(),
   });
 }
+
+/** As in the database: a deposit paid after its hold ran out only confirms if the time is still free. */
+function confirmHeld(db: DevDb, b: DevDb['bookings'][number]): boolean {
+  if (b.holdUntil && Date.parse(b.holdUntil) <= Date.now()) {
+    const capacity = Math.max(1, Math.min(20, db.versions[b.projectId]?.at(-1)?.config.bookings?.capacity ?? 1));
+    const others = db.bookings.filter((x) => x !== b && x.projectId === b.projectId && activeBooking(x) && Date.parse(x.start) < Date.parse(b.end) && Date.parse(x.end) > Date.parse(b.start)).length;
+    if (others >= capacity) {
+      b.status = 'cancelled';
+      b.customer = { ...b.customer, note: 'Paid after the 30-minute hold ran out, when the time had been taken: refund the deposit.' };
+      return false;
+    }
+  }
+  b.status = 'confirmed';
+  return true;
+}
+
+/** Who is running a job's next step, until when (in memory: the dev store runs in one process). */
+const jobLeases = new Map<string, number>();
 
 function livePitch(db: DevDb, slug: string): Project | null {
   const p = db.projects.find((x) => x.pitchSlug === slug);

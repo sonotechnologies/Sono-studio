@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { unstable_cache } from 'next/cache';
 import { notFound } from 'next/navigation';
 import { getRepo, requireUser } from '@/lib/auth';
+import { SiteFonts } from '@/components/site-fonts';
 import { findPage, SitePageView } from '@/site/render';
 import { siteConfigSchema } from '@/site/schema';
 
@@ -26,5 +27,10 @@ export default async function ThumbPage({ params, searchParams }: { params: Prom
   if (!parsed?.success) notFound();
   const page = findPage(parsed.data, '/') ?? parsed.data.pages[0];
   if (!page) notFound();
-  return <SitePageView config={parsed.data} page={page} ctx={{ link: () => '#', editable: false }} />;
+  return (
+    <>
+      <SiteFonts fonts={[parsed.data.theme.fonts.heading, parsed.data.theme.fonts.body]} />
+      <SitePageView config={parsed.data} page={page} ctx={{ link: () => '#', editable: false }} />
+    </>
+  );
 }

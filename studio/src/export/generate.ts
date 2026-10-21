@@ -247,6 +247,8 @@ import { siteConfigSchema, type SiteConfig } from './schema';
 ${server ? `import { ${[cards.length && 'checkoutCtx', deposits.length && 'bookingCtx'].filter(Boolean).join(', ')} } from '@/lib/payments';\n` : ''}
 /** The site's content as built. Edit config.json to change text, photos or colours. */
 export const builtSite = data as unknown as SiteConfig;
+/** The Sono Studio version it was built from. */
+const BUILT_VERSION = ${input.version};
 
 /**
  * The site's content: the version published from Sono Studio when it's
@@ -258,9 +260,12 @@ export async function loadSite(): Promise<SiteConfig> {
   const api = process.env.SONO_SITE_API;
   if (!api) return builtSite;
   try {
-    const res = await fetch(\`\${api}/config\`, { next: { revalidate: 60 } });
+    const res = await fetch(\`\${api}/config\`, { next: { revalidate: 60 }, signal: AbortSignal.timeout(5000) });
     if (res.ok) {
-      const parsed = siteConfigSchema.safeParse(((await res.json()) as { config?: unknown }).config);
+      const body = (await res.json()) as { config?: unknown; version?: number | null };
+      // Built from a newer version than the studio has marked as published yet: the built copy is the newer one.
+      if (typeof body.version === 'number' && body.version < BUILT_VERSION) return builtSite;
+      const parsed = siteConfigSchema.safeParse(body.config);
       if (parsed.success) return parsed.data;
     }
   } catch {}
@@ -421,11 +426,14 @@ export function secretFor(provider: PaymentProvider): string | null {
   return (provider === 'paystack' ? process.env.PAYSTACK_SECRET_KEY : process.env.STRIPE_SECRET_KEY) || null;
 }
 
+/** Test keys: Paystack and Stripe secret keys, and Stripe restricted keys. */
+const isTestKey = (key: string | null | undefined) => !!key && /^(sk|rk)_test_/.test(key);
+
 /** Card payments switched on for the shop that have a key. */
 export function checkoutCtx(site: SiteConfig): CheckoutCtx | undefined {
   const providers = cardProviders(site.store).filter((p) => secretFor(p));
   if (!providers.length) return undefined;
-  return { endpoint: '/api/checkout', providers, test: providers.every((p) => secretFor(p)!.startsWith('sk_test_')) };
+  return { endpoint: '/api/checkout', providers, test: providers.every((p) => isTestKey(secretFor(p))) };
 }
 
 /** Deposits switched on for bookings that have a key, when the studio keeps the booking calendar. */
@@ -433,7 +441,7 @@ export function bookingCtx(site: SiteConfig): BookingCtx | undefined {
   if (!process.env.SONO_SITE_API || !process.env.SONO_ORDERS_KEY) return undefined;
   const providers = depositProviders(site.bookings).filter((p) => secretFor(p));
   if (!providers.length) return undefined;
-  return { busyEndpoint: '/api/busy', bookEndpoint: '/api/book', providers, test: providers.every((p) => secretFor(p)!.startsWith('sk_test_')) };
+  return { busyEndpoint: '/api/busy', bookEndpoint: '/api/book', providers, test: providers.every((p) => isTestKey(secretFor(p))) };
 }
 
 /** The studio's booking calendar for this site. */
@@ -455,7 +463,7 @@ export async function busyTimes(from: string, to: string): Promise<Busy[]> {
 
 /** Holds a time while the deposit is paid: 'taken' if someone got there first. */
 export async function holdBooking(hold: Record<string, unknown>, provider: PaymentProvider): Promise<'ok' | 'taken'> {
-  const mode = secretFor(provider)?.startsWith('sk_test_') ? 'test' : 'live';
+  const mode = isTestKey(secretFor(provider)) ? 'test' : 'live';
   const res = await studio('/bookings', { method: 'POST', body: JSON.stringify({ action: 'hold', mode, hold }) });
   if (res.status === 409) return 'taken';
   if (!res.ok) throw new Error(\`booking calendar refused the booking (\${res.status})\`);
@@ -464,10 +472,15 @@ export async function holdBooking(hold: Record<string, unknown>, provider: Payme
 
 /** Confirms a booking once its deposit is paid. Safe to call twice. */
 export async function confirmBooking(reference: string): Promise<void> {
-  try {
-    await studio('/bookings', { method: 'POST', body: JSON.stringify({ action: 'confirm', reference }) });
-  } catch (err) {
-    console.error('booking not confirmed', err);
+  // Tried twice: a deposit that isn't confirmed lets its time go to someone else.
+  for (let tries = 0; tries < 2; tries++) {
+    try {
+      const res = await studio('/bookings', { method: 'POST', body: JSON.stringify({ action: 'confirm', reference }) });
+      if (res.ok) return;
+      console.error('booking not confirmed', res.status);
+    } catch (err) {
+      console.error('booking not confirmed', err);
+    }
   }
 }
 
@@ -482,17 +495,21 @@ export async function reportOrder(order: Order): Promise<void> {
   const url = process.env.SONO_ORDERS_URL;
   const key = process.env.SONO_ORDERS_KEY;
   if (!url || !key) return;
-  const mode = secretFor(order.provider)?.startsWith('sk_test_') ? 'test' : 'live';
-  try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { authorization: \`Bearer \${key}\`, 'content-type': 'application/json' },
-      body: JSON.stringify({ order, mode }),
-      signal: AbortSignal.timeout(8000),
-    });
-  } catch (err) {
-    // The order is still in the payment provider's dashboard.
-    console.error('order not reported', err);
+  const mode = isTestKey(secretFor(order.provider)) ? 'test' : 'live';
+  // Tried twice; if it still fails, the order is in the payment provider's dashboard.
+  for (let tries = 0; tries < 2; tries++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { authorization: \`Bearer \${key}\`, 'content-type': 'application/json' },
+        body: JSON.stringify({ order, mode }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) return;
+      console.error('order not reported', res.status);
+    } catch (err) {
+      console.error('order not reported', err);
+    }
   }
 }
 `,
@@ -535,7 +552,7 @@ import { reportOrder, secretFor } from '@/lib/payments';
 import { orderPage, siteKey, SitePageView } from '@/site/render';
 import { ctxFor, loadSite } from '@/site/page';
 import { OrderView } from '@/site/store/order-view';
-import { PaymentError, verifyPaystack, verifyStripe, type Verified } from '@/site/store/payments';
+import { orderFitsStore, PaymentError, verifyPaystack, verifyStripe, type Verified } from '@/site/store/payments';
 
 export const metadata: Metadata = { title: 'Your order', robots: { index: false } };
 // Checked with the payment provider on every visit.
@@ -559,6 +576,9 @@ export default async function OrderPage({ params, searchParams }: Props) {
     if (verified.order?.reference !== ref) {
       verified = null;
       error = 'This order wasn’t found.';
+    } else if (verified.paid && !orderFitsStore(site.store, verified.order)) {
+      // Paid, but not what the shop charges for these items: never counted as an order.
+      verified = { ...verified, paid: false, reason: 'The amount paid doesn’t match this order' };
     } else if (verified.paid) await reportOrder(verified.order);
   } catch (err) {
     error = err instanceof PaymentError ? err.message : 'The payment couldn’t be checked right now.';
@@ -579,7 +599,8 @@ export default async function OrderPage({ params, searchParams }: Props) {
   add(
     'src/app/api/webhooks/paystack/route.ts',
     `import { recordPaid, secretFor } from '@/lib/payments';
-import { checkPaystack, paystackSignatureOk } from '@/site/store/payments';
+import { loadSite } from '@/site/page';
+import { checkPaystack, orderFitsStore, paystackSignatureOk } from '@/site/store/payments';
 
 /** Paystack → Settings → API Keys & Webhooks → Webhook URL: https://<this site>/api/webhooks/paystack */
 export async function POST(req: Request) {
@@ -589,7 +610,8 @@ export async function POST(req: Request) {
   const event = JSON.parse(raw) as { event?: string; data?: Parameters<typeof checkPaystack>[0] };
   if (event.event === 'charge.success' && event.data) {
     const v = checkPaystack(event.data);
-    if (v.paid && v.order) await recordPaid(v.order);
+    // An order's lines travel with the payment, so they're priced again before it counts.
+    if (v.paid && v.order && (v.order.booking || orderFitsStore((await loadSite()).store, v.order))) await recordPaid(v.order);
   }
   return new Response(null, { status: 200 });
 }

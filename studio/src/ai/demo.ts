@@ -3,7 +3,7 @@ import { DEFAULT_PAGE_SECTIONS } from '@/generate/plan';
 import { pagesFor } from '@/generate/brief';
 import type { ContentOf, SectionType } from '@/site/schema';
 import type { ChatRequest, ChatResult, ProviderClient } from './types';
-import { TIMELINE_CODE, TIMELINE_FIELDS } from '@/site/custom/samples';
+import { TIMELINE_CODE, TIMELINE_FIELDS } from '@/site/custom/sample-code';
 
 /*
  * Demo provider for local development without API keys. It answers each task

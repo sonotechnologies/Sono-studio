@@ -210,6 +210,20 @@ export function revertChange(current: SiteConfig, before: SiteConfig, after: Sit
   return siteConfigSchema.parse(out);
 }
 
+/**
+ * Brings changes made elsewhere (another tab, or the client in /admin) into
+ * this config: what changed between `before` and `after` is applied on top of
+ * `current`, section by section, plus the shop, bookings and site details.
+ */
+export function mergeChanges(current: SiteConfig, before: SiteConfig, after: SiteConfig): SiteConfig {
+  let out = revertChange(current, after, before);
+  for (const key of Object.keys({ ...before, ...after }) as (keyof SiteConfig)[]) {
+    if (key === 'pages' || key === 'theme') continue;
+    if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) out = { ...out, [key]: after[key] };
+  }
+  return siteConfigSchema.parse(out);
+}
+
 /** Switches every section to the theme's preferred layout for its type, where it has one. */
 export function applyLayouts(config: SiteConfig): { config: SiteConfig; changed: number } {
   const wanted = config.theme.layouts ?? {};

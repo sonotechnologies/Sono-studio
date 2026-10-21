@@ -29,6 +29,8 @@ export interface Repo {
   /** Newest first, without the configs. */
   listSiteVersions(projectId: string, limit?: number): Promise<VersionInfo[]>;
   getSiteVersionNumber(projectId: string, version: number): Promise<SiteVersion | null>;
+  /** The version a client's edit in /admin started from, or null (a studio save). */
+  versionBasedOn(projectId: string, version: number): Promise<number | null>;
   listChatMessages(projectId: string): Promise<ChatMessage[]>;
   addChatMessage(projectId: string, message: Omit<ChatMessage, 'id' | 'createdAt'>): Promise<ChatMessage>;
   createJob(projectId: string, brief: Brief): Promise<GenerationJob>;
@@ -37,6 +39,10 @@ export interface Repo {
   getLatestJob(projectId: string): Promise<GenerationJob | null>;
   /** Saves a job's progress (everything except its ids and timestamps). */
   saveJob(job: GenerationJob): Promise<void>;
+  /** Just the latest job's id and status (the job itself carries the whole generated site). */
+  getLatestJobStatus(projectId: string): Promise<{ id: string; status: GenerationJob['status'] } | null>;
+  /** Claims a job's next step for a while; false when another request is running it. */
+  claimJob(id: string, seconds: number): Promise<boolean>;
   listAssets(projectId: string): Promise<Asset[]>;
   /** Stores an uploaded file, or records an external (stock) image when `file` is absent. */
   addAsset(projectId: string, input: NewAsset, file?: UploadFile): Promise<Asset>;
@@ -79,6 +85,8 @@ export interface Repo {
   /** The encrypted test key for a live pitch link's demo checkout, or null. */
   getPitchPaymentKey(slug: string, provider: PaymentKeyProvider): Promise<string | null>;
   /** A test checkout from a pitch link, pending until paid. `tokenHash` is the sha256 of its settle token. */
+  /** Gives the database the secret test payments are proven with (the signed-in owner's; never read back). */
+  setOrderSecret(secret: string): Promise<void>;
   createPitchOrder(slug: string, order: Order, tokenHash: string): Promise<void>;
   /** A test checkout from the studio preview (signed in). */
   createOrder(projectId: string, order: Order, tokenHash: string): Promise<void>;
@@ -130,6 +138,8 @@ export interface Repo {
   adminUpload(token: string, file: UploadFile, alt: string): Promise<Asset | null>;
   /** What a deployed site shows: its published version's config, or null. Works without a signed-in user. */
   publishedConfig(projectId: string): Promise<unknown | null>;
+  /** The same, with its version number (null before migration 0017). */
+  publishedSite(projectId: string): Promise<{ version: number | null; config: unknown } | null>;
   /** Marks a version as what the live site shows; never moves back to an older one. */
   setPublishedVersion(projectId: string, version: number): Promise<void>;
 }
@@ -320,6 +330,8 @@ export interface SiteVersion {
   version: number;
   config: SiteConfig;
   summary: string;
+  /** For a client's edit in /admin: the version it was made from. */
+  basedOn?: number | null;
   createdAt: string;
 }
 

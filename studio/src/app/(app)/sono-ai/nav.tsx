@@ -1,17 +1,18 @@
 import Link from 'next/link';
 
+// The overview first, so it's in view on a phone.
 const TABS = [
+  { href: '/sono-ai', label: 'Setup and history' },
   { href: '/sono-ai/chat', label: 'Chat' },
   { href: '/sono-ai/drafts', label: 'Drafts' },
   { href: '/sono-ai/builds', label: 'Builds' },
   { href: '/sono-ai/rules', label: 'Rulebook' },
   { href: '/sono-ai/scorecards', label: 'Scorecards' },
-  { href: '/sono-ai', label: 'Setup and history' },
 ];
 
 export function SonoAiNav({ current }: { current: string }) {
   return (
-    <nav aria-label="Sono AI" className="-mb-2 flex gap-[22px] overflow-x-auto border-b border-border [scrollbar-width:thin]">
+    <nav aria-label="Sono AI" className="-mb-2 flex gap-[22px] overflow-x-auto border-b border-border [scrollbar-width:thin] max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-24px),transparent)]">
       {TABS.map((t) => (
         <Link
           key={t.href}

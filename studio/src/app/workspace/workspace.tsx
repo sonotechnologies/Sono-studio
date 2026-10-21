@@ -60,6 +60,7 @@ import {
   setVariant,
   syncShared,
   toggleHidden,
+  mergeChanges,
 } from '@/workspace/model';
 import { addShop, saveProduct } from '@/workspace/store';
 import type { AiMode } from '../new/setup-flow';
@@ -133,7 +134,13 @@ export function Workspace({
   const [, rerender] = useReducer((x: number) => x + 1, 0);
 
   /* ----- Autosave ----- */
-  const [version, setVersion] = useState(initialVersion);
+  const [version, setVersionState] = useState(initialVersion);
+  // The version this workspace last loaded or saved: a newer one saved elsewhere is merged in, not overwritten.
+  const versionRef = useRef(initialVersion);
+  const setVersion = (v: number) => {
+    versionRef.current = v;
+    setVersionState(v);
+  };
   const [saveState, setSaveState] = useState<SaveState>('saved');
   const [saveError, setSaveError] = useState('');
   const pendingSummaries = useRef<string[]>([]);
@@ -152,9 +159,30 @@ export function Workspace({
     // An undo followed by a redo, or an edit typed back to what it was, needs no new version.
     if (json === lastSaved.current) return setSaveState('saved');
     setSaveState('saving');
-    const run = saveSiteAction(projectId, config, summary)
+    const run = saveSiteAction(projectId, config, summary, versionRef.current || undefined)
       .then((r) => {
+        if (r.conflict) {
+          // Saved elsewhere meanwhile (another tab, or the client in /admin): bring those changes in, then save on top.
+          const c = r.conflict;
+          let merged: SiteConfig;
+          try {
+            merged = mergeChanges(configRef.current, c.basedOn ?? (JSON.parse(lastSaved.current) as SiteConfig), c.config);
+          } catch {
+            merged = c.config;
+          }
+          versionRef.current = c.version;
+          setVersionState(c.version);
+          lastSaved.current = JSON.stringify(c.config);
+          configRef.current = merged;
+          setConfig(merged);
+          toast(c.basedOn ? 'Your client edited the live site in /admin. Their changes are now in here too.' : 'This site was changed in another tab. Those changes are now in here too.');
+          pendingSummaries.current.unshift(summary);
+          queueSave('Merged changes made elsewhere');
+          return;
+        }
         if (r.error) {
+          // Kept, so leaving still warns and the next edit tries again.
+          pendingSummaries.current.unshift(summary);
           setSaveState('error');
           setSaveError(r.error);
           return;
@@ -171,6 +199,7 @@ export function Workspace({
       });
     inflight.current = run;
     await run;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const queueSave = useCallback(
@@ -768,10 +797,13 @@ export function Workspace({
           sheet ? 'max-md:h-[62%]' : 'max-md:h-16'
         }`}
       >
-        <button type="button" aria-label={sheet ? 'Collapse panel' : 'Expand panel'} onClick={() => setSheet((v) => !v)} className="flex flex-none cursor-pointer justify-center pt-2 md:hidden">
+        <button type="button" aria-label={sheet ? 'Collapse panel' : 'Expand panel'} onClick={() => setSheet((v) => !v)}
+          // A bigger touch area than the little bar shows, without taking room from the tabs.
+          className="relative flex flex-none cursor-pointer justify-center pt-2 after:absolute after:inset-x-0 after:-top-1 after:h-9 after:content-[''] md:hidden"
+        >
           <span className="h-1 w-10 rounded-full bg-border" />
         </button>
-        <div role="tablist" className="flex flex-none gap-3.5 overflow-x-auto border-b border-border px-4 [scrollbar-width:none]">
+        <div role="tablist" aria-label="Editor" className="flex flex-none gap-2.5 overflow-x-auto border-b border-border px-3.5 [scrollbar-width:none] [mask-image:linear-gradient(to_right,#000_calc(100%-20px),transparent)]">
           {(['chat', 'edit', 'theme', 'products', 'bookings', ...(sonoAi ? (['sono'] as const) : [])] as const).map((t) => (
             <button
               key={t}
@@ -783,12 +815,12 @@ export function Workspace({
                 else setSheet(true);
                 setTab(t);
               }}
-              className={`flex h-[50px] flex-none cursor-pointer items-center text-[14px] font-medium capitalize ${tab === t ? 'text-accent-text shadow-[inset_0_-2px_0_#B4502E]' : 'text-muted hover:text-text'}`}
+              className={`flex h-[50px] flex-none cursor-pointer items-center text-[13.5px] font-medium whitespace-nowrap capitalize ${tab === t ? 'text-accent-text shadow-[inset_0_-2px_0_#B4502E]' : 'text-muted hover:text-text'}`}
             >
-              {t === 'sono' ? 'Sono AI' : t}
+              {t === 'sono' ? 'Sono' : t}
             </button>
           ))}
-          {selected && (tab === 'chat' || tab === 'theme') && (
+          {selected && !sonoAi && (tab === 'chat' || tab === 'theme') && (
             <span className="ml-auto flex items-center text-[12px] text-muted max-md:hidden">
               <span className="max-w-[90px] truncate">{SECTIONS[selected.type].label}</span>
               <button type="button" aria-label="Clear selection" onClick={() => select(null)} className="ml-0.5 flex size-6 cursor-pointer items-center justify-center rounded-full hover:bg-hover">

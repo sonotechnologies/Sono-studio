@@ -24,14 +24,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const n = Number(form.get(k));
     return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
   };
-  if (kind === 'logo') {
-    // One logo per project: a new one replaces the old.
-    for (const a of await repo.listAssets(id)) if (a.kind === 'logo') await repo.deleteAsset(id, a.id);
+  try {
+    const old = kind === 'logo' ? (await repo.listAssets(id)).filter((a) => a.kind === 'logo') : [];
+    const asset = await repo.addAsset(
+      id,
+      { kind, source: 'upload', alt: String(form.get('alt') ?? '').slice(0, 200), credit: '', width: num('width'), height: num('height') },
+      { bytes: new Uint8Array(await file.arrayBuffer()), contentType: file.type, ext },
+    );
+    // One logo per project: the old one goes once the new one is saved.
+    for (const a of old) await repo.deleteAsset(id, a.id).catch(() => {});
+    return NextResponse.json({ asset });
+  } catch (err) {
+    return NextResponse.json({ error: `The upload couldn’t be saved: ${(err as Error).message.slice(0, 200)}` }, { status: 500 });
   }
-  const asset = await repo.addAsset(
-    id,
-    { kind, source: 'upload', alt: String(form.get('alt') ?? '').slice(0, 200), credit: '', width: num('width'), height: num('height') },
-    { bytes: new Uint8Array(await file.arrayBuffer()), contentType: file.type, ext },
-  );
-  return NextResponse.json({ asset });
 }

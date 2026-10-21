@@ -5,12 +5,7 @@ import { redirect } from 'next/navigation';
 import { getRepo, requireUser } from '@/lib/auth';
 import { siteConfigSchema } from '@/site/schema';
 import { starterConfig } from '@/site/starter';
-import {
-  clientPatchSchema,
-  projectPatchSchema,
-  type ClientPatch,
-  type ProjectPatch,
-} from '@/lib/types';
+import { clientPatchSchema, projectPatchSchema, type ClientPatch, type ProjectPatch } from '@/lib/schemas';
 
 export async function updateProjectAction(id: string, patch: ProjectPatch): Promise<void> {
   await requireUser();

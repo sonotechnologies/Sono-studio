@@ -54,6 +54,8 @@ export async function POST(req: Request) {
   try {
     await repo.saveSiteCopy(projectId, copy.meta, zip);
   } catch (err) {
+    // A project made for this copy goes again, so a failed copy leaves nothing behind.
+    if (!body.projectId) await repo.deleteProject(projectId).catch(() => {});
     return NextResponse.json({ error: `The copy couldn’t be saved: ${(err as Error).message}` }, { status: 500 });
   }
   return NextResponse.json({ projectId, meta: copy.meta });

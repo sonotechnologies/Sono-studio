@@ -45,9 +45,12 @@ export function LiveThumb({ src, className = '', children }: { src: string | nul
   );
 }
 
+const BUILD = (process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 12);
+
 /** Where a project's thumbnail comes from: its latest version, or its copy. */
 export function thumbSrc(p: { id: string; currentVersion: number | null }, copy?: { home: string; version: string }): string | null {
-  if (p.currentVersion !== null) return `/thumb/${p.id}?v=${p.currentVersion}`;
+  // The build is part of the address: a kept thumbnail points at this build's stylesheets.
+  if (p.currentVersion !== null) return `/thumb/${p.id}?v=${p.currentVersion}${BUILD ? `&b=${BUILD}` : ''}`;
   if (copy) return `/copy/${p.id}/${copy.home}?thumb=1&v=${encodeURIComponent(copy.version)}`;
   return null;
 }

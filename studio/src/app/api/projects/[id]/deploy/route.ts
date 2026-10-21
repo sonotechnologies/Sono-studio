@@ -5,7 +5,7 @@ import type { Repo } from '@/lib/data/repo';
 import { alertDeployFailed } from '@/sono-ai/alerts';
 
 // Exporting, pushing to GitHub and uploading to Vercel can take a while for sites with many photos.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** Starts a deploy of the current version. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {

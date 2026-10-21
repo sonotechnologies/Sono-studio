@@ -6,6 +6,7 @@ import { shortDate, siteUrl } from '@/lib/format';
 import { validSlug } from '@/lib/pitch';
 import { whatsappHref } from '@/site/primitives';
 import { bookingCtx, checkoutCtx, confirmOrder } from '@/lib/checkout';
+import { SiteFonts } from '@/components/site-fonts';
 import { findPage, orderPage, siteKey, SitePageView } from '@/site/render';
 import { OrderView } from '@/site/store/order-view';
 import { BookingView } from '@/site/store/booking-view';
@@ -72,7 +73,8 @@ export default async function PitchPage({ params, searchParams }: Props) {
   };
   const repo = await getRepo();
   const scope = { kind: 'pitch' as const, slug };
-  const ctx = { link, editable: false, checkout: config.store ? await checkoutCtx(repo, scope, config) : undefined, booking: await bookingCtx(repo, scope, config) };
+  const [checkout, booking] = await Promise.all([config.store ? checkoutCtx(repo, scope, config) : undefined, bookingCtx(repo, scope, config)]);
+  const ctx = { link, editable: false, checkout, booking };
   const banner = pitch.banner ? { whatsapp: pitch.whatsapp, instagram: pitch.instagram, businessName: config.meta.businessName } : null;
 
   // Back from a payment page: the order, checked with the payment provider.
@@ -81,6 +83,7 @@ export default async function PitchPage({ params, searchParams }: Props) {
     const result = await confirmOrder(repo, scope, orderRef, await searchParams);
     return (
       <PitchShell slug={slug} path="/order" banner={banner}>
+        <SiteFonts fonts={[config.theme.fonts.heading, config.theme.fonts.body]} />
         <SitePageView
           config={config}
           page={orderPage(config)}
@@ -98,6 +101,7 @@ export default async function PitchPage({ params, searchParams }: Props) {
     const result = await confirmOrder(repo, scope, bookingRef, await searchParams);
     return (
       <PitchShell slug={slug} path="/booking" banner={banner}>
+        <SiteFonts fonts={[config.theme.fonts.heading, config.theme.fonts.body]} />
         <SitePageView config={config} page={orderPage(config)} ctx={ctx} className="min-h-dvh" insert={<BookingView config={config} reference={bookingRef} verified={result.verified} error={result.error} ctx={ctx} test />} />
       </PitchShell>
     );
@@ -107,6 +111,7 @@ export default async function PitchPage({ params, searchParams }: Props) {
   if (!page) notFound();
   return (
     <PitchShell slug={slug} path={sitePath} banner={banner}>
+        <SiteFonts fonts={[config.theme.fonts.heading, config.theme.fonts.body]} />
       <SitePageView config={config} page={page} ctx={ctx} className="min-h-dvh" />
     </PitchShell>
   );

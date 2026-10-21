@@ -63,10 +63,11 @@ describe('slugs', () => {
     expect(slugify('!!!')).toBe('site');
   });
 
-  it('adds a four-character suffix', () => {
+  it('adds a ten-character random suffix', () => {
     let i = 0;
     const seq = [0, 0.5, 0.25, 0.99];
-    expect(pitchSlug('Kora Kitchen', () => seq[i++])).toMatch(/^kora-kitchen-[a-z2-9]{4}$/);
+    expect(pitchSlug('Kora Kitchen', () => seq[i++ % 4])).toMatch(/^kora-kitchen-[a-z2-9]{10}$/);
+    expect(pitchSlug('Kora Kitchen')).not.toBe(pitchSlug('Kora Kitchen'));
   });
 });
 

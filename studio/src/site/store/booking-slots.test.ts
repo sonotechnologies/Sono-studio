@@ -72,3 +72,26 @@ describe('booking times', () => {
     expect(whenLabel('2026-10-12T08:00:00Z', 'Africa/Lagos')).toBe('Mon 12 Oct, 09:00');
   });
 });
+
+describe('edges of the calendar', () => {
+  it('refuses a time further ahead than the business takes bookings', () => {
+    const now = new Date('2026-10-11T07:00:00Z');
+    const soon = zonedTime('2026-10-12', '09:00', b.timezone).toISOString();
+    const far = zonedTime('2026-11-30', '09:00', b.timezone).toISOString();
+    expect(slotFree(b, b.services[0], soon, [], now)).not.toBeNull();
+    expect(slotFree(b, b.services[0], far, [], now)).toBeNull();
+  });
+
+  it('skips times a clock change makes repeat or not exist', () => {
+    const ny: Bookings = { ...b, timezone: 'America/New_York', hours: [{ day: 0, open: '00:00', close: '04:00' }], notice: 0, closed: [] };
+    const slots = slotsFor(ny, { duration: 30 }, '2027-03-14', [], new Date('2027-03-01T00:00:00Z'));
+    const labels = slots.map((s) => s.label);
+    expect(labels).not.toContain('02:00');
+    expect(new Set(slots.map((s) => s.start)).size).toBe(slots.length);
+  });
+
+  it('rounds deposits to what the payment providers charge', () => {
+    expect(depositFor({ depositPercent: 33, currency: 'UGX' }, { price: 1001 })).toBe(330);
+    expect(depositFor({ depositPercent: 33, currency: 'USD' }, { price: 10.01 })).toBe(3.3);
+  });
+});

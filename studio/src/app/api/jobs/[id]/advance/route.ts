@@ -17,6 +17,8 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const job = await repo.getJob(id);
   if (!job) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (job.status !== 'running') return NextResponse.json({ job });
+  // Another request (another tab, a reload) is already running this step: the browser asks again shortly.
+  if (!(await repo.claimJob(id, maxDuration + 10))) return NextResponse.json({ job, busy: true });
 
   const providers = await loadProviders(repo, { projectId: job.projectId });
   if (!providers.length) {
@@ -29,19 +31,26 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ job: failed });
   }
 
+  const [stock, assets] = await Promise.all([loadStock(repo), repo.listAssets(job.projectId)]);
   const run = async (providers: Awaited<ReturnType<typeof loadProviders>>) => advance(job, {
     providers,
     hooks: routerHooks(repo),
-    stock: await loadStock(repo),
-    assets: await repo.listAssets(job.projectId),
+    stock,
+    assets,
     saveVersion: (config) => repo.saveSiteVersion(job.projectId, siteConfigSchema.parse(config), 'Generated site'),
     recordStock: async (photos) => {
-      for (const p of photos) {
-        await repo.addAsset(job.projectId, { kind: 'photo', source: p.source, url: p.url, alt: p.alt, credit: p.credit, width: p.width, height: p.height });
-      }
+      await Promise.all(photos.map((p) => repo.addAsset(job.projectId, { kind: 'photo', source: p.source, url: p.url, alt: p.alt, credit: p.credit, width: p.width, height: p.height })));
     },
   });
-  let result = await run(providers);
+  let result: Awaited<ReturnType<typeof run>>;
+  try {
+    result = await run(providers);
+  } catch (err) {
+    // A failure outside the AI steps (a key that can't be read, the database): say so, and free the job.
+    const failed = { ...job, status: 'failed' as const, error: `This step couldn’t run: ${(err as Error).message.slice(0, 300)}` };
+    await repo.saveJob(failed).catch(() => {});
+    return NextResponse.json({ job: failed });
+  }
   // A provider retired a model name: pick current models from its live list and try once more.
   // Up to twice, since the replacement can turn out to be retired as well.
   const retired: string[] = [];

@@ -47,11 +47,11 @@ Notes:
 | Wizard (`/new`) | Business and pages, style preset, content (photo and logo uploads, logo colours extracted in the browser, paste box, client details), review with edit links. "Save and close" keeps a draft; the project page offers "Continue setup" |
 | AI router (`src/ai/`) | Thin adapters over Gemini, Groq and OpenRouter. Each task picks a tier (strong for plans, light for copy and parsing), replies are checked against a schema, one repair attempt, then the next provider. Rate limits put a provider on cooldown; requests per day are counted |
 | Generation (`src/generate/`) | Read inputs → plan → **you review the plan** (drag, remove, add) → write copy page by page → photos → assemble and validate → version 1. Each step is one short request, saved as it finishes, so a closed tab or a rate limit resumes where it stopped |
-| Guard rails | No invented facts or reviews: testimonials are always labelled "Sample review", model image URLs are discarded, contact details and hours come from the brief, stats only from given facts |
+| Guard rails | No invented facts or reviews: testimonials are labelled "Sample review" unless real reviews are quoted in the owner's notes (then used word for word), model image URLs are discarded, contact details and hours come from the brief, stats only from given facts |
 | Photos | Client photos go on the most visible slots first; the rest come from Unsplash or Pexels (with credit) when a key is set, otherwise placeholders |
 | Settings → AI providers | Add keys (checked with the provider, stored AES-256-GCM encrypted, only the last 4 characters shown), order by drag, choose models per tier (list loaded from the provider), daily limit with usage bar, cooldown status |
 | Settings → Connections | Unsplash and Pexels keys |
-| Demo mode | Without any AI key, development uses a labelled template provider so the flow can be tried. It never runs in production |
+| Demo mode | Without any AI key, development uses a labelled template provider so the flow can be tried. In production it only runs if `SONO_DEMO_AI=1` is set |
 
 Notes:
 - PDF menus aren't read yet: paste their text into the wizard.
@@ -341,7 +341,9 @@ npm run build
 3. Authentication → Providers → Email: keep email and password on, and **turn off "Allow new users to sign up"**.
 4. Authentication → Users → Add user: create your one login.
 5. Copy `.env.example` to `.env.local` and fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` (Project settings → API).
-6. Set `SONO_ENCRYPTION_KEY` to the output of `openssl rand -base64 32` (it encrypts your AI keys; keep it safe, changing it makes saved keys unreadable).
+6. Set `SONO_ENCRYPTION_KEY` to the output of `openssl rand -base64 32` (it encrypts your AI keys; keep it safe, changing it makes saved keys unreadable: the studio then skips them and Settings asks for them again).
+
+`0017_hardening.sql` is a safety update for existing projects too: it locks internal database functions, checks test payments against a secret the studio gives the database (set when you open the dashboard or save a payment key), takes booking capacity from the site's own settings, and lets clients in /admin edit only the live version. Run it after the earlier files.
 
 Every table has row-level security limited to the signed-in owner.
 

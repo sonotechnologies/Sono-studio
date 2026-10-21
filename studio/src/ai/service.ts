@@ -1,5 +1,5 @@
 import 'server-only';
-import { decryptSecret } from '@/lib/crypto';
+import { decryptSecret, openSecret } from '@/lib/crypto';
 import { usageToday, type ProviderKeyRow, type Repo } from '@/lib/data/repo';
 import { chain, pexels, unsplash, type StockSearch } from '@/generate/stock';
 import { demoAllowed, demoClient } from './demo';
@@ -33,12 +33,14 @@ export async function loadProviders(repo: Repo, opts: { projectId?: string } = {
 
 async function chooseProviders(repo: Repo): Promise<ProviderClient[]> {
   const rows = (await repo.listProviderKeys()).filter((r) => isAiProvider(r.provider));
+  // A key that can't be opened is skipped (Settings shows it needs entering again).
   const clients = rows
     .filter((r) => availability(r) === 'ready')
-    .map((r) => {
+    .flatMap((r) => {
       const id = r.provider as AiProviderId;
       const d = PROVIDER_INFO[id].defaults;
-      return makeClient(id, decryptSecret(r.ciphertext), { strong: r.models.strong || d.strong, light: r.models.light || d.light });
+      const key = openSecret(r.ciphertext);
+      return key ? [makeClient(id, key, { strong: r.models.strong || d.strong, light: r.models.light || d.light })] : [];
     });
   if (!rows.length && demoAllowed()) return [demoClient()];
   return clients;
@@ -54,9 +56,10 @@ export function routerHooks(repo: Repo): RouterHooks {
 
 export async function loadStock(repo: Repo): Promise<StockSearch | null> {
   const rows = await repo.listProviderKeys();
-  const sources = rows.flatMap((r) =>
-    r.provider === 'unsplash' ? [unsplash(decryptSecret(r.ciphertext))] : r.provider === 'pexels' ? [pexels(decryptSecret(r.ciphertext))] : [],
-  );
+  const sources = rows.flatMap((r) => {
+    const key = r.provider === 'unsplash' || r.provider === 'pexels' ? openSecret(r.ciphertext) : null;
+    return !key ? [] : r.provider === 'unsplash' ? [unsplash(key)] : [pexels(key)];
+  });
   return sources.length ? chain(sources) : null;
 }
 

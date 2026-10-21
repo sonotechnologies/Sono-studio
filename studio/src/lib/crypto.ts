@@ -34,6 +34,19 @@ export function decryptSecret(sealed: string): string {
   return Buffer.concat([decipher.update(Buffer.from(body, 'base64')), decipher.final()]).toString('utf8');
 }
 
+/**
+ * A saved key, or null when it can't be opened (the encryption key changed, or
+ * the row is damaged): callers skip it and ask for it again instead of failing.
+ */
+export function openSecret(sealed: string): string | null {
+  try {
+    return decryptSecret(sealed);
+  } catch (err) {
+    console.warn('A saved key could not be decrypted:', (err as Error).message);
+    return null;
+  }
+}
+
 /** "Key saved · ends 7f2a", never more of the key than that. */
 export function keyHint(plain: string): string {
   return plain.slice(-4);

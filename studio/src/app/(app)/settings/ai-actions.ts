@@ -6,6 +6,7 @@ import { listModels } from '@/ai/providers';
 import { isAiProvider } from '@/ai/service';
 import { AI_PROVIDERS, PROVIDER_INFO, ProviderError, STOCK_PROVIDERS, type AiProviderId } from '@/ai/types';
 import { getRepo, requireUser } from '@/lib/auth';
+import { ensureOrderSecret } from '@/lib/checkout';
 import { decryptSecret, encryptSecret, keyHint } from '@/lib/crypto';
 import type { KeyProvider } from '@/lib/data/repo';
 import { DEPLOY_PROVIDERS, PAYMENT_KEY_PROVIDERS } from '@/lib/types';
@@ -103,7 +104,8 @@ export async function saveKeyAction(p: string, rawKey: string): Promise<SaveKeyR
       ? { models: models ? pickModels(id, models, existing?.models) : existing?.models ?? { ...PROVIDER_INFO[id].defaults } }
       : {}),
   });
-  await repo.setCooldown(id as never, null);
+  if (isAiProvider(id)) await repo.setCooldown(id, null);
+  if (id === 'paystack' || id === 'stripe' || id === 'stripe_webhook') await ensureOrderSecret(repo);
   revalidatePath('/settings');
   return { models, warning };
 }

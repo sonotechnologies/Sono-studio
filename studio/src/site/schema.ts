@@ -229,7 +229,7 @@ export const bookingsSchema = z.object({
   /** Where booking requests go (digits, with country code). */
   whatsapp: text(32),
   /** IANA time zone the opening hours are in, e.g. Africa/Lagos. */
-  timezone: z.string().max(60).regex(/^[A-Za-z_]+(\/[A-Za-z_+-]+)*$/),
+  timezone: z.string().max(60).regex(/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/),
   services: z.array(serviceSchema).max(60),
   /** Weekly opening hours: day 0 is Sunday. A day can have up to two spans (e.g. a lunch break). */
   hours: z.array(z.object({ day: z.number().int().min(0).max(6), open: hhmm, close: hhmm })).max(14),

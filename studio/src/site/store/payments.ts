@@ -73,14 +73,33 @@ export function priceCart(store: Store, body: unknown): Omit<Order, 'reference'>
       const chosen = raw.options?.[group.name];
       options[group.name] = chosen && group.values.includes(chosen) ? chosen : group.values[0];
     }
-    lines.push({ productId: product.id, name: product.name, options, qty, price: product.price });
+    // Each price in the currency's smallest unit, as the payment providers charge it.
+    lines.push({ productId: product.id, name: product.name, options, qty, price: fromMinor(minorUnits(product.price, store.currency), store.currency) });
   }
   const c = req.customer ?? {};
   const customer = { name: clip(c.name, 80), email: clip(c.email, 120), phone: clip(c.phone, 32), note: clip(c.note, 400) };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customer.email)) throw new PaymentError('Enter an email address for the receipt.');
   if (!customer.name) throw new PaymentError('Enter your name.');
-  const total = Math.round(lines.reduce((s, l) => s + l.price * l.qty, 0) * 100) / 100;
+  const total = fromMinor(lines.reduce((s, l) => s + minorUnits(l.price, store.currency) * l.qty, 0), store.currency);
   return { provider: req.provider, currency: store.currency, total, lines, customer };
+}
+
+/**
+ * Whether a paid order matches the shop's own prices. A payment page can be
+ * started by anyone who has the shop's public key, with any order attached,
+ * so a paid order only counts if pricing it again gives the amount paid.
+ */
+export function orderFitsStore(store: Store | undefined, order: Order): boolean {
+  if (!store || order.booking) return false;
+  try {
+    const again = priceCart(
+      { ...store, products: store.products.map((p) => ({ ...p, soldOut: false })) },
+      { provider: order.provider, lines: order.lines.map((l) => ({ productId: l.productId, options: l.options, qty: l.qty })), customer: order.customer },
+    );
+    return again.currency === order.currency && minorUnits(again.total, again.currency) === minorUnits(order.total, order.currency);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -228,15 +247,17 @@ export async function startStripe(opts: { secret: string; order: Order; returnUr
     client_reference_id: order.reference,
     customer_email: order.customer.email,
     line_items: items,
-    // Stripe metadata values are capped at 500 characters, so the order goes in pieces.
+    // Stripe metadata values are capped at 500 characters, so longer values go in numbered pieces.
     metadata: {
       reference: order.reference,
       total: String(order.total),
       currency: order.currency,
-      customer: JSON.stringify(order.customer).slice(0, 500),
-      lines: JSON.stringify(order.lines.map((l) => [l.productId, l.qty, l.price, l.options])).slice(0, 500),
-      ...(order.booking ? { booking: JSON.stringify(order.booking).slice(0, 500) } : {}),
+      ...pieces('customer', JSON.stringify(order.customer)),
+      ...pieces('lines', JSON.stringify(order.lines.map((l) => [l.productId, l.qty, l.price, l.options]))),
+      ...(order.booking ? pieces('booking', JSON.stringify(order.booking)) : {}),
     },
+    // A deposit's time is held for 30 minutes: the payment page closes soon after (Stripe's shortest).
+    ...(order.booking ? { expires_at: Math.floor(Date.now() / 1000) + 31 * 60 } : {}),
   });
   return session.url;
 }
@@ -252,17 +273,30 @@ type StripeSession = {
   line_items?: { data: { description: string; quantity: number; amount_total: number }[] };
 };
 
+/** A value split into metadata keys of at most 500 characters: name, name_1, name_2… */
+function pieces(name: string, value: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (let i = 0; i * 500 < value.length && i < 12; i++) out[i ? `${name}_${i}` : name] = value.slice(i * 500, (i + 1) * 500);
+  return out;
+}
+
+const joined = (m: Record<string, string>, name: string) => {
+  let v = m[name] ?? '';
+  for (let i = 1; m[`${name}_${i}`] !== undefined; i++) v += m[`${name}_${i}`];
+  return v;
+};
+
 export function checkStripe(s: StripeSession): Verified {
   const m = s.metadata ?? {};
   if (!m.reference || m.reference !== s.client_reference_id) return { paid: false, reason: 'Unknown order', order: null };
   const currency = (m.currency || s.currency).toUpperCase();
   let customer: Order['customer'] = { name: '', email: '', phone: '', note: '' };
   try {
-    customer = { ...customer, ...(JSON.parse(m.customer || '{}') as Partial<Order['customer']>) };
+    customer = { ...customer, ...(JSON.parse(joined(m, 'customer') || '{}') as Partial<Order['customer']>) };
   } catch {}
   let packed: [string, number, number, Record<string, string>][] = [];
   try {
-    packed = JSON.parse(m.lines || '[]');
+    packed = JSON.parse(joined(m, 'lines') || '[]');
   } catch {}
   const items = s.line_items?.data ?? [];
   const lines: Order['lines'] = items.map((it, i) => ({
@@ -276,7 +310,7 @@ export function checkStripe(s: StripeSession): Verified {
   const total = Number(m.total);
   let booking: Order['booking'];
   try {
-    booking = m.booking ? (JSON.parse(m.booking) as Order['booking']) : undefined;
+    booking = m.booking ? (JSON.parse(joined(m, 'booking')) as Order['booking']) : undefined;
   } catch {}
   const order: Order = { reference: m.reference, provider: 'stripe', currency, total, lines, customer, ...(booking ? { booking } : {}) };
   const paid = s.payment_status === 'paid' && s.currency.toUpperCase() === currency && s.amount_total === minorUnits(total, currency);

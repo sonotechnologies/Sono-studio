@@ -37,6 +37,10 @@ export interface AssistStore {
   scorecards(): Promise<(ScoreRow & { updatedAt: string })[]>;
   saveScorecards(rows: ScoreRow[]): Promise<void>;
   builds(): Promise<BuildRequest[]>;
+  /** The request that started a project, if Sono AI started it. */
+  buildForProject(projectId: string): Promise<BuildRequest | null>;
+  /** Projects Sono AI started. */
+  startedProjects(): Promise<string[]>;
   addBuild(b: { request: string; channel: BuildRequest['channel']; brief: BuildBrief }): Promise<BuildRequest>;
   /** Marks a request started, with the project and job it created. */
   startBuild(id: string, projectId: string, jobId: string): Promise<void>;
@@ -166,6 +170,14 @@ function supabaseAssist(db: SupabaseClient): AssistStore {
     async builds() {
       return (check(await db.from('sono_ai_builds').select('*').order('created_at', { ascending: false }).limit(100)) as BuildRow[]).map(build);
     },
+    async buildForProject(projectId) {
+      const row = check(await db.from('sono_ai_builds').select('*').eq('project_id', projectId).limit(1).maybeSingle()) as BuildRow | null;
+      return row ? build(row) : null;
+    },
+    async startedProjects() {
+      const rows = check(await db.from('sono_ai_builds').select('project_id').not('project_id', 'is', null)) as { project_id: string }[];
+      return rows.map((r) => r.project_id);
+    },
     async addBuild(b) {
       return build(check(await db.from('sono_ai_builds').insert({ request: b.request.slice(0, 2000), channel: b.channel, brief: b.brief }).select('*').single()) as BuildRow);
     },
@@ -290,6 +302,8 @@ export const devAssist: AssistStore = {
   scorecards: async () => (await load()).scorecards,
   saveScorecards: (rows) => change((d) => void (d.scorecards = rows.map((r) => ({ ...r, updatedAt: now() })))),
   builds: async () => [...((await load()).builds ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  buildForProject: async (projectId) => ((await load()).builds ?? []).find((b) => b.projectId === projectId) ?? null,
+  startedProjects: async () => ((await load()).builds ?? []).flatMap((b) => (b.projectId ? [b.projectId] : [])),
   addBuild: (b) =>
     change((d) => {
       const row: BuildRequest = { ...b, id: randomUUID(), status: 'requested', projectId: null, jobId: null, createdAt: now(), startedAt: null };

@@ -70,7 +70,7 @@ export function CopyForm() {
           </label>
           <label className="flex flex-col gap-1.5 text-[14px] font-medium">
             Their website
-            <input value={url} onChange={(e) => setUrl(e.target.value)} required inputMode="url" placeholder="casaolivia.it" className={field} />
+            <input value={url} onChange={(e) => setUrl(e.target.value)} required inputMode="url" placeholder="e.g. casaolivia.it" className={field} />
           </label>
           <label className="flex cursor-pointer items-start gap-2.5 text-[14px] leading-snug">
             <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 size-4 flex-none accent-[#B4502E]" />

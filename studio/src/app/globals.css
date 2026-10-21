@@ -219,9 +219,11 @@
     color: inherit;
     text-decoration: none;
   }
+  /* Two tones, so the ring still shows on a band in the accent colour. */
   .sono-site :focus-visible {
     outline: 2px solid var(--s-accent);
     outline-offset: 3px;
+    box-shadow: 0 0 0 3px var(--s-bg);
   }
   .sono-site details > summary {
     list-style: none;

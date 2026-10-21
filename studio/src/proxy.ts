@@ -17,7 +17,7 @@ export async function proxy(request: NextRequest) {
     if (!isPublic && !request.cookies.has('sono_dev_session')) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    return NextResponse.next();
+    return thumbCache(request, NextResponse.next());
   }
 
   let response = NextResponse.next({ request });
@@ -35,6 +35,18 @@ export async function proxy(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims && !isPublic) {
     return NextResponse.redirect(new URL('/login', request.url));
+  }
+  return thumbCache(request, response);
+}
+
+/**
+ * A project card's thumbnail names its version (?v=), and a version never
+ * changes: the browser keeps it, so the dashboard doesn't re-render every
+ * card's page on every visit. Private: it's the signed-in studio's.
+ */
+function thumbCache(request: NextRequest, response: NextResponse): NextResponse {
+  if (request.nextUrl.pathname.startsWith('/thumb/') && /^\d+$/.test(request.nextUrl.searchParams.get('v') ?? '')) {
+    response.headers.set('Cache-Control', 'private, max-age=86400');
   }
   return response;
 }

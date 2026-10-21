@@ -38,7 +38,7 @@ export function SettingsTabs({
 }) {
   return (
     <>
-      <nav aria-label="Settings sections" className="-mb-1 flex gap-[22px] overflow-x-auto border-b border-border">
+      <nav aria-label="Settings sections" className="-mb-1 flex gap-[22px] overflow-x-auto border-b border-border max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-24px),transparent)]">
         {(Object.keys(TAB_NAMES) as SettingsTab[]).map((t) => (
           <Link
             key={t}

@@ -48,7 +48,6 @@ export const chatReplySchema = z
       unreadable: read.filter((r) => !r.success).length,
     };
   });
-export type ChatReply = z.infer<typeof chatReplySchema>;
 
 function schemaText(type: SectionType): string {
   const s = z.toJSONSchema(contentSchemaFor(type), { io: 'input', unrepresentable: 'any' }) as Record<string, unknown>;

@@ -2,9 +2,11 @@ import { ChevronLeft, Download, Monitor, Smartphone, Tablet } from 'lucide-react
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { Logo } from '@/components/logo';
 import { getRepo, requireUser } from '@/lib/auth';
 import { bookingCtx, checkoutCtx, confirmOrder } from '@/lib/checkout';
+import { SiteFonts } from '@/components/site-fonts';
 import { findPage, orderPage, siteKey, SitePageView } from '@/site/render';
 import { OrderView } from '@/site/store/order-view';
 import { BookingView } from '@/site/store/booking-view';
@@ -24,12 +26,13 @@ type Width = keyof typeof WIDTHS;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function load(id: string) {
+/** One read per request, shared by the metadata and the page. */
+const load = cache(async (id: string) => {
   if (!UUID.test(id)) return null;
   const repo = await getRepo();
   const [project, version] = await Promise.all([repo.getProject(id), repo.getSiteVersion(id)]);
   return project ? { project, version } : null;
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const data = await load((await params).id);
@@ -72,8 +75,7 @@ export default async function PreviewPage({ params, searchParams }: Props) {
   if (!page) notFound();
   const repo = await getRepo();
   const scope = { kind: 'preview' as const, projectId: id };
-  const checkout = config.store ? await checkoutCtx(repo, scope, config) : undefined;
-  const booking = await bookingCtx(repo, scope, config);
+  const [checkout, booking] = await Promise.all([config.store ? checkoutCtx(repo, scope, config) : undefined, bookingCtx(repo, scope, config)]);
   const result = orderRef && config.store ? await confirmOrder(repo, scope, orderRef, query) : null;
   const bookingResult = bookingRef && config.bookings ? await confirmOrder(repo, scope, bookingRef, query) : null;
 
@@ -150,6 +152,7 @@ export default async function PreviewPage({ params, searchParams }: Props) {
           style={{ maxWidth: WIDTHS[width].max }}
           className={`mx-auto ${width === 'desktop' ? '' : 'overflow-clip rounded-[18px] shadow-[0_20px_60px_rgba(22,20,15,.25)]'}`}
         >
+          <SiteFonts fonts={[config.theme.fonts.heading, config.theme.fonts.body]} />
           <SitePageView
             config={config}
             page={page}

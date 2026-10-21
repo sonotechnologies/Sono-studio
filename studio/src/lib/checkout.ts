@@ -1,5 +1,5 @@
 import 'server-only';
-import { decryptSecret, serverSecret } from '@/lib/crypto';
+import { openSecret, serverSecret } from '@/lib/crypto';
 import type { Repo } from '@/lib/data/repo';
 import { siteUrl } from '@/lib/format';
 import type { BookingCtx, CheckoutCtx } from '@/site/primitives';
@@ -31,6 +31,23 @@ export type Scope = { kind: 'pitch'; slug: string } | { kind: 'preview'; project
 
 const tokenFor = (reference: string) => orderToken(serverSecret('orders'), reference);
 
+/**
+ * Gives the database the secret it checks test payments with (the signed-in
+ * owner's row; it can't be read back). Called while the owner uses the
+ * studio, so pitch checkouts work for visitors later.
+ */
+export async function ensureOrderSecret(repo: Repo): Promise<void> {
+  await repo.setOrderSecret(serverSecret('orders')).catch((err) => console.warn('Could not set the order secret:', (err as Error).message));
+}
+
+/** The database's refusals, in words a shopper understands. */
+function notReady(err: unknown): never {
+  const msg = (err as Error).message ?? '';
+  if (/payments not ready/.test(msg)) throw new PaymentError('Card payments aren’t ready on this demo yet: the studio needs to be opened once first.');
+  if (/too many (checkouts|bookings)/.test(msg)) throw new PaymentError('Too many tries just now. Wait a minute and try again.');
+  throw err;
+}
+
 /** Only test keys are ever used here: a live key would take real money on a demo. */
 function testOnly(key: string | null): string | null {
   return key && /^sk_test_/.test(key) ? key : null;
@@ -41,7 +58,8 @@ async function keyFor(repo: Repo, scope: Scope, provider: PaymentProvider | 'str
   if (scope.kind === 'pitch') sealed = await repo.getPitchPaymentKey(scope.slug, provider);
   else sealed = (await repo.listProviderKeys()).find((k) => k.provider === provider)?.ciphertext ?? null;
   if (!sealed) return null;
-  const key = decryptSecret(sealed);
+  const key = openSecret(sealed);
+  if (!key) return null;
   return provider === 'stripe_webhook' ? (key.startsWith('whsec_') ? key : null) : testOnly(key);
 }
 
@@ -57,8 +75,9 @@ const base = (scope: Scope) => (scope.kind === 'pitch' ? `/p/${scope.slug}` : `/
 export async function checkoutCtx(repo: Repo, scope: Scope, config: SiteConfig): Promise<CheckoutCtx | undefined> {
   const wanted = cardProviders(config.store);
   if (!wanted.length) return undefined;
-  const providers: PaymentProvider[] = [];
-  for (const p of wanted) if (await keyFor(repo, scope, p).catch(() => null)) providers.push(p);
+  // Looked up together: each is a database call.
+  const found = await Promise.all(wanted.map((p) => keyFor(repo, scope, p).catch(() => null)));
+  const providers = wanted.filter((_, i) => found[i]);
   const endpoint = scope.kind === 'pitch' ? `/api/pitch/${scope.slug}/checkout` : `/api/projects/${scope.projectId}/checkout`;
   return { endpoint, providers, test: true };
 }
@@ -72,8 +91,11 @@ export async function startCheckout(repo: Repo, scope: Scope, body: unknown, ori
   if (!secret) throw new PaymentError('Card payments aren’t set up for this demo yet.');
   const order = { ...priced, reference: newReference(siteKey(config)) };
   const token = tokenFor(order.reference);
-  if (scope.kind === 'pitch') await repo.createPitchOrder(scope.slug, order, sha256(token));
-  else await repo.createOrder(scope.projectId, order, sha256(token));
+  if (scope.kind === 'pitch') await repo.createPitchOrder(scope.slug, order, sha256(token)).catch(notReady);
+  else {
+    await ensureOrderSecret(repo);
+    await repo.createOrder(scope.projectId, order, sha256(token));
+  }
   const site = `${origin}${base(scope)}`;
   return startPayment({ secret, order, returnUrl: `${site}/order/${order.reference}`, cancelUrl: `${site}${config.pages.find((p) => p.sections.some((s) => s.type === 'product-grid'))?.path.replace(/^\/$/, '') ?? ''}` });
 }
@@ -83,8 +105,9 @@ export async function startCheckout(repo: Repo, scope: Scope, body: unknown, ori
 /** What the booking widget can do here: live free times, and deposits with the providers that have a test key. */
 export async function bookingCtx(repo: Repo, scope: Scope, config: SiteConfig): Promise<BookingCtx | undefined> {
   if (!config.bookings) return undefined;
-  const providers: PaymentProvider[] = [];
-  for (const p of depositProviders(config.bookings)) if (await keyFor(repo, scope, p).catch(() => null)) providers.push(p);
+  const wanted = depositProviders(config.bookings);
+  const found = await Promise.all(wanted.map((p) => keyFor(repo, scope, p).catch(() => null)));
+  const providers = wanted.filter((_, i) => found[i]);
   const api = scope.kind === 'pitch' ? `/api/pitch/${scope.slug}` : `/api/projects/${scope.projectId}`;
   return { busyEndpoint: `${api}/busy`, bookEndpoint: `${api}/book`, providers, test: true };
 }
@@ -114,10 +137,13 @@ export async function startBooking(repo: Repo, scope: Scope, body: unknown, orig
   };
   try {
     if (scope.kind === 'pitch') await repo.createPitchBooking(scope.slug, hold, sha256(token));
-    else await repo.createPreviewBooking(scope.projectId, hold, sha256(token));
+    else {
+      await ensureOrderSecret(repo);
+      await repo.createPreviewBooking(scope.projectId, hold, sha256(token));
+    }
   } catch (err) {
     if (/time taken/.test((err as Error).message)) throw new PaymentError('Someone has just booked that time. Choose another.');
-    throw err;
+    notReady(err);
   }
   const site = `${origin}${base(scope)}`;
   const bookPath = config.pages.find((p) => p.sections.some((s) => s.type === 'booking'))?.path ?? '/';

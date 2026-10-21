@@ -5,6 +5,7 @@ import { History, ImagePlus, Search, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { MiniSpin } from '@/components/orbit';
 import { btn, inputClass } from '@/components/ui';
+import { useFocusTrap } from '@/site/store/focus-trap';
 import type { Asset } from '@/generate/brief';
 import { prepareUpload } from '@/generate/browser-images';
 import type { StockPhoto } from '@/generate/stock';
@@ -14,14 +15,12 @@ import type { SiteImage } from '@/site/schema';
 import { addStockAssetAction, listVersionsAction, stockSearchAction } from './actions';
 
 function Dialog({ title, icon, onClose, children, wide = false }: { title: string; icon: React.ReactNode; onClose: () => void; children: React.ReactNode; wide?: boolean }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const box = useRef<HTMLDivElement>(null);
+  useFocusTrap(box, true, onClose);
   return (
     <div onClick={onClose} className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(22,20,15,.45)] sm:items-center sm:p-5">
       <div
+        ref={box}
         role="dialog"
         aria-modal="true"
         aria-label={title}

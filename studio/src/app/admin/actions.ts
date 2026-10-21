@@ -1,5 +1,6 @@
 'use server';
 
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { clearAdminToken, requireAdmin, setAdminToken, adminToken } from '@/lib/admin';
 import { getRepo } from '@/lib/auth';
@@ -7,10 +8,22 @@ import type { BookingStatus, OrderStatus } from '@/lib/data/repo';
 import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import { adminChangeProblem } from '@/workspace/admin-guard';
 
+/** Sign-in attempts per address in the last minute (per server instance). */
+const attempts = new Map<string, number[]>();
+function allowSignIn(ip: string): boolean {
+  const now = Date.now();
+  const recent = (attempts.get(ip) ?? []).filter((t) => now - t < 60_000);
+  if (attempts.size > 5000) attempts.clear();
+  attempts.set(ip, [...recent, now]);
+  return recent.length < 8;
+}
+
 export async function adminSignInAction(_prev: string | null, form: FormData): Promise<string | null> {
   const email = String(form.get('email') ?? '').trim();
   const password = String(form.get('password') ?? '');
   if (!email || !password) return 'Enter your email and password.';
+  // A few tries a minute from one address, so nobody can lock a client out or keep the database hashing passwords.
+  if (!allowSignIn((await headers()).get('x-forwarded-for')?.split(',')[0].trim() || 'unknown')) return 'Too many tries from here. Wait a minute, then try again.';
   const token = await (await getRepo()).adminSignIn(email, password);
   if (token === 'locked') return 'Too many wrong passwords. Wait 15 minutes, then try again.';
   if (!token) return 'That email and password don’t match. Check them, or ask your web designer to reset your password.';

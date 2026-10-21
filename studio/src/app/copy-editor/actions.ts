@@ -1,6 +1,5 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
 import { AllProvidersFailed, runJson } from '@/ai/router';
 import { loadProviders, routerHooks } from '@/ai/service';
 import { getRepo, requireUser } from '@/lib/auth';
@@ -16,7 +15,7 @@ export async function saveCopyEditsAction(projectId: string, edits: CopyEdit[]):
   try {
     const meta = await (await getRepo()).saveSiteCopyEdits(projectId, parsed.data);
     if (!meta) return { error: 'This project has no site copy.' };
-    revalidatePath(`/projects/${projectId}`);
+    // No revalidatePath: it would re-render (and re-parse) every page of the copy on each autosave.
     return { editedAt: meta.editedAt };
   } catch (err) {
     return { error: `Couldn’t save: ${(err as Error).message.slice(0, 200)}` };
@@ -75,7 +74,6 @@ export async function copyAiAction(projectId: string, input: { page: string; mes
       const latest = (await repo.getSiteCopyMeta(projectId))?.edits ?? base;
       const saved = await repo.saveSiteCopyEdits(projectId, mergeAi(latest, result.put, result.removed));
       if (!saved) return { error: 'This project has no site copy.' };
-      revalidatePath(`/projects/${projectId}`);
     }
     const said = r.data.reply.trim();
     const reply = result.changed ? said || 'Done.' : r.data.changes.length ? 'Nothing changed: the suggested changes were already in place or couldn’t be used.' : said || 'Nothing changed.';

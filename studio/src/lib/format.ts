@@ -70,11 +70,17 @@ export function slugify(name: string): string {
   );
 }
 
-/** Pitch slugs carry a short random suffix so links can't be guessed from the business name. */
-export function pitchSlug(name: string, random: () => number = Math.random): string {
+/** A random number in [0, 1) from the platform's secure generator. */
+const secureRandom = () => globalThis.crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
+
+/**
+ * Pitch slugs carry a random suffix so links can't be guessed from the
+ * business name: 10 characters of 32 (about 10^15 possibilities).
+ */
+export function pitchSlug(name: string, random: () => number = secureRandom): string {
   const alphabet = 'abcdefghijkmnpqrstuvwxyz23456789';
   let suffix = '';
-  for (let i = 0; i < 4; i++) suffix += alphabet[Math.floor(random() * alphabet.length)];
+  for (let i = 0; i < 10; i++) suffix += alphabet[Math.floor(random() * alphabet.length)];
   return `${slugify(name)}-${suffix}`;
 }
 

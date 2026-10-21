@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { getRepo, requireUser } from '@/lib/auth';
-import { settingsSchema, type StudioSettings } from '@/lib/types';
+import { settingsSchema } from '@/lib/schemas';
+import type { StudioSettings } from '@/lib/types';
 
 export async function saveSettingsAction(settings: StudioSettings): Promise<void> {
   await requireUser();

@@ -7,6 +7,7 @@ import {
   checkPaystack,
   minorUnits,
   newReference,
+  orderFitsStore,
   paystackSignatureOk,
   priceCart,
   startPaystack,
@@ -144,5 +145,41 @@ describe('Stripe', () => {
 
   it('explains a rejected key', async () => {
     await expect(startStripe({ secret: 'bad', order: stripeOrder, returnUrl: 'x', cancelUrl: 'y', fetch: capture({ error: { message: 'Invalid API Key' } }, 401).f })).rejects.toThrow(/key was rejected/);
+  });
+});
+
+describe('long orders, odd prices and forged payments', () => {
+  it('sends long customer details and many lines to Stripe in pieces and reads them back whole', async () => {
+    const long = { name: 'Adaeze Okonkwo-Williams', email: 'adaeze.okonkwo.williams@example.com', phone: '+234 803 000 0000', note: 'Leave it with the gateman. '.repeat(15).trim() };
+    const lines = Array.from({ length: 10 }, (_, i) => ({ productId: `product-${i}`, name: `Item ${i}`, options: { Size: 'Large', Colour: 'Midnight blue' }, qty: 1, price: 10 }));
+    const big = { ...order, provider: 'stripe' as const, currency: 'USD', total: 100, customer: long, lines };
+    const { f, calls } = capture({ id: 'cs_2', url: 'https://checkout.stripe.com/c/cs_2' });
+    await startStripe({ secret: 'sk_test_s', order: big, returnUrl: 'https://s/order/r', cancelUrl: 'https://s', fetch: f });
+    const body = new URLSearchParams(String(calls[0].init.body));
+    const metadata = Object.fromEntries([...body.entries()].filter(([k]) => k.startsWith('metadata[')).map(([k, v]) => [k.slice(9, -1), v]));
+    expect(Object.values(metadata).every((v) => v.length <= 500)).toBe(true);
+    const session = {
+      id: 'cs_2', payment_status: 'paid', status: 'complete', amount_total: 10000, currency: 'usd', client_reference_id: order.reference, metadata,
+      line_items: { data: lines.map((l) => ({ description: `${l.name} (Size: Large, Colour: Midnight blue)`, quantity: 1, amount_total: 1000 })) },
+    };
+    const v = await verifyStripe({ secret: 'sk_test_s', sessionId: 'cs_2', fetch: capture(session).f });
+    expect(v.order?.customer).toEqual(long);
+    expect(v.order?.lines.map((l) => l.productId)).toEqual(lines.map((l) => l.productId));
+  });
+
+  it('prices in the currency’s smallest unit, so the total is what the provider charges', () => {
+    const odd: Store = { ...store, currency: 'USD', products: store.products.map((p) => (p.id === earbuds.id ? { ...p, price: 0.335 } : p)) };
+    const r = priceCart(odd, { provider: 'stripe', lines: [{ productId: earbuds.id, qty: 3 }], customer });
+    expect(r.lines[0].price).toBe(0.34);
+    expect(minorUnits(r.total, 'USD')).toBe(minorUnits(r.lines[0].price, 'USD') * 3);
+  });
+
+  it('only counts a paid order whose lines cost what was paid', () => {
+    const real = { ...priceCart(store, { provider: 'paystack', lines: [{ productId: earbuds.id, qty: 2 }], customer }), reference: 'volt-x1' };
+    expect(orderFitsStore(store, real)).toBe(true);
+    expect(orderFitsStore(store, { ...real, total: 1 })).toBe(false);
+    expect(orderFitsStore(store, { ...real, lines: [{ ...real.lines[0], productId: 'not-sold-here' }] })).toBe(false);
+    // Sold out since it was paid for: still a real order.
+    expect(orderFitsStore({ ...store, products: store.products.map((p) => ({ ...p, soldOut: true })) }, real)).toBe(true);
   });
 });

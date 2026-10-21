@@ -16,8 +16,14 @@ export function RuleRow({ rule }: { rule: Rule }) {
           Added {new Date(rule.createdAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })} {rule.source === 'telegram' ? 'on Telegram' : 'in the studio'}
         </span>
       </div>
-      <Switch on={rule.enabled} onChange={(v) => start(() => setRuleEnabledAction(rule.id, v))} label={rule.enabled ? 'On' : 'Off'} />
-      <button type="button" aria-label="Delete rule" title="Delete rule" onClick={() => start(() => deleteRuleAction(rule.id))} className="cursor-pointer rounded-lg p-2 text-muted hover:bg-hover hover:text-danger">
+      <Switch on={rule.enabled} onChange={(v) => start(() => setRuleEnabledAction(rule.id, v))} label={`Use the rule “${rule.text.slice(0, 80)}”`} />
+      <button
+        type="button"
+        aria-label={`Delete the rule “${rule.text.slice(0, 80)}”`}
+        title="Delete rule"
+        onClick={() => window.confirm('Delete this rule? Sono AI stops following it.') && start(() => deleteRuleAction(rule.id))}
+        className="flex size-10 cursor-pointer items-center justify-center rounded-lg text-muted hover:bg-hover hover:text-danger"
+      >
         <Trash2 size={16} />
       </button>
     </li>
@@ -38,7 +44,7 @@ export function AddRule() {
         });
       }}
     >
-      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="Add a rule, e.g. Keep follow-ups under three sentences" className={`${inputClass} h-11 min-w-[240px] flex-1`} />
+      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={500} aria-label="New rule" placeholder="Add a rule, e.g. Keep follow-ups under three sentences" className={`${inputClass} h-11 min-w-[240px] flex-1`} />
       <button type="submit" disabled={pending || text.trim().length < 3} className={`${btn.primary} h-11 px-5 text-[15px]`}>
         Add rule
       </button>

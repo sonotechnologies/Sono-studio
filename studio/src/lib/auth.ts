@@ -58,10 +58,11 @@ export async function requireUser(): Promise<SessionUser> {
   return user;
 }
 
-export async function getRepo(): Promise<Repo> {
+/** The data store, one per request (its reads of saved keys are shared within the request). */
+export const getRepo = cache(async (): Promise<Repo> => {
   if (isDevStore()) return devRepo;
   return supabaseRepo(await createSupabaseServerClient());
-}
+});
 
 /** Returns an error message, or null on success. */
 export async function signIn(email: string, password: string): Promise<string | null> {

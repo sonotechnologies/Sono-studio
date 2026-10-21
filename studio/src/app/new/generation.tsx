@@ -43,6 +43,8 @@ export function PipelineColumn({ job }: { job: GenerationJob }) {
               Open AI provider settings
             </Link>
           )}
+        </div>
+      )}
       <ol className="m-0 flex list-none flex-col gap-0.5 p-0" aria-label="Progress">
         {stepsFor(job).map((s) => {
           const lit = s.state !== 'pending';
@@ -68,8 +70,6 @@ export function PipelineColumn({ job }: { job: GenerationJob }) {
           );
         })}
       </ol>
-        </div>
-      )}
     </div>
   );
 }

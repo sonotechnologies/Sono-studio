@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { SECTIONS } from '@/site/registry';
 import { SitePageView } from '@/site/render';
 import type { SiteConfig, SitePage } from '@/site/schema';
 import { findSection, getIn } from '@/workspace/model';
 
 export type Device = 'desktop' | 'tablet' | 'phone';
+
+/** The page only re-renders when the site changes, not on hovers, selections or typing in the chat. */
+const PageView = memo(SitePageView);
 const FRAME: Record<Device, string> = { desktop: 'w-full max-w-[1280px] rounded-[10px]', tablet: 'w-[768px] rounded-[10px]', phone: 'w-[390px] rounded-[28px]' };
 
 /*
@@ -115,7 +118,7 @@ export function Stage({
         ref={frame}
         className={`${FRAME[device]} flex-none self-start overflow-clip shadow-[0_18px_50px_rgba(22,20,15,.22)] transition-[width] duration-200 ease-out max-md:w-full max-md:max-w-none max-md:rounded-none max-md:shadow-none`}
       >
-        <SitePageView config={config} page={page} ctx={ctx} />
+        <PageView config={config} page={page} ctx={ctx} />
       </div>
     </div>
   );

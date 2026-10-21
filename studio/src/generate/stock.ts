@@ -49,7 +49,7 @@ export function unsplash(accessKey: string, f: Fetch = fetch): StockSearch {
       const hit = data.results?.[0];
       if (!hit) return null;
       // Unsplash's API guidelines ask for a download event when a photo is used.
-      f(hit.links.download_location, { headers: { authorization: `Client-ID ${accessKey}` } }).catch(() => {});
+      f(hit.links.download_location, { headers: { authorization: `Client-ID ${accessKey}` }, signal: AbortSignal.timeout(10_000) }).catch(() => {});
       return {
         source: 'unsplash',
         url: hit.urls.regular,

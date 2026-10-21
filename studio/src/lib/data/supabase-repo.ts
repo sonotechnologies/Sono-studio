@@ -218,10 +218,12 @@ const holdArgs = (h: BookingHold) => ({
 /** "time taken" from the database becomes a plain error the caller can show. */
 function holdError(err: unknown): never {
   const msg = (err as Error).message ?? '';
-  throw new Error(/time taken/.test(msg) ? 'time taken' : msg);
+  throw new Error(/time taken/.test(msg) ? 'time taken' : /payments not ready/.test(msg) ? 'payments not ready' : /too many bookings/.test(msg) ? 'too many bookings' : msg);
 }
 
 export function supabaseRepo(db: SupabaseClient): Repo {
+  // The saved keys, read once per request (pages and payments ask for them several times); writes clear it.
+  let keys: ReturnType<Repo['listProviderKeys']> | null = null;
   return {
     async listProjects() {
       const rows = check(await db.from('projects').select(SELECT)) as ProjectRow[];
@@ -336,6 +338,12 @@ export function supabaseRepo(db: SupabaseClient): Repo {
         await db.from('site_versions').select('version, summary, created_at').eq('project_id', projectId).order('version', { ascending: false }).limit(limit),
       ) as { version: number; summary: string; created_at: string }[];
       return rows.map((r) => ({ version: r.version, summary: r.summary, createdAt: r.created_at }));
+    },
+
+    async versionBasedOn(projectId, version) {
+      // The column comes with migration 0017; before it, every version is a studio save.
+      const { data, error } = await db.from('site_versions').select('based_on').eq('project_id', projectId).eq('version', version).maybeSingle();
+      return error ? null : ((data as { based_on: number | null } | null)?.based_on ?? null);
     },
 
     async getSiteVersionNumber(projectId, version) {
@@ -484,6 +492,13 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       return row ? toJob(row) : null;
     },
 
+    async getLatestJobStatus(projectId) {
+      const row = check(
+        await db.from('generation_jobs').select('id, status').eq('project_id', projectId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      ) as { id: string; status: GenerationJob['status'] } | null;
+      return row;
+    },
+
     async saveJob(job) {
       check(
         await db
@@ -491,6 +506,21 @@ export function supabaseRepo(db: SupabaseClient): Repo {
           .update({ status: job.status, brief: job.brief, extracted: job.extracted, plan: job.plan, filled: job.filled, images_done: job.imagesDone, steps: job.steps, error: job.error })
           .eq('id', job.id),
       );
+      // Lets the next step start (the column comes with migration 0017).
+      await db.from('generation_jobs').update({ lease_until: null }).eq('id', job.id);
+    },
+
+    async claimJob(id, seconds) {
+      const until = new Date(Date.now() + seconds * 1000).toISOString();
+      const { data, error } = await db
+        .from('generation_jobs')
+        .update({ lease_until: until })
+        .eq('id', id)
+        .or(`lease_until.is.null,lease_until.lt.${new Date().toISOString()}`)
+        .select('id');
+      // Before migration 0017 there's nothing to claim with: run as before.
+      if (error) return true;
+      return (data as unknown[]).length > 0;
     },
 
     async listAssets(projectId) {
@@ -525,15 +555,22 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       if (row?.storage_path) await db.storage.from(BUCKET).remove([row.storage_path]);
     },
 
-    async listProviderKeys() {
-      const rows = check(await db.from('provider_keys').select('*').order('position')) as KeyRow[];
-      return rows.map((r) => ({
-        provider: r.provider, ciphertext: r.key_ciphertext, hint: r.key_hint, models: r.models ?? {}, position: r.position,
-        dailyLimit: r.daily_limit, usageDay: r.usage_day, usageCount: r.usage_count, cooldownUntil: r.cooldown_until,
-      }));
+    listProviderKeys() {
+      keys ??= (async () => {
+        const rows = check(await db.from('provider_keys').select('*').order('position')) as KeyRow[];
+        return rows.map((r) => ({
+          provider: r.provider, ciphertext: r.key_ciphertext, hint: r.key_hint, models: r.models ?? {}, position: r.position,
+          dailyLimit: r.daily_limit, usageDay: r.usage_day, usageCount: r.usage_count, cooldownUntil: r.cooldown_until,
+        }));
+      })().catch((err) => {
+        keys = null;
+        throw err;
+      });
+      return keys;
     },
 
     async upsertProviderKey(provider, patch) {
+      keys = null;
       const row: Record<string, unknown> = {};
       if (patch.ciphertext !== undefined) row.key_ciphertext = patch.ciphertext;
       if (patch.hint !== undefined) row.key_hint = patch.hint;
@@ -551,16 +588,19 @@ export function supabaseRepo(db: SupabaseClient): Repo {
     },
 
     async deleteProviderKey(provider) {
+      keys = null;
       check(await db.from('provider_keys').delete().eq('provider', provider));
     },
 
     async recordUsage(provider) {
       if (provider === 'demo') return;
+      keys = null;
       check(await db.rpc('record_provider_usage', { p_provider: provider }));
     },
 
     async setCooldown(provider, until) {
       if (provider === 'demo') return;
+      keys = null;
       check(await db.from('provider_keys').update({ cooldown_until: until }).eq('provider', provider));
     },
 
@@ -578,6 +618,10 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async getPitchPaymentKey(slug, provider) {
       return (check(await db.rpc('pitch_payment_key', { p_slug: slug, p_provider: provider })) as string | null) ?? null;
+    },
+
+    async setOrderSecret(secret) {
+      check(await db.rpc('set_order_secret', { p_secret: secret }));
     },
 
     async createPitchOrder(slug, order, tokenHash) {
@@ -756,6 +800,16 @@ export function supabaseRepo(db: SupabaseClient): Repo {
 
     async publishedConfig(projectId) {
       return (check(await db.rpc('published_config', { p_project: projectId })) as unknown) ?? null;
+    },
+
+    async publishedSite(projectId) {
+      const { data, error } = await db.rpc('published_site', { p_project: projectId });
+      // Before migration 0017: the content alone.
+      if (error) {
+        const config = await this.publishedConfig(projectId);
+        return config ? { version: null, config } : null;
+      }
+      return (data as { version: number; config: unknown } | null) ?? null;
     },
 
     async setPublishedVersion(projectId, version) {

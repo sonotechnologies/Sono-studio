@@ -3,6 +3,7 @@
 import { Check } from 'lucide-react';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { STATUS_LABELS, type ProjectStatus } from '@/lib/types';
+import { useFocusTrap } from '@/site/store/focus-trap';
 
 /* Buttons. One primary (terracotta) per screen. */
 const btnBase =
@@ -35,7 +36,10 @@ export function Field({
       {label}
       {children}
       {error ? (
-        <span className="text-[13px] font-normal text-danger">{error}</span>
+        // Read out as soon as it appears; the label ties it to the field.
+        <span role="alert" className="text-[13px] font-normal text-danger">
+          {error}
+        </span>
       ) : hint ? (
         <span className="text-[13px] font-normal text-muted">{hint}</span>
       ) : null}
@@ -64,7 +68,8 @@ export function Switch({
       role="switch"
       aria-checked={on}
       aria-label={label}
-      className={`flex flex-none cursor-pointer rounded-full p-[3px] transition-colors duration-150 ${track} ${
+      // The touch area reaches past the small track.
+      className={`relative flex flex-none cursor-pointer rounded-full p-[3px] transition-colors duration-150 after:absolute after:-inset-2.5 after:content-[''] ${track} ${
         on ? 'justify-end bg-terracotta' : 'justify-start bg-border'
       }`}
     >
@@ -209,18 +214,15 @@ export function ConfirmDialog({
   onCancel: () => void;
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => {
-    cancelRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onCancel();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  const box = useRef<HTMLDivElement>(null);
+  useFocusTrap(box, true, onCancel, cancelRef);
   return (
     <div
       onClick={onCancel}
       className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(22,20,15,.45)] p-5"
     >
       <div
+        ref={box}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="confirm-title"

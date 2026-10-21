@@ -158,6 +158,31 @@ export async function lookOfPage(page: { url: URL; html: string }): Promise<Link
 
 const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
 
+/** A response's body, read until `limit` bytes and no further (a missing or wrong length header can't make it read more). */
+async function readCapped(res: Response, limit: number): Promise<Uint8Array | null> {
+  if (!res.body) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
+}
+
 /** Downloads one image from a public address (no redirects to private ones), up to 5 MB. */
 export async function fetchImage(raw: string): Promise<{ bytes: Uint8Array; contentType: string; ext: string } | null> {
   try {
@@ -171,8 +196,8 @@ export async function fetchImage(raw: string): Promise<{ bytes: Uint8Array; cont
       const type = (res.headers.get('content-type') ?? '').split(';')[0].trim();
       if (!res.ok || !IMAGE_TYPES[type]) return null;
       if (Number(res.headers.get('content-length') ?? 0) > 5 * 1024 * 1024) return null;
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (bytes.byteLength > 5 * 1024 * 1024 || bytes.byteLength < 2000) return null;
+      const bytes = await readCapped(res, 5 * 1024 * 1024);
+      if (!bytes || bytes.byteLength < 2000) return null;
       return { bytes, contentType: type, ext: IMAGE_TYPES[type] };
     }
   } catch {}
@@ -191,8 +216,8 @@ export async function fetchBytes(raw: string, limit: number): Promise<{ url: URL
       }
       if (!res.ok) return null;
       if (Number(res.headers.get('content-length') ?? 0) > limit) return null;
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (bytes.byteLength > limit) return null;
+      const bytes = await readCapped(res, limit);
+      if (!bytes) return null;
       return { url, bytes, type: (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase() };
     }
   } catch {}

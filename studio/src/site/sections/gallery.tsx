@@ -18,7 +18,7 @@ export function Gallery({ section, ctx }: { section: SectionOf<'gallery'>; ctx: 
     return (
       <section className="s-section">
         {head && <Container className="pb-10">{head}</Container>}
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 @3xl:px-10">
+        <div className="flex snap-x snap-mandatory scroll-px-5 gap-3 overflow-x-auto px-5 pb-2 @3xl:scroll-px-10 @3xl:px-10">
           {c.images.map((img, i) => (
             <SiteImg
               key={i}

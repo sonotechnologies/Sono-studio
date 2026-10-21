@@ -117,10 +117,10 @@ export function ChatThreads({ initialThreads, initialThread, initialMessages }: 
             )}
             {editing?.id !== t.id && (
               <span className={`flex flex-none pr-1 ${on ? '' : 'md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100'}`}>
-                <button type="button" onClick={() => setEditing({ id: t.id, title: t.title })} aria-label={`Rename “${t.title}”`} className="cursor-pointer rounded p-1.5 text-muted hover:text-text">
+                <button type="button" onClick={() => setEditing({ id: t.id, title: t.title })} aria-label={`Rename “${t.title}”`} className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted hover:text-text">
                   <Pencil size={13} />
                 </button>
-                <button type="button" onClick={() => setDeleting(t)} aria-label={`Delete “${t.title}”`} className="cursor-pointer rounded p-1.5 text-muted hover:text-danger">
+                <button type="button" onClick={() => setDeleting(t)} aria-label={`Delete “${t.title}”`} className="flex size-9 cursor-pointer items-center justify-center rounded-lg text-muted hover:text-danger">
                   <Trash2 size={13} />
                 </button>
               </span>

@@ -15,10 +15,6 @@ export function Price({ product, currency, className = '' }: { product: Product;
   );
 }
 
-export function productHref(ctx: RenderCtx, p: Product) {
-  return ctx.link(`/product/${p.id}`);
-}
-
 function Card({ product, ctx, variant, currency }: { product: Product; ctx: RenderCtx; variant: Props['section']['variant']; currency: string }) {
   const href = `/product/${product.id}`;
   const add = (

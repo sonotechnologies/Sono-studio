@@ -134,7 +134,7 @@ export function SonoAiChat({
       type="button"
       onClick={() => void remove(m.id)}
       aria-label={confirming === m.id ? 'Confirm delete' : 'Delete message'}
-      className={`inline-flex cursor-pointer items-center gap-1 rounded p-1 hover:bg-hover ${confirming === m.id ? 'px-2 font-semibold text-danger' : ''}`}
+      className={`inline-flex h-8 min-w-8 cursor-pointer items-center justify-center gap-1 rounded-lg hover:bg-hover ${confirming === m.id ? 'px-2 font-semibold text-danger' : ''}`}
     >
       <Trash2 size={13} />
       {confirming === m.id ? 'Delete' : null}
@@ -180,7 +180,7 @@ export function SonoAiChat({
               </button>
               {actions === m.id && (
                 <div className="flex items-center gap-1 text-[12px] text-muted">
-                  <button type="button" onClick={() => void copy(m)} aria-label="Copy message" className="cursor-pointer rounded p-1 hover:bg-hover">
+                  <button type="button" onClick={() => void copy(m)} aria-label="Copy message" className="flex size-8 cursor-pointer items-center justify-center rounded-lg hover:bg-hover">
                     {copied === m.id ? <Check size={13} /> : <Copy size={13} />}
                   </button>
                   {binButton(m)}
@@ -231,17 +231,17 @@ export function SonoAiChat({
                     </span>
                   )}
                   <span className="flex gap-1">
-                    <button type="button" onClick={() => void copy(m)} aria-label="Copy message" className="cursor-pointer rounded p-1 hover:bg-hover">
+                    <button type="button" onClick={() => void copy(m)} aria-label="Copy message" className="flex size-8 cursor-pointer items-center justify-center rounded-lg hover:bg-hover">
                       {copied === m.id ? <Check size={13} /> : <Copy size={13} />}
                     </button>
                     {binButton(m)}
                   </span>
                   {(m.mode === 'casual' || m.mode === 'studio' || m.mode === 'search') && (
                     <span className="flex gap-1">
-                      <button type="button" aria-label="Good answer" aria-pressed={rated[m.id] === 1} onClick={() => rate(m.id, 1)} className={`cursor-pointer rounded p-1 hover:bg-hover ${rated[m.id] === 1 ? 'text-text' : ''}`}>
+                      <button type="button" aria-label="Good answer" aria-pressed={rated[m.id] === 1} onClick={() => rate(m.id, 1)} className={`flex size-8 cursor-pointer items-center justify-center rounded-lg hover:bg-hover ${rated[m.id] === 1 ? 'text-text' : ''}`}>
                         <ThumbsUp size={13} />
                       </button>
-                      <button type="button" aria-label="Bad answer" aria-pressed={rated[m.id] === -1} onClick={() => rate(m.id, -1)} className={`cursor-pointer rounded p-1 hover:bg-hover ${rated[m.id] === -1 ? 'text-text' : ''}`}>
+                      <button type="button" aria-label="Bad answer" aria-pressed={rated[m.id] === -1} onClick={() => rate(m.id, -1)} className={`flex size-8 cursor-pointer items-center justify-center rounded-lg hover:bg-hover ${rated[m.id] === -1 ? 'text-text' : ''}`}>
                         <ThumbsDown size={13} />
                       </button>
                     </span>

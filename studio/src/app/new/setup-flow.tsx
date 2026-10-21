@@ -69,7 +69,9 @@ export function SetupFlow({
       for (;;) {
         const res = await fetch(`/api/jobs/${jobId}/advance`, { method: 'POST' });
         if (!res.ok) throw new Error(res.status === 401 ? 'You were signed out. Sign in again and reopen this project.' : `The server answered ${res.status}.`);
-        const data = (await res.json()) as { job: GenerationJob };
+        const data = (await res.json()) as { job: GenerationJob; busy?: boolean };
+        // Another tab is running this step: wait a moment and ask again.
+        if (data.busy) await new Promise((r) => setTimeout(r, 3000));
         setJob(data.job);
         // The loop only runs while nothing is being edited, so the server's plan is always the latest.
         setPlanDraft(data.job.plan);
@@ -281,7 +283,15 @@ export function SetupFlow({
   if (inWizard) {
     primary = { label: step === 3 ? 'Generate' : 'Continue', onClick: next, disabled: !canContinue || busy || (step === 3 && aiMode === 'none') || tiles.some((t) => t.state === 'uploading') };
     if (step > 0) back = () => goStep(step - 1);
-    foot = step === 2 && tiles.some((t) => t.state === 'uploading') ? 'Uploading…' : '';
+    // Say why the button can't be pressed yet, rather than only fading it.
+    foot =
+      step === 2 && tiles.some((t) => t.state === 'uploading')
+        ? 'Uploading…'
+        : !canContinue
+          ? 'Add the business name and what kind of business it is to continue.'
+          : step === 3 && aiMode === 'none'
+            ? 'Add an AI key in Settings → AI providers to generate.'
+            : '';
   } else if (job!.status === 'running') {
     foot = job!.plan ? 'Writing page by page. You can close this tab; it picks up where it stopped.' : 'Planning usually takes under a minute.';
   } else if (job!.status === 'plan_review' && planDraft) {
@@ -333,6 +343,11 @@ export function SetupFlow({
           <Logo kind="mark" alt="Sono" className="h-[18px] w-auto" />
           <span className="text-[14px] font-semibold">New site</span>
         </div>
+        {inWizard && (
+          <span className="text-[13px] text-muted sm:hidden" aria-hidden>
+            Step {step + 1} of 4
+          </span>
+        )}
         {inWizard && (
           <nav aria-label="Steps" className="hidden items-center gap-2 sm:flex">
             {STEPS.map((name, i) => (

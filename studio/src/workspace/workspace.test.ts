@@ -5,6 +5,7 @@ import { siteConfigSchema, type SiteConfig } from '@/site/schema';
 import { timelineDef } from '@/site/custom/samples';
 import {
   addCustomSection,
+  mergeChanges,
   duplicateSection,
   findSection,
   getIn,
@@ -135,6 +136,18 @@ describe('chat operations', () => {
     const bad = applyOps(config, [{ op: 'update', section: id, content: { data: { heading: 42 } } }], { kind: 'section', sectionId: id });
     expect(bad.skipped[0]).toMatch(/heading/);
     expect(applyOps(config, [{ op: 'update', section: id, variant: 'x' }], { kind: 'site' }).skipped[0]).toMatch(/Edit tab/);
+  });
+
+  it('brings changes made elsewhere into this tab without losing its own', () => {
+    const base = site();
+    // This tab changed the hero; elsewhere (the client in /admin) the about heading and a product price changed.
+    const mine = setField(base, 'home-hero', 'heading', 'Ours');
+    const theirs = setField(base, 'home-about', 'heading', 'Theirs');
+    const withPrice = theirs.store ? { ...theirs, store: { ...theirs.store, currency: 'USD' } } : theirs;
+    const merged = mergeChanges(mine, base, withPrice);
+    expect(heroOf(merged).content).toMatchObject({ heading: 'Ours' });
+    expect(findSection(merged, 'home-about')!.section.content).toMatchObject({ heading: 'Theirs' });
+    if (withPrice.store) expect(merged.store?.currency).toBe('USD');
   });
 
   it('places sections sensibly when the model names a section that isn’t there', () => {

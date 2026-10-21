@@ -1,6 +1,7 @@
 import 'server-only';
-import { randomBytes } from 'node:crypto';
-import { decryptSecret } from '@/lib/crypto';
+import { createHmac } from 'node:crypto';
+import { decryptSecret, openSecret, serverSecret } from '@/lib/crypto';
+import { siteUrl } from '@/lib/format';
 import type { Deployment, Repo } from '@/lib/data/repo';
 import { exportSite, packageName, type ExportResult, type ImageLoader } from '@/export/generate';
 import template from '@/export/template.generated.json';
@@ -70,7 +71,10 @@ export async function tokens(repo: Repo): Promise<{ github: string | null; verce
   const rows = await repo.listProviderKeys();
   const get = (p: string) => {
     const row = rows.find((r) => r.provider === p);
-    return row ? decryptSecret(row.ciphertext) : null;
+    if (!row) return null;
+    const key = openSecret(row.ciphertext);
+    if (!key) throw new DeployError(`Your saved ${p === 'github' ? 'GitHub' : 'Vercel'} token can’t be read any more. Enter it again in Settings → Connections.`);
+    return key;
   };
   return { github: get('github'), vercel: get('vercel') };
 }
@@ -152,20 +156,28 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string,
   if (!vercel) throw new DeployError('Add a Vercel token in Settings → Connections first.');
   const project = (await repo.getProject(projectId))!;
   const previous = await repo.getLatestDeployment(projectId);
+  // One deploy at a time: a second (another tab, a double click) would make a second repo and Vercel project.
+  if (previous?.status === 'building' && Date.now() - new Date(previous.createdAt).getTime() < 10 * 60_000) {
+    throw new DeployError('A deploy is already running for this site. Wait for it to finish.');
+  }
+  // The address live sites call back: the studio's own domain, not a preview or localhost address it was deployed from.
+  const studio = /\/\/localhost[:/]|\/\/localhost$/.test(siteUrl()) ? origin : siteUrl();
   const site = await exportProject(repo, projectId, origin);
   // A shop taking cards needs the business's keys, and reports paid orders back here with a fresh key.
   // Generated sites read their published content from the studio, so client edits go live without a rebuild.
-  let env: Record<string, string> | undefined = site.copy ? undefined : { SONO_SITE_API: `${origin}/api/sites/${projectId}` };
+  let env: Record<string, string> | undefined = site.copy ? undefined : { SONO_SITE_API: `${studio}/api/sites/${projectId}` };
   if (site.payments.length) {
-    const ordersKey = randomBytes(32).toString('hex');
+    // The same key every deploy (worked out from the studio's secret), so the site that's live while a
+    // new one builds, or after a failed deploy, can still report orders and bookings.
+    const ordersKey = createHmac('sha256', serverSecret('orders-key')).update(projectId).digest('hex');
     await repo.setOrdersKeyHash(projectId, sha256(ordersKey));
     env = {
       ...env,
       ...paymentEnv(opts.paymentKeys),
-      SONO_ORDERS_URL: `${origin}/api/sites/${projectId}/orders`,
+      SONO_ORDERS_URL: `${studio}/api/sites/${projectId}/orders`,
       SONO_ORDERS_KEY: ordersKey,
       // The studio keeps the booking calendar for sites taking deposits.
-      SONO_SITE_API: `${origin}/api/sites/${projectId}`,
+      SONO_SITE_API: `${studio}/api/sites/${projectId}`,
     };
   }
 
@@ -225,7 +237,15 @@ export async function startDeploy(repo: Repo, projectId: string, origin: string,
 /** Checks a building deployment on Vercel and records the result. */
 export async function refreshDeploy(repo: Repo, projectId: string): Promise<Deployment | null> {
   const d = await repo.getLatestDeployment(projectId);
-  if (!d || d.status !== 'building' || !d.vercelDeploymentId || !d.vercelProject) return d;
+  if (!d || d.status !== 'building') return d;
+  if (!d.vercelDeploymentId || !d.vercelProject) {
+    // The deploy request was stopped before Vercel had it (a time limit, a closed connection).
+    if (Date.now() - new Date(d.createdAt).getTime() > 10 * 60_000) {
+      await repo.updateDeployment(d.id, { status: 'error', error: 'The deploy stopped before reaching Vercel. Deploy again.' });
+      return { ...d, status: 'error', error: 'The deploy stopped before reaching Vercel. Deploy again.' };
+    }
+    return d;
+  }
   const { vercel } = await tokens(repo);
   if (!vercel) return d;
   try {

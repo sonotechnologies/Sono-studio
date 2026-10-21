@@ -24,11 +24,6 @@ export async function deleteStyleAction(id: string): Promise<void> {
   revalidatePath('/presets');
 }
 
-export async function listStylesAction(): Promise<CustomStyle[]> {
-  await requireUser();
-  return (await getRepo()).listStyles();
-}
-
 /** Reads a web page's colours and fonts and turns them into a style. No AI involved. */
 export async function readLinkAction(url: string): Promise<{ style?: ReferenceStyle; title?: string; error?: string }> {
   await requireUser();

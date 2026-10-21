@@ -82,7 +82,7 @@ export function ProjectDraft({ projects }: { projects: { id: string; name: strin
   if (!projects.length) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 text-[14px]">
-      <select value={id} onChange={(e) => setId(e.target.value)} className="h-10 rounded-lg border border-border bg-bg px-2">
+      <select value={id} onChange={(e) => setId(e.target.value)} aria-label="Project" className="h-10 rounded-lg border border-border bg-bg px-2">
         {projects.map((p) => (
           <option key={p.id} value={p.id}>
             {p.name}

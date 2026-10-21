@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl, siteUrl } from '@/lib/format';
@@ -15,10 +16,11 @@ type Props = { params: Promise<{ id: string }> };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function load(id: string) {
+// Read once per request, for the title and the page.
+const load = cache(async (id: string) => {
   if (!UUID.test(id)) return null;
   return (await getRepo()).getProject(id);
-}
+});
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const project = await load((await params).id);
@@ -30,9 +32,9 @@ export default async function ProjectPage({ params }: Props) {
   const project = await load((await params).id);
   if (!project) notFound();
   const repo = await getRepo();
-  const startedBy = sonoAiEnabled() ? ((await assistStore().then((a) => a.builds()).catch(() => [])).find((b) => b.projectId === project.id) ?? null) : null;
-  const [job, events, version, keys, latest] = await Promise.all([
-    repo.getLatestJob(project.id),
+  const [startedBy, job, events, version, keys, latest] = await Promise.all([
+    sonoAiEnabled() ? assistStore().then((a) => a.buildForProject(project.id)).catch(() => null) : null,
+    repo.getLatestJobStatus(project.id),
     repo.listPitchEvents(project.id, 50),
     repo.getSiteVersion(project.id),
     repo.listProviderKeys(),

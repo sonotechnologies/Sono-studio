@@ -154,7 +154,9 @@ export function Dashboard({
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
-          <span className="text-[16px]">No sites match these filters.</span>
+          <span role="status" className="text-[16px]">
+            No sites match these filters.
+          </span>
           <button
             type="button"
             onClick={clear}
