@@ -53,9 +53,13 @@ function testOnly(key: string | null): string | null {
   return key && /^sk_test_/.test(key) ? key : null;
 }
 
-async function keyFor(repo: Repo, scope: Scope, provider: PaymentProvider | 'stripe_webhook'): Promise<string | null> {
+async function keyFor(repo: Repo, scope: Scope, provider: PaymentProvider | 'stripe_webhook', reference?: string): Promise<string | null> {
   let sealed: string | null;
-  if (scope.kind === 'pitch') sealed = await repo.getPitchPaymentKey(scope.slug, provider);
+  if (scope.kind === 'pitch') {
+    sealed = await repo.getPitchPaymentKey(scope.slug, provider);
+    // A payment started before the link was paused or expired can still be checked and settled.
+    if (!sealed && reference) sealed = await repo.orderPaymentKey(reference, provider);
+  }
   else sealed = (await repo.listProviderKeys()).find((k) => k.provider === provider)?.ciphertext ?? null;
   if (!sealed) return null;
   const key = openSecret(sealed);
@@ -158,7 +162,7 @@ export async function startBooking(repo: Repo, scope: Scope, body: unknown, orig
 export async function confirmOrder(repo: Repo, scope: Scope, reference: string, query: { session_id?: string }): Promise<{ verified: Verified | null; error?: string }> {
   try {
     const provider: PaymentProvider = query.session_id ? 'stripe' : 'paystack';
-    const secret = await keyFor(repo, scope, provider);
+    const secret = await keyFor(repo, scope, provider, reference);
     if (!secret) return { verified: null, error: 'Card payments aren’t set up for this demo.' };
     const verified = provider === 'stripe' ? await verifyStripe({ secret, sessionId: query.session_id! }) : await verifyPaystack({ secret, reference });
     if (verified.order?.reference !== reference) return { verified: null, error: 'This order wasn’t found.' };
@@ -194,7 +198,7 @@ export async function paystackWebhook(repo: Repo, raw: string, signature: string
   if (!reference) return 200;
   const slug = await slugOf(repo, reference);
   if (!slug) return 200;
-  const secret = await keyFor(repo, { kind: 'pitch', slug }, 'paystack');
+  const secret = await keyFor(repo, { kind: 'pitch', slug }, 'paystack', reference);
   if (!secret || !check(raw, signature, secret)) return 401;
   const verified = event.event === 'charge.success' ? checkPaystack(event.data!) : null;
   if (verified?.paid && verified.order?.reference === reference) await settle(repo, verified);
@@ -215,10 +219,10 @@ export async function stripeWebhook(repo: Repo, raw: string, signature: string |
   const slug = await slugOf(repo, reference);
   if (!slug) return 200;
   const scope: Scope = { kind: 'pitch', slug };
-  const signing = await keyFor(repo, scope, 'stripe_webhook');
+  const signing = await keyFor(repo, scope, 'stripe_webhook', reference);
   if (!signing || !check(raw, signature, signing)) return 401;
   if (event.type !== 'checkout.session.completed' && event.type !== 'checkout.session.async_payment_succeeded') return 200;
-  const secret = await keyFor(repo, scope, 'stripe');
+  const secret = await keyFor(repo, scope, 'stripe', reference);
   if (!secret) return 200;
   // The event is only a nudge: the session is read back from Stripe before the order counts as paid.
   const verified = await verifyStripe({ secret, sessionId: session.id });

@@ -50,6 +50,24 @@ export default async function PitchPage({ params, searchParams }: Props) {
   const data = await load(slug);
   if (!data) notFound();
   const { pitch, config } = data;
+  // Back from a test payment: it's checked (and settled) even if the link was paused, expired or went live meanwhile.
+  const returnRef = (path?.[0] === 'order' || path?.[0] === 'booking') && path.length === 2 && /^[a-z0-9-]{6,80}$/.test(path[1]) ? path[1] : null;
+  if (returnRef && (!config || pitch.paused || pitch.liveUrl)) {
+    const result = await confirmOrder(await getRepo(), { kind: 'pitch', slug }, returnRef, await searchParams);
+    const paid = !!result.verified?.paid;
+    return (
+      <Unavailable
+        name={pitch.name}
+        title={paid ? 'Payment received' : 'Payment not confirmed'}
+        body={
+          paid
+            ? `This was a test payment on the ${pitch.name} concept, so no real money moved. The concept itself isn’t open right now.`
+            : `${result.error ?? result.verified?.reason ?? 'The payment wasn’t completed.'} It was a test payment on the ${pitch.name} concept, so no real money moved.`
+        }
+        whatsapp={pitch.whatsapp}
+      />
+    );
+  }
   // A live site replaces its concept: links already sent keep working.
   if (pitch.liveUrl && /^https:\/\//.test(pitch.liveUrl)) redirect(`${pitch.liveUrl.replace(/\/+$/, '')}/${(path ?? []).join('/')}`);
 

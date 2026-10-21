@@ -4,7 +4,7 @@ import { cache } from 'react';
 import { Page } from '@/components/shell';
 import { getRepo, requireUser } from '@/lib/auth';
 import { pitchUrl, siteUrl } from '@/lib/format';
-import { handoverChecklist } from '@/export/checklist';
+import { handoverChecklist, starterTexts } from '@/export/checklist';
 import { cardProviders, depositProviders } from '@/site/store/payments-info';
 import { sonoAiEnabled } from '@/sono-ai';
 import { assistStore } from '@/sono-ai/assist/store';
@@ -78,7 +78,7 @@ export default async function ProjectPage({ params }: Props) {
           <span className="font-medium text-accent-text">Started by Sono AI</span> from “{startedBy.request.slice(0, 160)}”. Sending the pitch is still up to you.
         </p>
       )}
-      <ProjectDetails project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} bookings={bookings} admins={admins} adminUrl={`${siteUrl()}/admin`} />
+      <ProjectDetails filler={parsed?.success ? starterTexts(parsed.data).length : 0} project={project} link={pitchUrl(project.pitchSlug)} now={Date.now()} setup={setup} events={events} website={website} copy={copy} orders={orders} bookings={bookings} admins={admins} adminUrl={`${siteUrl()}/admin`} />
     </Page>
   );
 }

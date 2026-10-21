@@ -16,19 +16,25 @@ export function OrderView({ config, reference, verified, error, ctx, siteKey, te
   const digits = (store?.whatsapp ?? '').replace(/[^0-9]/g, '');
   const message = `Hello ${business}, about my order ${reference}${order?.customer.name ? ` (${order.customer.name})` : ''}.`;
   const paid = !!verified?.paid && !!order;
+  // Paid by bank transfer or USSD, or a payment still being processed: not failed, just not finished.
+  const waiting = !paid && /\b(pending|ongoing|processing|queued|in progress)\b/i.test(verified?.reason ?? '');
 
   return (
     <section className="s-section">
       <Container className="flex max-w-[640px] flex-col gap-6">
         {test && <span className="self-start rounded-full bg-current/10 px-3 py-1 text-[0.8em] font-semibold">Test order · no real money moved</span>}
         <div className="flex flex-col gap-2">
-          <h1 className="s-heading s-h2 m-0">{paid ? `Thank you${order.customer.name ? `, ${order.customer.name.split(' ')[0]}` : ''}` : error ? 'We couldn’t confirm the payment yet' : 'The payment didn’t go through'}</h1>
+          <h1 className="s-heading s-h2 m-0">
+            {paid ? `Thank you${order.customer.name ? `, ${order.customer.name.split(' ')[0]}` : ''}` : error ? 'We couldn’t confirm the payment yet' : waiting ? 'Your payment is still going through' : 'The payment didn’t go through'}
+          </h1>
           <p className="m-0 text-site-muted">
             {paid
               ? `Your order is confirmed and paid. Keep the order number below in case you need to ask about it.`
               : error
                 ? `${error} If you were charged, refresh this page in a minute, or contact ${business} with the order number below.`
-                : `${verified?.reason ? `${verified.reason[0].toUpperCase()}${verified.reason.slice(1)}. ` : ''}Nothing was charged. Your cart is still there to try again.`}
+                : waiting
+                  ? `Some payments, like bank transfers, take a few minutes to arrive. Refresh this page shortly, or contact ${business} with the order number below.`
+                  : `${verified?.reason ? `${verified.reason[0].toUpperCase()}${verified.reason.slice(1)}. ` : ''}Nothing was charged. Your cart is still there to try again.`}
           </p>
         </div>
 

@@ -334,6 +334,34 @@ as $$
 $$;
 grant execute on function public.published_site(uuid) to anon, authenticated;
 
+/* ---------- 6. Payments started before a pitch was paused ---------- */
+
+-- The owner's (encrypted) test key for a recent test payment that isn't
+-- settled yet, so it can still be checked after the pitch link is paused,
+-- expires or goes live. Like pitch_payment_key, only the studio server can open it.
+create or replace function public.order_payment_key(p_reference text, p_provider text)
+returns text
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_owner uuid;
+begin
+  if p_provider not in ('paystack', 'stripe', 'stripe_webhook') then return null; end if;
+  select owner_id into v_owner from public.orders
+   where reference = p_reference and mode = 'test' and status in ('pending', 'failed') and created_at > now() - interval '7 days';
+  if v_owner is null then
+    select owner_id into v_owner from public.bookings
+     where reference = p_reference and mode = 'test' and status = 'held' and created_at > now() - interval '7 days';
+  end if;
+  if v_owner is null then return null; end if;
+  return (select key_ciphertext from public.provider_keys where owner_id = v_owner and provider = p_provider);
+end;
+$$;
+grant execute on function public.order_payment_key(text, text) to anon, authenticated;
+
 /* ---------- Access ---------- */
 
 revoke all on function public.set_order_secret(text) from public, anon;

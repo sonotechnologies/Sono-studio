@@ -484,6 +484,12 @@ export const devRepo: Repo = {
     return p ? (db.keys.find((k) => k.provider === provider)?.ciphertext ?? null) : null;
   },
 
+  async orderPaymentKey(reference, provider) {
+    const db = await load();
+    const pending = db.orders.some((o) => o.reference === reference && (o.status === 'pending' || o.status === 'failed')) || db.bookings.some((b) => b.reference === reference && b.status === 'held');
+    return pending ? (db.keys.find((k) => k.provider === provider)?.ciphertext ?? null) : null;
+  },
+
   async setOrderSecret() {
     // The dev store checks the token hash it keeps with each order.
   },

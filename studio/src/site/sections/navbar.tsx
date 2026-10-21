@@ -2,6 +2,7 @@
 import { Menu, X } from 'lucide-react';
 import type { SectionOf } from '../schema';
 import { Container, SiteA, SiteButton, edit, type RenderCtx } from '../primitives';
+import { MenuCloser } from '../store/menu-closer';
 
 function Brand({ section, ctx, large = false }: { section: SectionOf<'navbar'>; ctx: RenderCtx; large?: boolean }) {
   const { brand, logo } = section.content;
@@ -23,7 +24,7 @@ function PhoneMenu({ section, ctx }: { section: SectionOf<'navbar'>; ctx: Render
   const { links, cta } = section.content;
   if (!links.length && !cta) return null;
   return (
-    <details className="group @3xl:hidden">
+    <details data-site-menu className="group @3xl:hidden">
       <summary
         aria-label="Menu"
         className="flex size-11 cursor-pointer list-none items-center justify-center rounded-site-button border border-current/20 [&::-webkit-details-marker]:hidden"
@@ -42,6 +43,7 @@ function PhoneMenu({ section, ctx }: { section: SectionOf<'navbar'>; ctx: Render
         </nav>
         <SiteButton ctx={ctx} link={cta} path="cta" className="mt-4 w-full" />
       </div>
+      {!ctx.editable && <MenuCloser />}
     </details>
   );
 }

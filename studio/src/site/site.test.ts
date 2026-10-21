@@ -69,3 +69,25 @@ describe('theme', () => {
     expect(t.fonts.heading).toBe('Fraunces');
   });
 });
+
+describe('page headings', () => {
+  it('gives every page one main heading, from the hero or else the first section', async () => {
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { createElement } = await import('react');
+    const { SitePageView } = await import('./render');
+    const config = siteConfigSchema.parse(KORA_KITCHEN);
+    for (const page of config.pages) {
+      const html = renderToStaticMarkup(createElement(SitePageView, { config, page, ctx: { link: (h: string) => h, editable: false } }));
+      expect((html.match(/<h1[\s>]/g) ?? []).length, page.path).toBe(1);
+    }
+  });
+});
+
+describe('starter text', () => {
+  it('finds the starter template’s placeholders, and none on a finished site', async () => {
+    const { starterTexts } = await import('@/export/checklist');
+    const starter = starterConfig({ name: 'Studio Nala', businessType: 'Salon', headline: '', preset: 'soft-studio', client: { ownerName: '', whatsapp: '', instagram: '', address: '', notes: '' } });
+    expect(starterTexts(starter).length).toBeGreaterThan(3);
+    expect(starterTexts(siteConfigSchema.parse(KORA_KITCHEN))).toEqual([]);
+  });
+});

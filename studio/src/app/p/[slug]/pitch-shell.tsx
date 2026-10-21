@@ -19,7 +19,22 @@ const BANNER_HEIGHT = 60;
  */
 export function PitchShell({ slug, path, banner, children }: { slug: string; path: string; banner: BannerInfo | null; children: React.ReactNode }) {
   const [hidden, setHidden] = useState(false);
+  // Slides away while reading down the page and comes back on scrolling up, so it never sits over content for long.
+  const [tucked, setTucked] = useState(false);
   const show = !!banner && !hidden;
+
+  useEffect(() => {
+    if (!show) return;
+    let last = window.scrollY;
+    const onScroll = () => {
+      const y = window.scrollY;
+      if (Math.abs(y - last) < 8) return;
+      setTucked(y > last && y > 120);
+      last = y;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [show]);
 
   useEffect(() => {
     const key = `sono-pitch-open:${slug}`;
@@ -38,13 +53,13 @@ export function PitchShell({ slug, path, banner, children }: { slug: string; pat
   }, [slug]);
 
   return (
-    <div style={{ '--s-float-offset': show ? `${BANNER_HEIGHT + 4}px` : '0px' } as React.CSSProperties}>
+    <div style={{ '--s-float-offset': show && !tucked ? `${BANNER_HEIGHT + 4}px` : '0px' } as React.CSSProperties}>
       {children}
       {show && (
         <aside
           aria-label="About this concept"
           style={{ height: BANNER_HEIGHT }}
-          className="sticky bottom-0 z-50 flex animate-fade-up items-center gap-3 bg-[#16140F] px-3.5 font-[family-name:var(--font-space-grotesk)] text-[#F7F5F1] shadow-[0_-6px_24px_rgba(0,0,0,.18)] sm:gap-3.5 sm:px-8"
+          className={`sticky bottom-0 z-50 flex animate-fade-up items-center gap-3 bg-[#16140F] px-3.5 font-[family-name:var(--font-space-grotesk)] text-[#F7F5F1] shadow-[0_-6px_24px_rgba(0,0,0,.18)] transition-transform duration-300 sm:gap-3.5 sm:px-8 ${tucked ? 'translate-y-full' : ''}`}
         >
           <img src="/logo/sono-mark-inverse.svg" alt="" className="h-4 w-auto flex-none" />
           <span className="min-w-0 flex-1 truncate text-[14px] leading-tight">

@@ -54,7 +54,10 @@ export function ProjectDetails({
   bookings,
   admins,
   adminUrl,
+  filler = 0,
 }: {
+  /** Placeholder texts from the starter template still on the site. */
+  filler?: number;
   project: Project;
   link: string;
   now: number;
@@ -171,7 +174,7 @@ export function ProjectDetails({
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,340px),1fr))] items-start gap-5">
         <div className="flex flex-col gap-5">
-          <PitchCard p={p} link={link} onPatch={patch} events={events} now={now} />
+          <PitchCard p={p} link={link} onPatch={patch} events={events} now={now} filler={filler} />
           <ClientCard id={p.id} client={p.client} />
         </div>
         <div className="flex flex-col gap-5">
@@ -283,7 +286,7 @@ const EXPIRY: { value: PitchExpiryDays; label: string }[] = [
   { value: null, label: 'Never' },
 ];
 
-function PitchCard({ p, link, onPatch, events, now }: { p: Project; link: string; onPatch: (c: ProjectPatch) => void; events: PitchEvent[]; now: number }) {
+function PitchCard({ p, link, onPatch, events, now, filler }: { p: Project; link: string; onPatch: (c: ProjectPatch) => void; events: PitchEvent[]; now: number; filler: number }) {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -352,6 +355,11 @@ function PitchCard({ p, link, onPatch, events, now }: { p: Project; link: string
           </span>
         )}
       </div>
+      {filler > 0 && p.currentVersion !== null && (
+        <p role="note" className="m-0 rounded-xl bg-warn-bg px-3.5 py-2.5 text-[13px] leading-snug text-warn">
+          The site still shows {filler === 1 ? 'a placeholder text' : `${filler} placeholder texts`} from the starter template (like “Offer 1”). Anyone with the link sees them: write the business’s own words in the workspace before sending it.
+        </p>
+      )}
       <div className="flex flex-col border-t border-border">
         <SettingRow
           title="Pause link"

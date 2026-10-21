@@ -620,6 +620,12 @@ export function supabaseRepo(db: SupabaseClient): Repo {
       return (check(await db.rpc('pitch_payment_key', { p_slug: slug, p_provider: provider })) as string | null) ?? null;
     },
 
+    async orderPaymentKey(reference, provider) {
+      // Comes with migration 0017; before it, there's no fallback.
+      const { data, error } = await db.rpc('order_payment_key', { p_reference: reference, p_provider: provider });
+      return error ? null : ((data as string | null) ?? null);
+    },
+
     async setOrderSecret(secret) {
       check(await db.rpc('set_order_secret', { p_secret: secret }));
     },

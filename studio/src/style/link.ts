@@ -1,6 +1,10 @@
 import 'server-only';
 import { lookup } from 'node:dns/promises';
-import { isIP } from 'node:net';
+import { lookup as lookupOne, type LookupAddress } from 'node:dns';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
+import { isIP, type LookupFunction } from 'node:net';
+import { Readable } from 'node:stream';
 import { readCss, readLook } from './css';
 import { parseColor, type ReferenceInput, type WeightedColor } from './reference';
 
@@ -20,7 +24,8 @@ function privateAddress(ip: string): boolean {
   if (isIP(ip) === 6) {
     const v = ip.toLowerCase();
     if (v.startsWith('::ffff:')) return privateAddress(v.slice(7));
-    return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80');
+    // Loopback, unspecified, unique-local, link- and site-local, and NAT64 (which can reach IPv4 private ranges).
+    return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || /^fe[89ab]/.test(v) || /^fe[c-f]/.test(v) || v.startsWith('64:ff9b:');
   }
   const [a, b] = ip.split('.').map(Number);
   return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
@@ -45,15 +50,42 @@ export async function checkUrl(raw: string): Promise<URL> {
   return url;
 }
 
+/**
+ * The address actually connected to, checked again at connect time: a name
+ * that pointed somewhere public when checked can't then point somewhere
+ * private for the request itself (DNS rebinding).
+ */
+const publicOnly: LookupFunction = (hostname, options, callback) => {
+  lookupOne(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return callback(err, '', 0);
+    const list = (addresses as LookupAddress[]).filter((a) => !privateAddress(a.address) || (process.env.NODE_ENV !== 'production' && (hostname === 'localhost' || a.address === '127.0.0.1')));
+    if (!list.length) return callback(Object.assign(new Error('private address'), { code: 'EPRIVATE' }), '', 0);
+    if ((options as { all?: boolean }).all) return (callback as unknown as (e: null, a: LookupAddress[]) => void)(null, list);
+    callback(null, list[0].address, list[0].family);
+  });
+};
+
+/** A GET to a public address only, without following redirects, as a web Response. */
+function safeFetch(url: URL, headers: Record<string, string>, timeoutMs: number): Promise<Response> {
+  return new Promise((resolve, reject) => {
+    const send = url.protocol === 'https:' ? httpsRequest : httpRequest;
+    const req = send(url, { method: 'GET', headers, lookup: publicOnly, timeout: timeoutMs }, (res) => {
+      const out = new Headers();
+      for (const [k, v] of Object.entries(res.headers)) if (v !== undefined) out.set(k, Array.isArray(v) ? v.join(', ') : v);
+      const body = res.statusCode === 204 || res.statusCode === 304 ? null : (Readable.toWeb(res) as ReadableStream<Uint8Array>);
+      resolve(new Response(body, { status: res.statusCode ?? 502, headers: out }));
+    });
+    req.on('timeout', () => req.destroy(Object.assign(new Error('timed out'), { name: 'TimeoutError' })));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
 /** Fetches with redirects followed by hand, so every hop is checked. */
 export async function get(raw: string, limit: number, accept: string): Promise<{ url: URL; text: string; type: string }> {
   let url = await checkUrl(raw);
   for (let hop = 0; hop < 4; hop++) {
-    const res = await fetch(url, {
-      redirect: 'manual',
-      headers: { accept, 'user-agent': 'Mozilla/5.0 (compatible; SonoStudio/1.0; reference reader)' },
-      signal: AbortSignal.timeout(10_000),
-    }).catch((err: Error) => {
+    const res = await safeFetch(url, { accept, 'user-agent': 'Mozilla/5.0 (compatible; SonoStudio/1.0; reference reader)' }, 10_000).catch((err: Error) => {
       throw new LinkError(err.name === 'TimeoutError' ? 'That site took too long to answer.' : 'That site couldn’t be reached.');
     });
     if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
@@ -188,7 +220,7 @@ export async function fetchImage(raw: string): Promise<{ bytes: Uint8Array; cont
   try {
     let url = await checkUrl(raw);
     for (let hop = 0; hop < 4; hop++) {
-      const res = await fetch(url, { redirect: 'manual', headers: { accept: 'image/*' }, signal: AbortSignal.timeout(10_000) });
+      const res = await safeFetch(url, { accept: 'image/*' }, 10_000);
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
         url = await checkUrl(new URL(res.headers.get('location')!, url).toString());
         continue;
@@ -209,7 +241,7 @@ export async function fetchBytes(raw: string, limit: number): Promise<{ url: URL
   try {
     let url = await checkUrl(raw);
     for (let hop = 0; hop < 5; hop++) {
-      const res = await fetch(url, { redirect: 'manual', headers: { 'user-agent': 'Mozilla/5.0 (compatible; SonoStudio/1.0; site copy)' }, signal: AbortSignal.timeout(15_000) });
+      const res = await safeFetch(url, { 'user-agent': 'Mozilla/5.0 (compatible; SonoStudio/1.0; site copy)' }, 15_000);
       if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
         url = await checkUrl(new URL(res.headers.get('location')!, url).toString());
         continue;

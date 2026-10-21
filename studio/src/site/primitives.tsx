@@ -24,6 +24,8 @@ export interface RenderCtx {
   fonts?: string[];
   /** Live availability and deposits, where a server can check them. */
   booking?: BookingCtx;
+  /** This section's heading is the page's main one (a page with no hero): it's an h1, styled as before. */
+  mainHeading?: boolean;
 }
 
 export interface BookingCtx {
@@ -88,6 +90,12 @@ export function Eyebrow({ ctx, text, path = 'eyebrow', className = '' }: { ctx: 
   );
 }
 
+/** An h2, or the page's h1 when this section carries its main heading. */
+export function MainOr2({ ctx, children, ...props }: { ctx: RenderCtx; children: React.ReactNode } & React.HTMLAttributes<HTMLHeadingElement>) {
+  const Tag = ctx.mainHeading ? 'h1' : 'h2';
+  return <Tag {...props}>{children}</Tag>;
+}
+
 export function Heading({
   ctx,
   text,
@@ -102,7 +110,7 @@ export function Heading({
   className?: string;
 }) {
   if (!text) return null;
-  const Tag = `h${level}` as 'h1' | 'h2' | 'h3';
+  const Tag = (level === 2 && ctx.mainHeading ? 'h1' : `h${level}`) as 'h1' | 'h2' | 'h3';
   const size = level === 1 ? 's-h1' : level === 2 ? 's-h2' : 'text-[1.35em]';
   return (
     <Tag {...edit(ctx, path)} className={`s-heading ${size} ${className}`}>

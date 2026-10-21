@@ -35,6 +35,23 @@ function walkImages(config: SiteConfig): { src: string }[] {
   return out;
 }
 
+/** Wording only a new site's starter template has: placeholders to be replaced with the business's own. */
+const STARTER =
+  /goes here|^One sentence|^Two or three sentences|^A line introducing|^A short line on what makes|^What customers can expect when they visit|^A second review, ideally|^A third short review|^Offer \d$|^One sentence asking people/i;
+
+/** The starter template's placeholder texts still on a site's visible pages. */
+export function starterTexts(config: SiteConfig): string[] {
+  const out: string[] = [];
+  const walk = (v: unknown): void => {
+    if (typeof v === 'string') {
+      if (STARTER.test(v.trim())) out.push(v.trim());
+    } else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') for (const [k, x] of Object.entries(v)) if (k !== 'src' && k !== 'href') walk(x);
+  };
+  for (const p of config.pages) for (const s of p.sections) if (!s.hidden) walk(s.content);
+  return out;
+}
+
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export function handoverChecklist(config: SiteConfig, opts: { missingImages?: number } = {}): ChecklistItem[] {
@@ -60,7 +77,15 @@ export function handoverChecklist(config: SiteConfig, opts: { missingImages?: nu
   const customs = [...new Set(visible.flatMap((s) => (s.type === 'custom' ? [s.content.component] : [])))].map((c) => config.customSections?.[c]).filter((d) => !!d);
   const unreviewed = customs.filter((d) => !d.reviewed);
 
+  const filler = starterTexts(config).length;
   const items: ChecklistItem[] = [
+    {
+      key: 'starter',
+      title: 'Starter text',
+      done: filler === 0,
+      important: filler > 0,
+      detail: filler ? `${plural(filler, 'placeholder text')} from the starter template (like “Offer 1”) still ${filler === 1 ? 'shows' : 'show'}. Write the business’s own words in the workspace.` : 'No starter placeholder text left.',
+    },
     {
       key: 'photos',
       title: 'Photos',

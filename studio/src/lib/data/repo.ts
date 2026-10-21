@@ -85,6 +85,8 @@ export interface Repo {
   /** The encrypted test key for a live pitch link's demo checkout, or null. */
   getPitchPaymentKey(slug: string, provider: PaymentKeyProvider): Promise<string | null>;
   /** A test checkout from a pitch link, pending until paid. `tokenHash` is the sha256 of its settle token. */
+  /** The owner's encrypted test key for an unsettled test payment, whatever state its pitch is in now. */
+  orderPaymentKey(reference: string, provider: string): Promise<string | null>;
   /** Gives the database the secret test payments are proven with (the signed-in owner's; never read back). */
   setOrderSecret(secret: string): Promise<void>;
   createPitchOrder(slug: string, order: Order, tokenHash: string): Promise<void>;

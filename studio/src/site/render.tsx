@@ -76,12 +76,14 @@ export function SitePageView({
     siteKey: key,
     businessName: config.meta.businessName,
   };
+  const visible = page.sections.filter((s) => !s.hidden);
+  // Every page gets one main heading: the hero's, or else the first section's (sections written by AI are framed, so not theirs).
+  const hasH1 = !!insert || visible.some((s) => s.type === 'hero' || s.type === 'product-detail');
+  const mainHeadingId = hasH1 ? null : (visible.find((s) => !['navbar', 'footer', 'whatsapp-float', 'custom'].includes(s.type))?.id ?? null);
   return (
     <div className={`sono-site ${className}`} style={themeStyle(config.theme)} data-motion={config.theme.motion ?? 'none'}>
       <div className="s-root" lang={config.meta.language}>
-        {page.sections
-          .filter((s) => !s.hidden)
-          .map((s, i, list) => [
+        {visible.map((s, i, list) => [
             <div
               key={s.id}
               // Section ids double as anchors (/#offer). The floating WhatsApp button must not get its own box,
@@ -92,7 +94,7 @@ export function SitePageView({
               data-s={s.type}
               {...(ctx.editable ? { 'data-section-id': s.id, 'data-section-type': s.type } : {})}
             >
-              {renderSection(s, sectionCtx)}
+              {renderSection(s, s.id === mainHeadingId ? { ...sectionCtx, mainHeading: true } : sectionCtx)}
             </div>,
             insert && (s.type === 'navbar' ? !list.slice(0, i).some((x) => x.type === 'navbar') : i === 0 && !list.some((x) => x.type === 'navbar')) ? <main key="insert">{insert}</main> : null,
           ])}

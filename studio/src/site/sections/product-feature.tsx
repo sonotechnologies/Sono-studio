@@ -1,5 +1,5 @@
 import type { SectionOf } from '../schema';
-import { Container, Eyebrow, SiteA, SiteImg, edit, type RenderCtx } from '../primitives';
+import { Container, Eyebrow, MainOr2, SiteA, SiteImg, edit, type RenderCtx } from '../primitives';
 import { AddToCart } from '../store/cart';
 import { Price } from './product-grid';
 
@@ -28,9 +28,9 @@ export function ProductFeature({ section, ctx }: Props) {
         </SiteA>
         <div className={`flex flex-col gap-4 ${centered ? 'items-center' : ''}`}>
           <Eyebrow ctx={ctx} text={c.eyebrow} />
-          <h2 {...(c.heading ? edit(ctx, 'heading') : {})} className="s-heading s-h2">
+          <MainOr2 ctx={ctx} {...(c.heading ? edit(ctx, 'heading') : {})} className="s-heading s-h2">
             {c.heading || product.name}
-          </h2>
+          </MainOr2>
           <Price product={product} currency={store.currency} className="text-[1.2em]" />
           {product.description && <p className="m-0 max-w-[36em] text-site-muted">{product.description}</p>}
           <AddToCart site={ctx.siteKey ?? 'site'} product={{ id: product.id, name: product.name, price: product.price, image: product.image.src }} options={product.options} soldOut={product.soldOut} className={centered ? 'items-center' : 'items-start'} />
